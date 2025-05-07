@@ -15,19 +15,15 @@ import os
 
 import torch
 from lightning.pytorch import Callback, Trainer
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.speechlm2 import DataModule, DuplexS2SDataset, DuplexS2SModel
+from nemo.collections.speechlm2.parts.precision import HalfPrecisionForAudio
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
 
 torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
-torch.set_float32_matmul_precision("high")
-
-# During the training, the checkpoint format is standard PTL ckpt
-# After the training -> convert to HF instead of .nemo ?
-# Add a callback that does the above conversion at every checkpoint save
 
 
 class PROFILING(Callback):
@@ -37,7 +33,7 @@ class PROFILING(Callback):
     def on_train_batch_start(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch, batch_idx: int
     ) -> None:
-        if batch_idx == 0:
+        if batch_idx == 5:
             print("STARTING PROFILE")
             torch.cuda.profiler.cudart().cudaProfilerStart()
 
@@ -54,7 +50,12 @@ def train(cfg):
     OmegaConf.resolve(cfg)
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
+    torch.backends.cudnn.allow_tf32 = True
+    precision = cfg.trainer.get("precision", "bf16-true")
+    with open_dict(cfg):
+        cfg.trainer.pop("precision", None)
     trainer = Trainer(
+        plugins=[HalfPrecisionForAudio(precision)],
         **resolve_trainer_cfg(cfg.trainer),
         # callbacks=[PROFILING()],
     )

@@ -57,10 +57,7 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         self.save_hyperparameters()
         self.cfg = DictConfig(cfg)
 
-        self.audio_codec = load_pretrained_nemo(
-            AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
-        ).eval()
-        del self.audio_codec.discriminator  # free up some memory
+        self.setup_audio_codec()
         self._codebook_size = self.audio_codec.vector_quantizer.codebook_size_per_group
         self._num_codebooks = self.audio_codec.vector_quantizer.num_groups
 
@@ -69,9 +66,7 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         # However, for S2S we need to access the activations before LM head directly
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-        llm = load_pretrained_hf(
-            self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights, dtype=torch.bfloat16
-        ).train()
+        llm = load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights).train()
         self.llm = llm.model  # fetch PretrainedBaseModel from model "ForCausalLM"
         self.lm_head = llm.lm_head
         # Note: we have to "move out" the token embedding outside of LLM to avoid
@@ -107,6 +102,16 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
 
         self._use_fsdp = False
         self._use_tp = False
+
+    def setup_audio_codec(self):
+        """Workaround for PTL auto-downcasting the codec model to bf16 with bf16-true precision."""
+        if hasattr(self, "audio_codec") and next(self.audio_codec.parameters()).dtype == torch.float:
+            return  # skip if already set up and has the right dtype
+        with _safe_audio_codec_precision():
+            self.audio_codec = load_pretrained_nemo(
+                AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
+            ).eval()
+        del self.audio_codec.discriminator  # free up some memory
 
     @property
     def speech_vocab_size(self):
@@ -200,13 +205,6 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         * Take care of any necessary slicing to align the shapes of source audio,
             target audio, and target token ids.
         """
-
-        # def print(*args, **kwargs):
-        #     if hasattr(self, "device_mesh") and self.device_mesh is not None:
-        #         builtins.print(f"[{self.device_mesh.get_coordinate()}]", *args, **kwargs)
-        #     else:
-        #         builtins.print(f"[{torch.distributed.get_rank()}]", *args, **kwargs)
-
         # Source audio encoding.
         # Input audio: (B, T_samples)
         # Encoded: (B, T, H)
@@ -233,11 +231,11 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         # Target audio encoding.
         # Input target audio: (B, T_samples')
         # Output target codes: (B, K, T)
-        with _safe_audio_codec_inference():
+        with _safe_audio_codec_precision(), torch.no_grad():
             target_codes, target_codes_lens = self.audio_codec.encode(
                 audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
             )
-            target_codes = target_codes.transpose(1, 2)  # (B, K, T) -> (B, T, K)
+        target_codes = target_codes.transpose(1, 2)  # (B, K, T) -> (B, T, K)
 
         # Note: Because we are using separate models for source and target representations,
         #       despite best-effort attempt to align their frame rates, they may be off by a few frames.
@@ -350,7 +348,11 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         self.log_dict(ans, on_step=True)
         return ans
 
+    def on_train_epoch_start(self) -> None:
+        self.setup_audio_codec()  # potentially reloads the audio codec to make sure it's in fp32
+
     def on_validation_epoch_start(self) -> None:
+        self.on_train_epoch_start()
         self.asr_bleu = ASRBLEU(self.cfg.scoring_asr).reset()
         self.bleu = BLEU().reset()
 
@@ -367,28 +369,23 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             if dataset_batch is None:
                 continue  # some dataset is exhausted
 
-            gen_text, gen_audio_codes, lengths = self.offline_inference(
+            results = self.offline_inference(
                 dataset_batch["source_audio"],
                 dataset_batch["source_audio_lens"],
             )
 
-            with _safe_audio_codec_inference():
-                gen_audio_codes = replace_control_speech_codes(gen_audio_codes, self._control_codes)
-                predicted_audio, predicted_audio_lens = self.audio_codec.decode(
-                    tokens=gen_audio_codes.transpose(1, 2), tokens_len=lengths
+            with _safe_audio_codec_precision():  # torchaudio resample is fragile to bfloat16 default dtype as well
+                self.asr_bleu.update(
+                    name=name,
+                    refs=dataset_batch["target_texts"],
+                    pred_audio=torchaudio.functional.resample(results["audio"], 22050, 16000),
+                    pred_audio_lens=(results["audio_len"] / 22050 * 16000).to(torch.long),
                 )
-
-            self.asr_bleu.update(
-                name=name,
-                refs=dataset_batch["target_texts"],
-                pred_audio=torchaudio.functional.resample(predicted_audio.float(), 22050, 16000),
-                pred_audio_lens=(predicted_audio_lens / 22050 * 16000).to(torch.long),
-            )
 
             self.bleu.update(
                 name=name,
                 refs=dataset_batch["target_texts"],
-                hyps=tokens_to_str(gen_text, lengths, self.tokenizer, self.text_pad_id),
+                hyps=tokens_to_str(results["tokens_text"], results["tokens_len"], self.tokenizer, self.text_pad_id),
             )
 
     def on_test_epoch_start(self) -> None:
@@ -491,8 +488,8 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         }
 
         if decode_audio:
-            with _safe_audio_codec_inference():
-                gen_audio_codes = replace_control_speech_codes(gen_audio, self._control_codes)
+            gen_audio_codes = replace_control_speech_codes(gen_audio, self._control_codes)
+            with _safe_audio_codec_precision(), torch.no_grad():
                 predicted_audio, predicted_audio_lens = self.audio_codec.decode(
                     tokens=gen_audio_codes.transpose(1, 2), tokens_len=lengths
                 )
@@ -633,26 +630,6 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             self.perception = fully_shard(self.perception, **fsdp_config)
 
 
-@contextmanager
-def _safe_audio_codec_inference(codec_dtype: torch.dtype = torch.bfloat16):
-    """
-    Works around an issue where PTL setting of precision='bf16-true'
-    interferes with padding shape computations inside of audio codec convolutional layers.
-    This is because bf16-true temporarily changes the default float dtype to bf16,
-    which cannot represent integers used in shape computations, and truncates them.
-    """
-    default_dtype = torch.get_default_dtype()
-    torch.set_default_dtype(torch.float32)
-    with (
-        torch.no_grad(),
-        torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=codec_dtype),
-    ):
-        try:
-            yield
-        finally:
-            torch.set_default_dtype(default_dtype)
-
-
 def replace_control_speech_codes(speech_codes: torch.Tensor, control_codes: torch.Tensor) -> torch.Tensor:
     """
     Replaces control codes (speech BOS, EOS, etc) in `speech_codes` with the first frame which is
@@ -668,3 +645,20 @@ def tokens_to_str(tokens: torch.Tensor, lengths: torch.Tensor, tokenizer: AutoTo
         hyp_ids = hyp_ids[hyp_ids != pad_id]
         ans.append(tokenizer.ids_to_text(hyp_ids))
     return ans
+
+
+@contextmanager
+def _safe_audio_codec_precision():
+    """
+    Works around an issue where PTL setting of precision='bf16-true'
+    interferes with padding shape computations inside of audio codec convolutional layers.
+    This is because bf16-true temporarily changes the default float dtype to bf16,
+    which cannot represent integers used in shape computations, and truncates them.
+    """
+    default_dtype = torch.get_default_dtype()
+    torch.set_default_dtype(torch.float32)
+    try:
+        with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.float32):
+            yield
+    finally:
+        torch.set_default_dtype(default_dtype)
