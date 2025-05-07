@@ -88,13 +88,13 @@ def parse_args():
     parser.add_argument(
         "--num_cpus",
         type=int,
-        default=1,
+        default=16,
         help="Number of CPUs to allocate for the Ray cluster",
     )
     parser.add_argument(
         "--num_gpus",
         type=int,
-        default=1,
+        default=2,
         help="Number of GPUs to allocate for the Ray cluster",
     )
     parser.add_argument(
@@ -177,9 +177,7 @@ def main():
             tensor_model_parallel_size=args.tensor_model_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
             context_parallel_size=args.context_parallel_size,
-            expert_model_parallel_size=args.expert_model_parallel_size,
-            model_id=args.model_id,
-            legacy_ckpt=args.legacy_ckpt,
+            model_id=args.model_id
         )
 
         # Deploy the model

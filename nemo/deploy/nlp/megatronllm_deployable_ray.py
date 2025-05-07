@@ -211,8 +211,10 @@ class MegatronLLMRayDeployable:
             # Extract parameters from the request dictionary
             messages = request.get('messages', [])
 
-            # Convert messages to a single prompt using the model's chat template
-            prompt = self.model.apply_chat_template(messages, add_generation_prompt=True)
+
+            # Convert messages to a single prompt
+            prompt = "\n".join([f"{msg.get('role', 'user')}: {msg.get('content', '')}" for msg in messages])
+            prompt += "\nassistant:"
 
             # Prepare inference parameters
             inference_inputs = {
