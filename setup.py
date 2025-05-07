@@ -192,7 +192,7 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     python_requires='>=3.10',
-    # install_requires=install_requires,
+    install_requires=install_requires,
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # $ pip install -e ".[all]"
@@ -207,4 +207,5 @@ setuptools.setup(
     keywords=__keywords__,
     # Custom commands.
     cmdclass={'style': StyleCommand},
+    dependency_links=['https://pypi.nvidia.com/'],
 )
