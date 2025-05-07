@@ -327,14 +327,6 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-pg",
-        "--profiling_gpu_metrics",
-        help="Enable CUDA graphs. Disabled by default",
-        action="store_true",
-        required=False,
-        default=False, 
-    )
-    parser.add_argument(
         "-pss",
         "--profiling_start_step",
         type=int,
