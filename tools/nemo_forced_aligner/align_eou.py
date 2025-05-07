@@ -19,6 +19,7 @@ import os
 import shutil
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
+from string import punctuation
 from typing import List, Optional
 
 import torch
@@ -163,6 +164,30 @@ class AlignmentConfig:
 
     # remove tmp dir after alignment
     remove_tmp_dir: bool = False
+    clean_text: bool = True
+
+
+def clean_text(manifest: List[dict]):
+    punctuations = punctuation.replace("'", "")
+    # replace_with_space = [char for char in '/?*\",.:=?_{|}~¨«·»¡¿„…‧‹›≪≫!:;ː→']
+    replace_with_blank = [char for char in '`¨´‘’“”`ʻ‘’“"‘”']
+    replace_with_apos = [char for char in '‘’ʻ‘’‘']
+
+    valid_chars = "abcdefghijklmnopqrstuvwxyz'"
+    for i in range(len(manifest)):
+        text = manifest[i]["text"].strip().lower()  # type: str
+        text = text.translate(str.maketrans("", "", punctuations))
+        new_text = ""
+        for c in text:
+            if c in valid_chars:
+                new_text += c
+        text = new_text
+        for c in replace_with_blank:
+            text = text.replace(c, "")
+        for c in replace_with_apos:
+            text = text.replace(c, "'")
+        manifest[i]["text"] = text
+    return manifest
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -369,6 +394,8 @@ def process_single_manifest(cfg, model, buffered_chunk_params, viterbi_device):
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
+        if cfg.clean_text:
+            manifest_lines_batch = clean_text(manifest_lines_batch)
         (
             log_probs_batch,
             y_batch,

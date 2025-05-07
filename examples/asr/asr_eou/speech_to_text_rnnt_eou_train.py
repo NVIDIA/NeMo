@@ -174,8 +174,6 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     # shape: [num_classes+2, hid_dim]
     joint_state['2.weight'][:-3, :] = pretrained_joint_clf_weight[:-1, :]  # everything except EOU, EOB and blank
     joint_state['2.weight'][-1, :] = pretrained_joint_clf_weight[-1, :]  # blank class
-    joint_state['2.weight'][-2, :] = 0.0001  # EOB class
-    joint_state['2.weight'][-3, :] = 0.0001  # EOU class
     if pretrained_joint_clf_bias is not None and '2.bias' in joint_state:
         joint_state['2.bias'][:-3] = pretrained_joint_clf_bias[:-1]  # everything except EOU, EOB and blank
         joint_state['2.bias'][-1] = pretrained_joint_clf_bias[-1]  # blank class
