@@ -31,25 +31,15 @@ from collections import deque
 from nemo.collections.asr.parts.submodules.ngram_lm.constants import DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.parts import NEG_INF
 from nemo.core import ModelPT, PretrainedModelInfo
-from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE, kenlm_required, triton_required
+from nemo.core.utils.optional_libs import TRITON_AVAILABLE, triton_required
 from nemo.utils import logging
-
-if KENLM_AVAILABLE:
-    import kenlm
 
 if TRITON_AVAILABLE:
     import triton
-
     from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_triton import ngram_advance_triton_kernel
 
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.context_biasing.gpu_boosting.context_graph import ContextGraph, ContextState
-
-# Define constants for parsing ARPA
-_BOS_ID = -1  # Begin-of-Sentence
-_EOS_ID = -2  # End-of-Sentence
-_UNK_ID = -3  # Unk
-_SPECIAL_SYMBOLS_MAP = {"<s>": _BOS_ID, "</s>": _EOS_ID, "<unk>": _UNK_ID}
-
 
 
 class TBranch(NamedTuple):
@@ -66,14 +56,6 @@ class Arc(NamedTuple):
     weight: float
     ilabel: int
     to: int
-
-
-class NGram(NamedTuple):
-    """Structure (tuple) to represent N-Gram element (symbols, weight, backoff)"""
-
-    symbols: tuple[int, ...]
-    weight: float
-    backoff: float
 
 
 @dataclass
@@ -93,12 +75,9 @@ class SuffixTreeStorage:
     arcs: np.ndarray = field(init=False)
     states: np.ndarray = field(init=False)
 
-    _arc_cache: dict[tuple[int, ...], int] = field(default_factory=dict)
-
     _node_cache: dict[int, int] = field(default_factory=dict)
 
     unk_score: float = 0.0
-    normalize_unk: bool = True
 
     num_states: int = 0
     num_arcs: int = 0
@@ -135,24 +114,11 @@ class SuffixTreeStorage:
         self.bos_state = 1 if separate_bos_state else self.start_state
         self._node_cache[0] = 0
 
-    def _add_tbranches_first_order(self, tbranches: list, bos_id: int, unk_id: int):
-        """Add all unigrams"""
-        assert bos_id < 0 and unk_id < 0
-        bos_unigram = None
+    def _add_tbranches_first_order(self, tbranches: list):
+        """Add all first order tbranches to the model (similar with unigrams for N-Gram LM)"""
 
-        # import pdb; pdb.set_trace()
-        # tbranches.sort(order="symbol")
         tbranches = sorted(tbranches, key=lambda x: (x.start_node.id, x.symbol))
-        # for tbranch in tbranches:
-        #     # assert len(ngram["symbols"]) == 1  # unigrams
-        #     symbol = tbranch["symbol"]
-        #     if symbol == unk_id:
-        #         self.unk_prob = ngram["weight"]
-        #     elif symbol == bos_id:
-        #         bos_unigram = ngram
-        # assert bos_unigram is not None
 
-        # self.num_states = 2  # SOS + BOS
         self.num_states = 1
         self.num_arcs = 0
         # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
@@ -161,26 +127,19 @@ class SuffixTreeStorage:
         num_vocab_labels = 0
         for tbranch in tbranches:
             ilabel = tbranch.symbol
-            # if ilabel < 0:
-            #     # special symbol
-            #     if ilabel == _EOS_ID:
-            #         self.states[self.start_state]["final"] = ngram["weight"]
-            #     continue
             assert ilabel < self.vocab_size
             arc_id = ilabel
             added_symbols.add(ilabel)
             next_state = self.num_states
             self.num_states += 1
             self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.token_score)
-            # self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.level)
             self.num_arcs += 1
 
+            # TODO: do we need to increase arc weigth in the case of the final node (end of phrase)?
             if tbranch.next_node.is_end:
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
-
-            # backoff_weight = 0.0
 
             # state order
             self.states[next_state] = (
@@ -200,41 +159,28 @@ class SuffixTreeStorage:
                 self.num_arcs += 1
 
 
-    def _add_tbranches_next_order(self, tbranches: list, bos_id: int):
+    def _add_tbranches_next_order(self, tbranches: list):
         """Add tbranches for the order > 1; should be called after adding unigrams, using increasing order"""
         tbranches = sorted(tbranches, key=lambda x: (x.start_node.id, x.symbol))
-        new_arc_cache = dict()
-        # import pdb; pdb.set_trace()
+
         for tbranch in tqdm(tbranches):
             ilabel = tbranch.symbol
-            # import pdb; pdb.set_trace()
-            # from_state = self._find_state(symbols[:-1], bos_id=bos_id)
             from_state = self._node_cache[tbranch.start_node.id]
-            # if ilabel < 0:
-            #     assert ilabel == _EOS_ID
-            #     self.states[from_state]["final"] = ngram["weight"]
-            #     continue
             assert ilabel < self.vocab_size
-            # backoff_state = self._find_state(symbols[1:], bos_id=bos_id)
             backoff_state = self._node_cache[tbranch.next_node.fail.id]
 
+            # TODO: do we need to increase arc weigth in the case of the final node (end of phrase)?
             if tbranch.next_node.is_end:
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
-
-            # backoff_weight = 0.0
-
-            # print(f"from_state: {from_state}, backoff_state: {backoff_state}, backoff_weight: {backoff_weight}")
-            # import pdb; pdb.set_trace()
 
             arc_id = self.num_arcs
             next_state = self.num_states
             self.num_arcs += 1
             self.num_states += 1
             self.arcs[arc_id] = (from_state, next_state, ilabel, tbranch.next_node.token_score)
-            # self.arcs[arc_id] = (from_state, next_state, ilabel, tbranch.next_node.level)
-            # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
+
             self.states[next_state] = (
                 0,
                 0,
@@ -245,7 +191,6 @@ class SuffixTreeStorage:
             )
             
             self._node_cache[tbranch.next_node.id] = next_state
-            # import pdb; pdb.set_trace()
             
             if self.states[from_state]["arcs_start"] == 0:
                 self.states[from_state]["arcs_start"] = arc_id
@@ -253,57 +198,30 @@ class SuffixTreeStorage:
             else:
                 assert self.states[from_state]["arcs_end"] == arc_id
                 self.states[from_state]["arcs_end"] = arc_id + 1
-            # cache state
-            # new_arc_cache[symbols] = next_state
-        # self._arc_cache = new_arc_cache  # replace arc cache, previous is not needed
 
-    def _start_adding_ngrams_for_order(self, order: int, max_tbranches: int):
-        """Prepare for adding ngrams for the given order: initialize temporary storage"""
+
+    def _start_adding_tbranches_for_order(self, order: int, max_tbranches: int):
+        """Prepare for adding tbranches for the given order: initialize temporary storage"""
         self._start_arcs = self.num_arcs
         self._cur_order = order
         self._tbranches = []
         self._tbranches_cnt = 0
-        # for max order - no need in accumulator
 
 
-    def _end_adding_ngrams_for_order(self, order: int, bos_id: int, unk_id: int):
+    def _end_adding_tbranches_for_order(self, order: int):
         """Finish adding ngrams for the given order"""
         if order == 1:
             assert len(self._tbranches) == self._tbranches_cnt
-            self._add_tbranches_first_order(tbranches=self._tbranches, bos_id=bos_id, unk_id=unk_id)
+            self._add_tbranches_first_order(tbranches=self._tbranches)
             self._tbranches = None
             self._tbranches_cnt = 0
         # elif order < self.max_order:
         else:
             assert len(self._tbranches) == self._tbranches_cnt
-            self._add_tbranches_next_order(tbranches=self._tbranches, bos_id=bos_id)
+            self._add_tbranches_next_order(tbranches=self._tbranches)
             self._tbranches = None
             self._tbranches_cnt = 0
-        # else:
-        #     self._end_adding_ngrams_max_order()
 
-    def _add_ngram_max_order(self, ngram: NGram, bos_id: int):
-        """Add ngram for the maximum order"""
-        ilabel = ngram.symbols[-1]
-        from_state = self._find_state(ngram.symbols[:-1], bos_id=bos_id)
-        if ilabel < 0:
-            assert ilabel == _EOS_ID
-            self.states[from_state]["final"] = ngram.weight
-            return
-        backoff_state = self._find_state(ngram.symbols[1:], bos_id=bos_id)
-
-        arc_id = self.num_arcs
-        self.num_arcs += 1
-        self.arcs[arc_id] = (from_state, backoff_state, ilabel, ngram.weight)
-
-    def _end_adding_ngrams_max_order(self):
-        """Finish adding ngrams for the maximum order"""
-        self.arcs[self._start_arcs : self.num_arcs].sort(order=["from", "ilabel"])
-        for arc_i in range(self._start_arcs, self.num_arcs):
-            from_state = self.arcs[arc_i]["from"]
-            if self.states[from_state]["arcs_start"] == 0:
-                self.states[from_state]["arcs_start"] = arc_i
-            self.states[from_state]["arcs_end"] = arc_i + 1
 
     def sanity_check(self):
         """Sanity check for the model"""
@@ -312,7 +230,7 @@ class SuffixTreeStorage:
 
 
 @dataclass
-class NGramLMConfig:
+class BoostingTreeConfig:
     """
     N-Gram LM Config
     """
@@ -325,7 +243,7 @@ class NGramLMConfig:
     use_triton: bool | None = None
 
 
-class GPUBoostingTreeModel(ModelPT):
+class GPUBoostingTreeModel(NGramGPULanguageModel):
     """
     GPU-accelerated boosting tree supporting batched queries.
     Fast implementation for parallel queries for full vocabulary.
@@ -358,7 +276,7 @@ class GPUBoostingTreeModel(ModelPT):
             trainer: Lightning trainer (optional)
         """
         super().__init__(cfg=cfg, trainer=trainer)
-        cfg = cast(NGramLMConfig, cfg)
+        cfg = cast(BoostingTreeConfig, cfg)
         self.use_triton = cfg.use_triton if cfg.use_triton is not None else TRITON_AVAILABLE
         if not self.use_triton:
             logging.warning(
@@ -439,7 +357,7 @@ class GPUBoostingTreeModel(ModelPT):
         cb_tree: ContextGraph,
     ) -> tuple[dict[int, int], list[TBranch]]:
         """
-        Read context-biasing graph from icefall and return branches in TBranch format.
+        Read context-biasing graph from Icefall and return branches in TBranch format.
 
         Args:
             cb_tree: context graph
@@ -452,6 +370,7 @@ class GPUBoostingTreeModel(ModelPT):
         order2cnt = {}
         tbranches_list = []
 
+        # read context graph tree in breadth-first order to add branches for suffix tree generation
         while len(queue):
             current_node = queue.popleft()
             for token, node in current_node.next.items():
@@ -459,9 +378,6 @@ class GPUBoostingTreeModel(ModelPT):
                     tbranches_list.append(TBranch(symbol=token, start_node=current_node, next_node=node))
                     order2cnt[node.level] = order2cnt.get(node.level, 0) + 1
                     queue.append(node)
-        
-        # import pdb; pdb.set_trace()
-        # tbranches_list = sorted(tbranches_list, key=lambda x: x.start_node.id)
         
         return order2cnt, tbranches_list
 
@@ -473,24 +389,22 @@ class GPUBoostingTreeModel(ModelPT):
         vocab_size: int,
         unk_score: float = True,
         use_triton: bool | None = None,
-        token_offset: int = DEFAULT_TOKEN_OFFSET,
     ) -> "GPUBoostingTreeModel":
         """
-        Constructor from ARPA LM (text format).
+        Constructor from Icefall context graph (dict-based tree).
 
         Args:
-            lm_path: path to ARPA model (human-readable)
+            cb_tree: context-biasing graph
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
             unk_score: score for unknown tokens
             use_triton: allow using Triton implementation;
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
-            token_offset: offset for the tokens used for building ARPA LM
 
         Returns:
             GPUBoostingTreeModel instance
         """
-        logging.info(f"{cls.__name__}: reading LM from {cb_tree}")
+        logging.info(f"{cls.__name__}: reading boosting tree from {cb_tree}")
 
         order2cnt, tbranches_list = cls._read_cb_tree(cb_tree=cb_tree)
 
@@ -510,11 +424,10 @@ class GPUBoostingTreeModel(ModelPT):
         tbranch_cur_order_i = 0
         cur_order = 1
 
-        # import pdb; pdb.set_trace()
         for tbranch in tqdm(tbranches_list, total=len(tbranches_list)):
 
             if tbranch_cur_order_i == 0:
-                suffix_tree_np._start_adding_ngrams_for_order(order=cur_order, max_tbranches=order2cnt[cur_order])
+                suffix_tree_np._start_adding_tbranches_for_order(order=cur_order, max_tbranches=order2cnt[cur_order])
             tbranch_cur_order_i += 1
 
             # add tbranch
@@ -522,15 +435,13 @@ class GPUBoostingTreeModel(ModelPT):
             suffix_tree_np._tbranches_cnt += 1
             
             if tbranch_cur_order_i == order2cnt[cur_order]:
-                suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=_BOS_ID, unk_id=_UNK_ID)
+                suffix_tree_np._end_adding_tbranches_for_order(order=cur_order)
                 logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
                 cur_order += 1
                 tbranch_cur_order_i = 0
-                # import pdb; pdb.set_trace()
 
         assert tbranch_cur_order_i == 0
         suffix_tree_np.sanity_check()
-        # import pdb; pdb.set_trace()
 
         return GPUBoostingTreeModel.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
 
@@ -553,7 +464,7 @@ class GPUBoostingTreeModel(ModelPT):
         """
         model = GPUBoostingTreeModel(
             OmegaConf.structured(
-                NGramLMConfig(
+                BoostingTreeConfig(
                     num_states=suffix_tree_np.num_states,
                     num_arcs=suffix_tree_np.num_arcs,
                     max_order=suffix_tree_np.max_order,

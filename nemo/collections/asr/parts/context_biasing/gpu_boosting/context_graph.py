@@ -214,9 +214,8 @@ class ContextGraph:
             for i, token in enumerate(tokens):
                 node_next = {}
                 if token not in node.next:
-                    # context_score = i + 1 # add node level
                     if i > 0:
-                        token_score = context_score + np.log(5*i) # add node level
+                        token_score = context_score + np.log(5*i) # assign a larger score for all tokens after the first one
                     else:
                         token_score = context_score
                     self.num_nodes += 1
