@@ -187,6 +187,10 @@ class NsysPlugin(run.Plugin):
             "--nvtx-domain-include=NCCL",
         ]
 
+        # if override is provided (defaults will be discarded)
+        if self.nsys_extra_args:
+            launcher.nsys_extra_args = self.nsys_extra_args
+
 
 @dataclass(kw_only=True)
 class MemoryProfilePlugin(run.Plugin):
