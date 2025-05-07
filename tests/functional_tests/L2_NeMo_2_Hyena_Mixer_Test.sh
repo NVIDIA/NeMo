@@ -27,12 +27,13 @@ mkdir -p $LOG_DIR
 # Set visible devices
 export CUDA_VISIBLE_DEVICES=0,1
 
-# Run the test with torchrun and coverage
+# Run the test with torchrun via coverage
 echo "Running Hyena Mixer CP test with torchrun..."
 coverage run -a \
     --data-file=/workspace/.coverage \
     --source=/workspace/nemo \
-    torchrun --nproc_per_node=2 \
+    -m torch.distributed.run \
+    --nproc_per_node=2 \
     tests/collections/llm/gpt/model/test_hyena_mixer_cp.py \
     --data_type=mock \
     --use_toy_model \
