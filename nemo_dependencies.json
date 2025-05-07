@@ -1,0 +1,5785 @@
+{
+    "nemo/utils": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/model_utils.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/import_utils.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/llm": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/ckpt_utils.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/exp_manager.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/strategies/utils.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/tokenizer_spec.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/resume.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/io/mixin.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/get_rank.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/utils.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/huggingface/auto_tokenizer.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/io/pl.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/strategies/megatron_strategy.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/plugins/data_sampler.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/megatron_parallel.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/peft.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/base.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/data.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/dataset.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/common.py": [
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/mixins/access_mixins.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/modelPT.py": [
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/deploy/nlp/query_llm.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/nemo_ckpt_loader/nemo_file.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/parts/utils_funcs.py": [
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/distributed.py": [
+        "export-deploy",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/export/tensorrt_llm.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/deploy/deploy_pytriton.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/deploy/nlp/megatronllm_deployable.py": [
+        "automodel",
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/optim": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/utils.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/mixins": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/hf_auto_model_for_causal_lm.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/sentencepiece_tokenizer.py": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/fn": [
+        "automodel",
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/app_state.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/optim/optimizers.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/optim": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/optim/optimizer_with_main_params.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/megatron_init.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/mcore_logger.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/model_checkpoint.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/env_var_parsing.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/plugins/mixed_precision.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/io": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/tp_overlap_configs/userbuffers.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/optim/megatron.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/peft/dora.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/io/hf.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/callbacks/ema.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/lightning_logger_patch.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/optim/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/optim/lr_scheduler.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/neural_types/elements.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/neural_types": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/data_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/connectors/save_restore_connector.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/module.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/exceptions.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/config": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/config/modelPT.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/metaclasses.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/s3_dirpath_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/callbacks/nemo_model_checkpoint.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/s3_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/loggers": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/callbacks": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/loggers/clearml_logger.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py": [
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/modules/perception_modules.py": [
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/modelopt": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/evaluation/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/deploy/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/evaluation/api.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core/training_config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/api.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core/base_config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/tools/auto_configurator/core": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/llama.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/peft": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/llama_nemotron_config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/peft/canonical_lora.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/io/state.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/fn/activation.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/llama4_utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_layer_specs.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/tokenizer_utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_model.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/automodel/dist_utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/automodel/loss/masked_ce.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/automodel/loss/linear_ce.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/accelerate/transformer_engine.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/gemma2.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gpt_full_te_layer_autocast_spec.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/loss.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/hf_llama_embedding.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_block.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_layer.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_mixer.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/megatron/hyena/hyena_hybrid_layer_allocation.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/packed_sequence.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/core.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/fine_tuning.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/squad.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/dolly.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/hf_dataset.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/data/fine_tuning.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/hf_dataset_packed_sequence.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/sequence_packing_utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/inference/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/inference": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/modelopt/quantization/quant_cfg_choices.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/log/default.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/optim/adam.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/precision/mixed_precision.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/t5/data/core.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/t5/data/fine_tuning.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/peft/module_matcher.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/peft/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/peft/lora.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/adapter_modules.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/model": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/model/bert.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/model/bert_spec.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/data/core.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/nemotron.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/finetune_default.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/garbage_collection.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/megatron_comm_overlap.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/hyena_base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/qwen2.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/optim/lr_scheduler.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/t5/data/squad.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/t5/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/t5/model/t5.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/moe_token_drop.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/megatron/hyena": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/data/pre_training.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/flops_callback.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/starcoder2.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/gemma2.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/bert/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/bert.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/deepseek.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/deepseek.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/starcoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/phi3mini.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/starcoder2.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/nemotron.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/mistral.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/recipes/bert_embedding.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/mixtral.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/llm/gpt/model/qwen2.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_base_model.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/vision/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/model": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/model/qwen2vl.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/multimodal_tokens.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/layer_specs.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/model/vision.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/preloaded.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo.lightning.apex_utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/conversation.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/qwen2vl/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/mllama/model/vision.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llama4/model/vision.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/model/llava.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llama4/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/data/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/data/task_encoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/mllama/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/mllama/model/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/mllama/model/language.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/energon/sample_encoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/mllama/data/sample_encoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/energon/task_encoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/data/config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/data/preloaded.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/energon/config.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/clip/model": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/clip/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/clip/clip_dataset.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/clip/loss/clip_loss.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/clip/augmentations/augmentations.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/data/multimodal_tokens.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/data/conversation.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/data/sequence_packing.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llama4/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/neva/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/mllama/data/mock.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llava_next/model/base.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llava_next/model/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llava_next/data/sample.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llava_next/data/utils.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llava_next/data/vqa_sample_encoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vlm/llava_next/data/interleaved_sample_encoder.py": [
+        "automodel",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/asr_model.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics/metric_string_to_torchmetric.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/eval_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/parts/utils/data_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_sft_model.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/nlp_model.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/parts/nlp_overrides.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_model.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/prompt_fn.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/prompts/formatter.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/conformer_encoder.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/decorators/experimental.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/exportable.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/label_models.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/multi_layer_perceptron.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/tabular_tokenizer.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/modules/common/audio_text_generation_strategy.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/text_generation.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_text.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/preprocessing/segment.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/preprocessing/features.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_text_dataset.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/blendable_dataset.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/base_dataset_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/preprocessing": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/lhotse/text_adapters.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/lhotse/dataloader.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/preprocessing/perturb.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/mixins/adapter_mixins.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/losses/rnnt.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_decoding.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/ctc_decoding.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/mixins/mixins.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/metrics/wer.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/losses/ctc.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/mixins": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/rnnt_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/rnnt.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics/classification_accuracy.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/classes/loss.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/chat_template_mixin.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/aggregate_tokenizer.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/text_to_speech/ipa_lexicon.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/text_to_speech/tokenizer_utils.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/models/en_us_arpabet.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/text_to_speech/tts_tokenizers.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/export/tensorrt_lazy_compiler.py": [
+        "export-deploy",
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/nemo_logging.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/preprocessing/manifest.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/decorators/deprecated.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/losses": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/losses/cross_entropy.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/preprocessing/parsers.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/preprocessing/collections.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics/global_average_loss_metric.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/losses/smoothed_cross_entropy.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/optional_cuda_graphs.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/dataset.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics/punct_er.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/rnn.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/conformer_modules.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/huggingface/hf_audio_to_text_dataset.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/prompts": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/prompts/canary.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/metrics/classification_report.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/token_classifier.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/token_level_encoder_decoder.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/prompt_encoder.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/metrics/prompt_learning_metrics.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/parts": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/prompt_table.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/base_prompt_learning_dataset.py": [
+        "nemo2",
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/megatron_batch_samplers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/callbacks/dist_ckpt_io.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/utils/optional_libs.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/optim/mcore_optim.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/utils/neural_type_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/export_utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/utils/cloud.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/te_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/optim/distributed_adam.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/utils/k2_guard.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/utils/k2_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/deploy/triton_deployable.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/tarutils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/deploy/deploy_base.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/deploy/utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/utils/cast_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_softmax.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/submodules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/perf_metrics_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/export/multimodal/run.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/multimodal/build.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/utils": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/utils/utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/utils/lora_converter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/vllm/engine.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/vllm/model_loader.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/vllm/model_config.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/qnemo/tokenizer_utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/tensorrt_llm_run.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/converter/model_to_trt_llm_ckpt.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/qnemo": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/utils/constants.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/tensorrt_llm_build.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/converter/model_converter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/converter/utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/trt_llm/qnemo/utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/vllm/model_converters.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/sentencepiece_tokenizer.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/vllm/tokenizer_group.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/utils/model_loader.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/utils/_mock_import.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/export/tiktoken_tokenizer.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "nemo/collections/vision/data/megatron/vit_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/build_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vision/data/megatron/data_samplers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/data_samplers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vision/modules/vit/vit_backbone.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/layer_type.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/transformer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_layer_norm.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vision/modules/common/megatron/vision_transformer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vision/data/megatron/image_folder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/common/data_samplers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/vision/data/megatron/autoaugment.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/flux/model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/vae/autoencoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit_llama/dit_llama_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/sampler/edm/edm_pipeline.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/encoders/conditioner.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/utils/flux_ckpt_converter.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/flux/layers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/sampler/flow_matching/flow_match_euler_discrete.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_layer_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/utils/flux_pipeline_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/flux_controlnet/model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/flux_controlnet/layers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/flux/pipeline.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit_llama/dit_llama_layer_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_embeddings.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/dit/dit_attention.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/sampler/context_parallel.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/sampler/edm/edm.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/sampler/batch_ops.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/data/diffusion_mock_datamodule.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/models/model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/energon/base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/cosmos_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/vae/train_vae.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/data/diffusion_energon_datamodule.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo.collections.diffusion.train.pretrain": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/diffusion/vae/blocks.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/parts/mixins/adapter_mixin.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/data/build_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/text_generation_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/parts/peft_config.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/modules/common/audio_text_generation_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_gpt_sft_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_adapter_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/parts/mixins/nlp_adapter_mixins.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_decoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/models/modular_models.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/data/lhotse_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_llm/data/audio_text_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/nerf/txt2nerf_base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/loss/normal_consistency_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/materials/materials_base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/loss/laplacian_smooth_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/nerf/base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/vision_language_foundation/clip/megatron_clip_models.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/nsfw/nsfw_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/losses/clip_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/language_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/losses/siglip_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/ldm/ddpm.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/instruct_pix2pix/edit_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/openaimodel.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/parts/stable_diffusion/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/util.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/ddim.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/controlnet/controlnet_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/attention.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/sampler/batch_ops.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/parts/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/sampler/continuous_ddpm.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/sampler/sampler.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/nets.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/imagen/imagen_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/imagen/precond.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/parts/imagen/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/encoder/t5encoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/imagen/imagen.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/wrappers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/stable_diffusion/stable_diffusion_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/base_sampler.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/distributions/distributions.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/ldm/autoencoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/common/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/encoders/modules.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/dreambooth/dreambooth_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/neva/neva_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/adapters/parallel_adapters.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gpt_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/neva/conversation.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/parts/mixins/multimodal_adapter_mixins.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/neva/neva_energon_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/multimodal_llm/neva/neva_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_init.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/para_ddim.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/sampler_dpm.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/models/text_to_image/stable_diffusion/samplers/plms.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/sampling.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/parts/stable_diffusion/sdxl_helpers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/data": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/models/visual_hybrid_rnnt_ctc_models.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/models/visual_rnnt_models.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/models/visual_ctc_models.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/conv2d.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/resnet_bottleneck_block.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/resnet_block.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/global_avg_pool2d.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/permute.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/submodules/resnet.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/speech_cv/parts/preprocessing/features.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/background/nerf_background_base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/geometry/layers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/encoding.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo.collections.multimodal.modules.renderer.base_renderer.RendererBase": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/renderers/base_renderer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/geometry/nerf_base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/geometry/dmtet.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo.collections.multimodal.modules.renderer.base_renderer.BaseRenderer": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/guidance/txt2img_guidance_base.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/trt_engine.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/gridencoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/shencoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/torch_ngp/freqencoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/nerf/utils/activation.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/layers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/attention_alt.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/attention.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/blocks.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/imagen/diffusionmodules/embs.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/encoders/x_transformer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/modules/stable_diffusion/diffusionmodules/sampling_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/energon/conversation.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/nerf/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/nerf/cameras.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/stable_diffusion/augmentation/augmentations.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/common/webdataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/clip/imagenet_zeroshot_data.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/imagen/augmentations/corruption.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/imagen/augmentations/augmentations.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal/data/common/webdataset_s3.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/column_coder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/char_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/networks": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/modules": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/quantizers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/layers3d.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/video_tokenizers/modules/patching.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/parts/skills_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/canary_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/lhotse/sampling.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/lhotse/cutset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/data/lhotse/nemo_adapters.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/metrics/squim.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/parts/utils/audio.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/models/audio_to_audio.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/data/audio_to_audio_lhotse.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/data": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/parts/utils/callbacks.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/metrics/audio.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/parts/utils/maxine.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/multi_head_attention.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/losses/audio.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/modules/features.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/audio/parts/submodules/multichannel.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/manifest_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/multitask_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/optimization_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/map_loss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/grad_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/ml_loss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/utils/numba_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/graph_transducer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/rnnt_pytorch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/losses/rnnt_pytorch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/w_transducer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/utils": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/classes.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/ctc_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_ctm_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/rnnt_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/graph_decoder.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_text_dali.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/vad_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/metrics/multi_binary_acc.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/asr_multispeaker_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/mixins/diarization.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_diar_label_lhotse.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_diar_label.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/speaker_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/asr_confidence_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/hybrid_rnnt_ctc_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/mixins/transcription.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_text_lhotse.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/ssl_modules/masking.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/asr_batching.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/ctc_bpe_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/rnnt_bpe_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/metrics/der.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/classification_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_label.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_label_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/token_classifier.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_generators.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/timestamp_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/audio_to_text_lhotse_prompted.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/metrics/bleu.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/metrics": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/online_clustering.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/clustering_diarizer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/offline_clustering.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/slu_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/models/fastpitch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/utils/enum.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/text_to_text.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/hybrid_rnnt_ctc_bpe_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/models": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/batchnorm.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/configs/diarizer_config.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/audio_preprocessing.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/conv_asr.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/configs/asr_models_config.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/models/configs": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/streaming_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/mixins/asr_adapter_mixins.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/mixins/streaming.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/context_biasing/ctc_based_word_spotter.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/context_biasing/context_graph_ctc.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/graph_compilers.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/loss_mixins.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/rnnt_logprobs_triton.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/wfst_decoder.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/losses/lattice_losses.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/topologies.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/confidence_metrics.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/longform_clustering.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/multitask_beam_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/multitask_greedy_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_loop_labels_computer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/cuda_graph_rnnt_greedy_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/tdt_loop_labels_computer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/adapters/attention_adapter_mixin.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/causal_convs.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/jasper.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/rnnt_batched_beam_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/ngram_lm/ngram_lm_batched.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/utils/cuda_python_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/activations.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/flashlight_decoder.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/k2/graph_decoders.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/wfst_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/beam_search_decoder.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/ngram_lm/constants.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_malsd_batched_computer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_maes_batched_computer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/rnnt_beam_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/ctc_beam_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/tdt_malsd_batched_computer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/classifier.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/adapters/multi_head_attention_adapter_module.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/ngram_lm/ngram_lm_triton.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/utils/cpu_utils": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/utils": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/rnnt_loss/utils/cuda_utils": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/spectr_augment.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/spec_augment/spec_aug_numba.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/numba/spec_augment": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/subsampling.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/squeezeformer_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/submodules/tdnn_attention.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/regularization_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/bridge_encoders.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/reduction_encoders.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/perceiver_encoders.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_bottleneck.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_decoders.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/transformer_encoders.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/encoder_module.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/modules/transformer/decoder_module.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/ssl_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/preprocessing/feature_loader.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/feature_to_text.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/feature_to_label.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/parts/utils/data_simulation_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/data/huggingface/hf_audio_to_text.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/neural_types/neural_type.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/transformer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/utils/helpers.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/aligner_loss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/models/i18n_ipa.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/models/zh_cn_pinyin.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/data/t5.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/models/base.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/data/ctc.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/models/base.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/data/heteronym_classification.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/g2p/models/heteronym_classification.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/utils/callbacks.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/fastpitch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/fastpitchloss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/mixins/fastpitch_adapter_mixins.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/radttsloss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/core/optim/radam.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/tacotron2loss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/torch/tts_tokenizers.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/ssl_tts.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/data/dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/asr/losses/angularloss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/hifigan_losses.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/stftlosses.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/univnet_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/hifigan_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/utils/tts_dataset_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/models/audio_codec.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/vits_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/vits_losses.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/torch/tts_data_types.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/waveglowloss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/spectrogram_enhancer_losses.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/losses/audio_codec_loss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/audio_codec_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/common.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/models/speechllm/megatron_base_speechllm_prompt_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/data/speechllm/t5_speechllm_tarred_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/data/speechllm/t5_speechllm_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/models/hifigan.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/attribute_prediction_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/utils/splines.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/utils/distributed.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/monotonic_align": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/modules/aligner.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/preprocessing/feature_processors.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/tts/parts/preprocessing/features.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/decoder_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/encoder_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/huggingface_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/lm_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/text_classification/text_classification_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/zero_shot_intent_recognition/zero_shot_intent_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/losses/multi_similarity_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/entity_linking/entity_linking_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering_squad/qa_squad_processing.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/losses/spanning_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering_squad/qa_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_bert_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/question_answering/qa_base_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/metrics/qa_metrics.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/data_processor/qa_processing.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_gpt_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_s2s_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/sequence_token_classifier.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/intent_slot_classification": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/losses/aggregator.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/intent_slot_classification/intent_slot_classification_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/intent_slot_classification/multi_label_intent_slot_classification_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/intent_slot_classification/intent_slot_classification_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/utils/decorators": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/spellchecking_asr_customization": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/spellchecking_asr_customization/dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/xlm_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/common/sequence_to_sequence_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_export.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/machine_translation/mt_enc_dec_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_lm_encoder_decoder_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/moses_tokenizers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/en_ja_tokenizers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/bytelevel_tokenizers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/machine_translation/mt_enc_dec_config.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/indic_tokenizers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/enc_dec_nlp_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/chinese_tokenizers.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_bottleneck.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/megatron_bert_embedding_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/information_retrieval/information_retrieval_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/bert_embedding_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/information_retrieval/bert_embedding_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/bert/bert_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_bert_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/megatron_gpt_embedding_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/information_retrieval/gpt_embedding_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/bert/bert_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/information_retrieval/base_ir_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/sequence_regression.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/metrics/dialogue_metrics.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/ms_marco_data_processor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/mellon_qa_data_processor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_s2s_generation_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/sgd_data_processor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_gpt_generation_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_gpt_prompt_learning_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/assistant_data_processor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_bert_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/intent_slot_classification/intent_slot_classification_descriptor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/losses/sgd_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/sgd/evaluate.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/sgd/prediction_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/dialogue_state_tracking/sgd_decoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/design_data_processor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_nearest_neighbour_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_zero_shot_intent_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/thutmose_tagger_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics/perplexity.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text2sparql/text2sparql_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/glue_benchmark/glue_benchmark_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/glue_benchmark/metrics_for_glue.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/sequence_classifier.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_classification": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_classification/text_classification_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization/tagger_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/duplex_text_normalization/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization/decoder_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization/test_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization/utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/token_classification/punctuation_capitalization_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/token_classification/punctuation_capitalization_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/token_classification/punctuation_capitalization_infer_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/token_classification/punctuation_capitalization_config.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/token_classification/punctuation_capitalization_tarred_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/core/config/pytorch_lightning.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/token_classification/token_classification_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/data_utils/data_preprocessing.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/token_classification/token_classification_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_griffin_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/lm_bert_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_base_prompt_learning_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_prompt_learning_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/init.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_token_level_encoder_decoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/shape.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/text_generation_strategy.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/retro_dataset_legacy.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/retro_fine_tune_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_retrieval_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/t5_prompt_learning_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/falcon/falcon_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gemma2/gemma2_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gpt_layer_modelopt_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_fim_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/gemma2/gemma2_modules.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/t0_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/sentence_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/metrics/sequence_perplexity.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/dataset_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_t5_prompt_learning_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/t5_sft_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_chat_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/gpt_sft_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/griffin_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_mamba_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/attention.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/clip_grads.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/retro_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/recurrent_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/recurrent_layer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/griffin_block.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron/griffin/griffin_layer_spec.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/metrics/perf_metrics.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/adapters/mcore_mixins.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/adapters/qlora.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/classifier.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/retro_inference_strategies.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/models/language_modeling/megatron_retro_model.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/regex_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/word_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/null_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/common/tokenizers/tiktoken_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_services/retrieval_service.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_bias_gelu.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_utils.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/bert_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_services/util.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/chat_css.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/chatbot_component.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_modules.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/bridge_encoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/perceiver_encoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/reduction_encoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/huggingface_encoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/huggingface_decoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/transformer/transformer_encoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/hyena/hyena_filter.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/hyena/fftconv_wrapper.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/hyena/hyena.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/gpt_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/camembert.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/gpt2.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/distilbert.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/albert.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/roberta.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/huggingface/bert.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_transformer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_transformer_decoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding/alibi_relative_position_embedding.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding/rotary_position_embedding.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/position_embedding/xpos_position_embedding.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_decoder_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_encoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_decoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/layer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_transformer_encoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_perceiver_encoders.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_encoder_module.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/hiddens": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/layer_norm_1p.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_bias_geglu.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding.build_slopes": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding.build_relative_position": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/fused_bias_dropout_add.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mlp.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/megatron_encoder_decoder.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/vocab_parallel_cross_entropy.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/indexed_retrieval_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/retrieval_services/static_retrieval_server.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/mup/infshape.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/hiddens/megatron_hidden_transform.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/modules/common/megatron/hiddens/megatron_hidden_loss.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/glue_benchmark/data_processors.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/dataset/qa_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_bert_input_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_s2s_input_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_gpt_input_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/data_utils": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/question_answering/input_example/qa_input_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/spellchecking_asr_customization/bert_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/text_memmap_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/dataset/dialogue_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/input_example/sgd_input_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/input_example/input_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/data_processor/data_processor.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/dialogue/sgd/schema.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/metrics/sgd_metrics.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/tagging.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/text_normalization_as_tagging/bert_example.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/indexed_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/length_distribution_type.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/t5_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/bert_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/ul2_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/lm_adapted_t5_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/nlp/data/language_modeling/megatron/bart_dataset.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/multimodal_autoregressive/tokenizer/cosmos_multimodal_tokenizer.py": [
+        "nemo2",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/utils/model_transform.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/models/speech_to_text_llm_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/utils/text_generation/audio_text_generation_strategy.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/data/dataset/data_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/models/base.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/modules/modality_adapter.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/utils/text_generation/audio_text_generation_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/utils/io.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/modules/asr_module.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/api.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/callbacks/preemption.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/utils": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/data/audio_to_text_module.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/lightning/pytorch/optim/pytorch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/utils/hydra_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/data/data_sampler.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/data/dataset/audio_text_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/data/dataset/audio_text_lhotse_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "nemo/collections/speechlm/data/text_processing.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/deploy/test_deploy_query.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_query_multimodal.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_hf_import.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_deploy_base.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_deployment_service.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_hf_deployable.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_megatronllm_deployable.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_deploy_pytriton.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/nemo_deploy.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_triton_deployable.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_deploy_utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/deploy/test_query_llm.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_tiktoken_tokenizer.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_tensorrt_llm.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_mock_import.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_tensorrt_lazy_compiler.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_sentencepiece_tokenizer.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_onnx_llm_exporter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_trt_compile.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_tensorrt_mm_exporter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_vllm_hf_exporter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_model_loading.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_quantizer.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/nemo_export.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_tarutils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/test_export_onnx.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/utils/test_lora_converter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/utils/test_model_loader.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/utils/test_exp_utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/multimodal/test_build.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/multimodal/test_converter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/trt_llm/test_tensorrt_llm_export.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/trt_llm/converter/test_model_to_trt_llm_ckpt.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/trt_llm/converter/test_model_converter.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/export/trt_llm/converter/test_converter_utils.py": [
+        "export-deploy",
+        "unit-tests"
+    ],
+    "tests/collections/llm/megatron_t5_finetuning.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_mnist_model_nemo2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_hf_import.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/megatron_gpt_pretraining.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/lora_mistralai.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/megatron_mixtral_pretraining.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/megatron_t5_pretraining.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/common.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_mnist_model_nemo2_fsdp.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_fault_nvrx.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt_finetuning.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_api.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/llama3_pretraining.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert_pretraining.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_nemo_jit_cb.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/test_local_ckpt.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bitexact/mixtral/pretrain_mini_mixtral.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bitexact/mixtral/compare_ckpts.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_llama.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_hyena.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_mistral.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_starcoder.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_nemotron.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_phi3.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_nmh_nemo2_mlm_accuracy_match.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_gemma.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_chatglm.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_qwen2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_hf_llama_embedding.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_baichuan.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_ssm.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_starcoder2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_evo2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_llama_nemotron.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_mixtral.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_nemotronh.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_model_import.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_base.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/model/test_hyena_accuracy.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_squad.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_pre_training.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_utils.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_retrieval.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_mlperf_govreport.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_hf_datamodule_packed.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_alpaca_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_mock_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_packed_sequence.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_dolly_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_chat_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_core.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_fine_tune_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_hf_hellaswag.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_pre_training_data.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_hf_mockdataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/test_hf_datamodule.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/megatron/hyena/test_evo2_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/gpt/data/megatron/hyena/test_config.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/io/test_drop_unexpected_params.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/peft/lora_export.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/peft/lora_merge.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/test_loss.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/model/test_bert_base.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/model/test_embedding.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/model/test_bert_spec.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/model/test_bert.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/data/test_bert_pre_training.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/data/test_core_data.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/data/test_fine_tuning.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/data/test_specter.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/bert/data/test_mock.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_70b_16k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen2_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mixtral_8x7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mistral.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_8b_64k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_bert_embedding.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama31_405b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_starcoder2_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_t5_220m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mixtral_8x22b_64k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mixtral_8x7b_16k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama_embedding_1b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen2_500m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama31_70b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_starcoder2_3b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen25_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_hybrid_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron4_15b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen25_500m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron3_22b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama31_nemotron_ultra_253b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_370m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen25_32b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_hyena_1b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_bert_110m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_gemma2_27b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_gemma2_2b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotronh_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mixtral_8x7b_64k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen2_72b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama31_nemotron_70b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_70b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_8b_16k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_hyena_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_starcoder_15b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama2_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama32_1b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron3_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_70b_64k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama32_3b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_gpt3_175b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_deepseek_v2_lite.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron4_340b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotronh_56b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mixed_precision.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron4_15b_64k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen25_1p5b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_gemma2_9b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama33_nemotron_super_49b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_2_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_hyena_40b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen2_1p5b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_t5_3b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_deepseek_v3.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron3_4b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen25_72b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_t5_11b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_deepseek_v2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron3_22b_16k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_phi3_mini_4k_instruct.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_starcoder2_15b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotronh_47b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_130m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_executor.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_hyena_base.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_gemma_2b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_qwen25_14b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_chatglm3_6b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_baichuan2_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron3_22b_64k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama31_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_e5_340m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_780m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_1_3b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mixtral_8x22b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama31_nemotron_nano_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_mamba2_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_llama3_8b_128k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_bert_340m.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_nemotron4_15b_16k.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/recipes/test_gemma_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/auto_conf/test_autoconf_utils.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/auto_conf/test_generate_configs.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/_masked_cross_entropy.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/pretrain.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/sft_fsdp2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/pretrain_nemorun.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/sft_nemorun.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/utils.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/peft_hf.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/peft_nemorun.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/sft_nemorun_fsdp2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/hf/sft.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/conversion/test_import_from_hf.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/conversion/test_export_to_hf.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/conversion/test_hyena_import_from_hf.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/fn/test_activation.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/fn/test_mixin.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/llm/fn/test_base.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/clip/data/test_mock_dataset.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/neva/data/test_conversation.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/vision/test_llava_next_InternVIT.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/vision/test_base.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_clip_b32.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_mllama_11b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_llava_next_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_neva_llama3_8b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_mllama_90b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_llava15_13b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/recipes/test_llava15_7b.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/hf/sft_fsdp2.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/hf/test_hf_auto_model_for_image_text_to_text.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/hf/peft_hf.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/hf/test_hf_datamodule.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/llava_next/test_hf_conversion.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/llava_next/test_llava_next_train.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/llava_next/test_interleaved_sample_encoder.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/llava_next/test_vqa_sample_encoder.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/vlm/llava_next/test_task_encoder.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_models_schroedinger_bridge.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_losses.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_modules_transforms.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_models_mask.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_models_score_based.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_datasets.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_maxine_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_models_predictive.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_data_simulation.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_parts_submodules_flow.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_models_flow_matching.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_metrics.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_modules_projections.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/test_audio_part_submodules_multichannel.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/audio/utils/test_audio_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_jasper_block.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_context_biasing.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_text_to_text_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/conftest.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_metrics.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_datasets.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_rnnt_encdec_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_parts_submodules_batchnorm.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_hybrid_asr_tts_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_hybrid_rnnt_ctc_model_char.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_local_attn.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_ctcencdec_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_custom_tokenizer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_conformer_encoder.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_classification_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_ctc_encoder_model_bpe.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_preprocessing_segment.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_subsampling.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_label_datasets.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_samplers.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_confidence_ensembles.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_regression_model.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_hybrid_rnnt_ctc_model_bpe.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_lhotse_dataset.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_rnnt_encoder_model_bpe.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_filterbankfeatures_seq_len.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_interctc_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_ngram_lm.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_multitask_model_bpe.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_asr_exportables.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/test_ssl_models.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/confidence/test_asr_confidence_metrics.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/confidence/test_asr_confidence_primitives.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/confidence/test_asr_confidence.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/mixins/test_transcription.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/mixins/adapters/test_asr_adapter_mixin.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/mixins/adapters/test_asr_adapter_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/k2/test_ctc.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/k2/test_graph_transducer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/k2/test_rnnt.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/k2/test_w_transducer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/utils/test_vad_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/utils/test_data_simul_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_batched_hyps_and_alignments.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_batched_rnnt_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/conftest.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_ctc_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_rnnt_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_batched_beam_hyps.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_cuda_graph_rnnt_greedy_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_rnnt_alignments.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/decoding/test_multi_task_decoding.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/numba/spec_augment/test_spec_aug_numba.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/numba/rnnt_loss/test_rnnt_pytorch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/numba/rnnt_loss/utils/test_gpu_rnnt_kernel.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/numba/rnnt_loss/utils/test_rnnt_helper.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/asr/numba/rnnt_loss/utils/test_reduce.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/conftest.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/test_spectrogram_enhancer.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/test_tts_exportables.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/test_helpers.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/test_waveglow.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/test_torch_tts.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/losses/test_audio_codec_loss.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/g2p/test_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/g2p/data/test_g2p_data_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_aligner.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_univNet.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_mixerTTS.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_tacotron2.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_vits.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_hifigan.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_fastpitch.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/models/test_waveGlow.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/parts/utils/test_tts_dataset_utils.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/parts/preprocessing/test_features.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/parts/preprocessing/test_audio_trimming.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/parts/preprocessing/test_feature_processors.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/modules/test_audio_codec_modules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/modules/test_transformer_2501.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/tts/modules/test_submodules.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/speechlm/speech_to_text_llm_train.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/collections/speechlm/hf/sft.py": [
+        "speech",
+        "unit-tests"
+    ],
+    "tests/automodel/_test_utils.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/automodel/loss/test_masked_ce.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/automodel/loss/test_chunked_ce.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/automodel/loss/test_linear_ce.py": [
+        "automodel",
+        "unit-tests"
+    ],
+    "tests/test_data_dir.py": [
+        "unit-tests"
+    ],
+    "tests/conftest.py": [
+        "unit-tests"
+    ],
+    "tests/check_copyright_header.py": [
+        "unit-tests"
+    ],
+    "tests/manualtest_model_downloads.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_ddp_parity_checker.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_nemo_run.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_precision_plugin.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_dist_ckpt.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_nemo_resume_from_ckpt.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_megatron_parallel.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/mcore_microbatch_utils.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_state_restoration.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_nemo_logger.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_data.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/test_strategy_lib.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/_fabric/test_conversion.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/_io/test_state.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/_io/test_mixin.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/_io/test_api.py": [
+        "unit-tests"
+    ],
+    "tests/lightning/_io/test_hf.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/pth_optim.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/test_trainer.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_flops_callback.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_preemption.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_peft.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_model_transform.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_model_checkpoint.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_jit_transform.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/callbacks/test_nsys.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/strategies/test_fsdp2_strategy.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/strategies/test_megatron_strategy.py": [
+        "unit-tests"
+    ],
+    "tests/lightningtorch/strategies/test_fsdp_strategy.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_config_utils.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_neural_module.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_torch_jit_script.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_dist_ckpt.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_straggler_det.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_fileio.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_save_restore.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_typecheck.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_fault_tolerance.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_exp_manager.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_optimizers_schedulers.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_serialization.py": [
+        "unit-tests"
+    ],
+    "tests/core/test_neural_types.py": [
+        "unit-tests"
+    ],
+    "tests/core/mixins/adapters/test_adapter_strategy.py": [
+        "unit-tests"
+    ],
+    "tests/core/mixins/adapters/test_adapter_mixin.py": [
+        "unit-tests"
+    ],
+    "tests/core/mixins/adapters/test_adapter_model_mixin.py": [
+        "unit-tests"
+    ],
+    "tests/core_ptl/check_for_ranks.py": [
+        "unit-tests"
+    ],
+    "tests/core_ptl/check_manual_upload_to_hf_hub.py": [
+        "unit-tests"
+    ],
+    "tests/core_ptl/test_ptl_stateless_timer.py": [
+        "unit-tests"
+    ],
+    "tests/core_ptl/check_imports.py": [
+        "unit-tests"
+    ],
+    "tests/setup/__main__.py": [
+        "unit-tests"
+    ],
+    "tests/setup/models/create_hf_model.py": [
+        "unit-tests"
+    ],
+    "tests/setup/data/create_sample_jsonl.py": [
+        "unit-tests"
+    ],
+    "tests/setup/data/create_sample_lambada.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_import_utils.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_utils.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_get_rank.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_flops_formulas.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_trainer_utils.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_env_var_parsing.py": [
+        "unit-tests"
+    ],
+    "tests/utils/test_enum.py": [
+        "unit-tests"
+    ],
+    "tests/evaluation/test_evaluation.py": [
+        "unit-tests"
+    ],
+    "tests/evaluation/eval_unittest.py": [
+        "unit-tests"
+    ],
+    "tests/evaluation/deploy_script.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_diar_metrics.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_diar_datasets.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_diar_neural_inference.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_speaker_label_models.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_diar_lhotse_datasets.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_diar_sortformer_models.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/test_diar_label_models.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/mixins/test_diarization.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/utils/test_vad_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/utils/test_diar_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/utils/test_multispeaker_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/speaker_tasks/utils/test_data_simul_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/test_emmett.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/test_stable_diffusion_fast_geglu.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/test_speechllm_models.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/test_speechllm_dataset.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/data/energon/test_sample_encoder.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/data/energon/test_data_module.py": [
+        "unit-tests"
+    ],
+    "tests/collections/multimodal/data/energon/test_task_encoder.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_lhotse_seqlen_filters.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/loss_inputs.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_2d_bucketing_constraint.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_ema.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_lhotse_dataloading.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_optional_cuda_graphs.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_metrics.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_spc_tokenizer.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_lhotse_multirank_rng.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_data_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_apply_chat_template.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/pl_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/perplexity_inputs.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_lhotse_prompt_format_data_types.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_lhotse_multimodal_dataloading.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_lhotse_nemo_adapters.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/test_perf_metrics.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/tokenizers/text_to_speech/test_tts_tokenizers.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/tokenizers/text_to_speech/test_tokenizer_utils.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/mixins/test_adapter_modules.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/mixins/test_adapter_common_model_mixin.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/prompt_formatters/conftest.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/prompt_formatters/test_mistral_prompt_formatter.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/prompt_formatters/test_prompt_formatter_api.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/prompt_formatters/test_canary_prompt_formatter.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/prompt_formatters/test_llama2_prompt_formatter.py": [
+        "unit-tests"
+    ],
+    "tests/collections/common/prompt_formatters/test_gemma_prompt_formatter.py": [
+        "unit-tests"
+    ],
+    "tests/hydra/test_hydra_runner.py": [
+        "unit-tests"
+    ],
+    "tests/hydra/my_app.py": [
+        "unit-tests"
+    ],
+    "nemo/lightning/io/api.py": [],
+    "nemo/lightning/_strategy_lib.py": [],
+    "nemo/lightning/io/connector.py": [],
+    "nemo/lightning/io/capture.py": [],
+    "nemo/lightning/io/artifact/base.py": [],
+    "nemo/lightning/io/to_config.py": [],
+    "nemo/lightning/io/fdl_torch.py": [],
+    "nemo/lightning/io/artifact": [],
+    "nemo/lightning/io/artifact/file.py": [],
+    "nemo/lightning/fabric/conversion.py": [],
+    "nemo/lightning/pytorch/strategies": [],
+    "nemo/lightning/fabric/strategies.py": [],
+    "nemo/lightning/pytorch/callbacks/memory_profiler.py": [],
+    "nemo/lightning/pytorch/trainer.py": [],
+    "nemo/lightning/fabric/fabric.py": [],
+    "nemo/lightning/pytorch/callbacks/model_transform.py": [],
+    "nemo/utils/hyena_flops_formulas.py": [],
+    "nemo/lightning/pytorch/callbacks/progress_bar.py": [],
+    "nemo/core/neural_types/comparison.py": [],
+    "nemo/core/neural_types/axes.py": [],
+    "nemo/core/config/templates/model_card.py": [],
+    "nemo/core/classes/mixins/hf_io_mixin.py": [],
+    "nemo/utils/debug_hook.py": [],
+    "nemo/core/config/schedulers.py": [],
+    "nemo/core/optim/adafactor.py": [],
+    "nemo/core/config/optimizers.py": [],
+    "nemo/core/optim/adan.py": [],
+    "nemo/core/optim/megatron_fused_adam.py": [],
+    "nemo/core/optim/novograd.py": [],
+    "nemo/utils/nvtx.py": [],
+    "nemo/utils/formatters/base.py": [],
+    "nemo/utils/flops_formulas.py": [],
+    "nemo/utils/formatters/colors.py": [],
+    "nemo/utils/formatters/utils.py": []
+}
