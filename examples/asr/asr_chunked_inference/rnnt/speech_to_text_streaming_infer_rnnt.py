@@ -127,7 +127,9 @@ class TranscriptionConfig:
 
     # Chunked configs
     chunk_secs: float = 1.6  # Chunk length in seconds
-    left_context_secs: float = 10.0  # left context: larger value improves quality without affecting theoretical latency
+    left_context_secs: float = (
+        10.0  # left context: larger value improves quality without affecting theoretical latency
+    )
     right_context_secs: float = 1.6  # right context
 
     model_stride: int = (
