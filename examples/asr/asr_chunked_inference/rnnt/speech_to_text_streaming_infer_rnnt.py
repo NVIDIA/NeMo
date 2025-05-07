@@ -359,7 +359,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_output = encoder_output[:, :-1]
                 encoder_output_len = torch.where(encoder_output_len == 0, 0, encoder_output_len - 1)
 
-
                 # remove extra context from encoder_output
                 encoder_left_context = buffer_left_context // encoder_frame2audio_samples
                 encoder_chunk_context = buffer_chunk_context // encoder_frame2audio_samples
