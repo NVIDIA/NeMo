@@ -45,7 +45,8 @@ def run_deploy(args):
             args.nemo2_ckpt_path,
             "--max_batch_size",
             str(args.max_batch_size),
-        ] + (["--legacy_ckpt"] if args.legacy_ckpt else []),
+        ]
+        + (["--legacy_ckpt"] if args.legacy_ckpt else []),
     )
 
 
