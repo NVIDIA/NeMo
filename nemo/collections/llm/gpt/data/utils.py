@@ -802,7 +802,7 @@ def _preprocess(
     return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 
 
-def _transform_to_chat_message(source: dict):
+def _transform_to_chat_message(source: dict[str, list]):
     """
     Convert ShareGPT conversation format to HuggingFace chat message format.
 
@@ -842,7 +842,7 @@ def _preprocess_hf_chat_template(
         hf_chat_dict['messages'], return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt'
     )
     input_ids = tokens['input_ids'][0]
-    mask = torch.tensor(tokens['assistant_masks']).to(bool)
+    mask = tokens['assistant_masks'].to(bool)
     return dict(input_ids=input_ids, mask=mask)
 
 

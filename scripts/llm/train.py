@@ -11,6 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Script for training GPT models. Supports 4 modes, with different required arguments:
+1. Pretrain: --model_config required
+2. SFT: --model_config and --use-chat-data required
+3. Distillation: --teacher_path required
+4. SFT Distillation: --use-chat-data and --teacher_path required
+"""
 
 import os
 from argparse import ArgumentParser
@@ -35,18 +42,27 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 def get_args():
     """Parse the command line arguments."""
     parser = ArgumentParser(
-        description="Train GPT model. Supports 4 modes: pretraining, SFT, knowledge distillation "
-        "from a teacher model to a student, and SFT distillation. To do SFT or SFT distillation, "
-        "specify --use-chat-data. To perform distillation, specify --teacher_path in addition to --model_path"
+        description="""
+            Script for training GPT models. Supports 4 modes, with different arguments needed in addition to the required arguments:
+            1. Pretrain: --model_config required
+            2. SFT: --model_config and --use-chat-data required
+            3. Distillation: --teacher_path required
+            4. SFT Distillation: --use-chat-data and --teacher_path required
+            """
     )
     parser.add_argument("--name", type=str, required=True, help="Experiment name")
     parser.add_argument(
         "--model_path",
         type=str,
         required=True,
-        help="Path to NeMo 2 checkpoint. If only model_path is provided, the model will be finetuned. If teacher_path is also provided, the model will be distilled.",
+        help="Path to NeMo 2 checkpoint. If only model_path is provided, the model will be trained (pretrain or SFT). If teacher_path is also provided, the model will be distilled.",
     )
-    parser.add_argument("--teacher_path", type=str, required=False, help="Path to NeMo 2 checkpoint")
+    parser.add_argument(
+        "--teacher_path",
+        type=str,
+        required=False,
+        help="Path to NeMo 2 checkpoint to use as a distillation teacher. Will trigger distillation mode if provided.",
+    )
     parser.add_argument("--tp_size", type=int, default=1, help="Tensor parallel size")
     parser.add_argument("--cp_size", type=int, default=1, help="Context parallel size")
     parser.add_argument("--pp_size", type=int, default=1, help="Pipeline parallel size")
@@ -201,7 +217,7 @@ if __name__ == "__main__":
             tokenizer=get_tokenizer(args.tokenizer) if args.tokenizer else None,
         )
     else:
-        llm.finetune(
+        llm.train(
             model=args.model_path,
             data=data,
             trainer=trainer,

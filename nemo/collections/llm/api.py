@@ -13,6 +13,7 @@
 # limitations under the License.
 import importlib
 import json
+import os
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -181,7 +182,7 @@ def pretrain(
 
 @run.cli.entrypoint(namespace="llm")
 def finetune(
-    model: pl.LightningModule,
+    model: Union[pl.LightningModule, str],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
@@ -196,7 +197,7 @@ def finetune(
     Note, by default it will use the tokenizer from the model.
 
     Args:
-        model (pl.LightningModule): The model to be finetuned.
+        model (Union[pl.LightningModule, str]): The model to be finetuned or a path to the NeMo 2 checkpoint.
         data (pl.LightningDataModule): The data module containing finetuning data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
@@ -205,8 +206,9 @@ def finetune(
             optimizer from the model will be used.
         peft (Optional[PEFT]): A PEFT (Parameter-Efficient Fine-Tuning) configuration to be applied.
         tokenizer (Optional[TokenizerType]): Tokenizer setting to be applied. Can be 'data' or 'model'
-            or an instance of TokenizerSpec. If 'data' uses the data loader's tokenizer (useful if data loader
-            uses a separate tokenizer from model).
+            or an instance of TokenizerSpec. If 'data' uses the data loader's tokenizer instead of the tokenizer
+            from the model checkpoint, which is useful for expanding vocabulary or adding special tokens
+            (such as chat template tokens).
 
     Returns:
         Path: The directory path where finetuning artifacts are saved.
@@ -221,6 +223,8 @@ def finetune(
         >>> llm.finetune(model, data, trainer, peft=llm.peft.LoRA()])
         PosixPath('/path/to/log_dir')
     """
+    if isinstance(model, str):
+        model = io.load_context(ckpt_to_context_subdir(model), subpath="model")
 
     _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
     return train(
@@ -634,6 +638,7 @@ def deploy(
             the trtllm backend).
     """
     import os
+
     import uvicorn
 
     from nemo.deploy import DeployPyTriton
