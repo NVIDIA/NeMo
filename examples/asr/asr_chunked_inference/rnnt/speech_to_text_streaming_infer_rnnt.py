@@ -36,7 +36,7 @@ python speech_to_text_streaming_infer_rnnt.py \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
     right_context_secs=2.0 \
-    chunk_len_in_secs=2 \
+    chunk_secs=2 \
     left_context_secs=10.0 \
     model_stride=8 \
     batch_size=32 \
@@ -183,20 +183,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
-            accelerator = 'gpu'
             map_location = torch.device('cuda:0')  # use 0th CUDA device
         elif cfg.allow_mps and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             logging.warning(
                 "MPS device (Apple Silicon M-series GPU) support is experimental."
                 " Env variable `PYTORCH_ENABLE_MPS_FALLBACK=1` should be set in most cases to avoid failures."
             )
-            accelerator = 'mps'
             map_location = torch.device('mps')
         else:
-            accelerator = 'cpu'
             map_location = torch.device('cpu')
     else:
-        accelerator = 'gpu'
         map_location = torch.device(f'cuda:{cfg.cuda}')
 
     logging.info(f"Inference will be done on device : {map_location}")
@@ -257,6 +253,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     records = read_manifest(manifest)
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
+    asr_model.preprocessor.featurizer.corrected_pad = True
     asr_model.eval()
     decoding_computer: GreedyBatchedLoopLabelsComputerBase = asr_model.decoding.decoding._decoding_computer
     decoding_computer.disable_cuda_graphs()  # TODO: fix
@@ -267,7 +264,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     encoder_frame2audio_samples = features_frame2audio_samples * model_stride
 
     left_ctx_encoder_frames = int(cfg.left_context_secs * features_per_sec / model_stride)
-    chunk_ctx_encoder_frames = int(cfg.chunk_len_in_secs * features_per_sec / model_stride)
+    chunk_ctx_encoder_frames = int(cfg.chunk_secs * features_per_sec / model_stride)
     right_ctx_encoder_frames = int(cfg.right_context_secs * features_per_sec / model_stride)
 
     left_ctx_audio_samples = left_ctx_encoder_frames * model_stride * features_frame2audio_samples
@@ -364,7 +361,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_full_context = encoder_left_context + encoder_chunk_context + encoder_right_context
                 encoder_extra_added_frames = encoder_output.shape[1] - encoder_full_context
                 assert encoder_extra_added_frames >= 0
-                if encoder_extra_added_frames > 2:
+                if encoder_extra_added_frames > 1:
                     logging.warning("Maybe incorrect length")
                     logging.warning(
                         f"{buffer_left_context} + {buffer_chunk_context} + {buffer_right_context} :: {buffer_size}"

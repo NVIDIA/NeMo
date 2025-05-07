@@ -71,12 +71,11 @@ def normalize_batch(x, seq_len, normalize_type):
             and not torch.cuda.is_current_stream_capturing()
             and torch.any(seq_len == 1).item()
         ):
-            # logging.warning(
-            #     "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
-            #     "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
-            #     "feature (ex. at least `hop_length` for Mel Spectrograms)."
-            # )
-            pass
+            raise ValueError(
+                "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
+                "in torch.std() returning nan. Make sure your audio length has enough samples for a single "
+                "feature (ex. at least `hop_length` for Mel Spectrograms)."
+            )
         time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
         valid_mask = time_steps < seq_len.unsqueeze(1)
         x_mean_numerator = torch.where(valid_mask.unsqueeze(1), x, 0.0).sum(axis=2)
@@ -277,6 +276,7 @@ class FilterbankFeatures(nn.Module):
         mel_norm="slaney",
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
+        corrected_pad=False,  # corrected padding, False for backward compatibility
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -310,6 +310,7 @@ class FilterbankFeatures(nn.Module):
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
         self.exact_pad = exact_pad
+        self.corrected_pad = corrected_pad
 
         if exact_pad:
             logging.info("STFT using exact pad")
@@ -410,7 +411,10 @@ class FilterbankFeatures(nn.Module):
     def get_seq_len(self, seq_len):
         # Assuming that center is True is stft_pad_amount = 0
         pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
-        seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length) + 1
+        if self.corrected_pad:
+            seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft + self.hop_length - 1), self.hop_length)
+        else:
+            seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length) + 1
         return seq_len.to(dtype=torch.long)
 
     @property
