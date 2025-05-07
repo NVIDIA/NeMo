@@ -553,6 +553,7 @@ class MLlamaCrossAttention(Attention):
         submodules: MLlamaCrossAttentionSubmodules,
         layer_number: int,
         attn_mask_type=AttnMaskType.padding,
+        **kwargs,
     ):
         super().__init__(
             config=config,
@@ -560,6 +561,7 @@ class MLlamaCrossAttention(Attention):
             layer_number=layer_number,
             attn_mask_type=attn_mask_type,
             attention_type="cross",
+            **kwargs,
         )
 
         # TODO might need special care when TP>8
@@ -678,7 +680,7 @@ class MLlamaCrossAttention(Attention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
             inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
         )
 

@@ -127,7 +127,7 @@ def noop_decorator(func):
 use_pytriton = True
 batch = noop_decorator
 try:
-    from pytriton.decorators import batch
+    from pytriton.decorators import batch, first_value
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
@@ -865,7 +865,10 @@ class TensorRTLLM(ITritonDeployable):
             for weight_dict, model_config in zip(weights_dicts, model_configs):
                 rank = model_config.mapping.tp_rank
                 for k, v in weight_dict.items():
-                    weight_dict[k] = numpy_to_torch(v)
+                    if isinstance(v, np.ndarray):
+                        weight_dict[k] = numpy_to_torch(v)
+                    else:
+                        weight_dict[k] = v
 
                 safetensors.torch.save_file(weight_dict, os.path.join(self.model_dir, f'rank{rank}.safetensors'))
             model_configs[0].to_json_file(os.path.join(self.model_dir, 'config.json'))
@@ -874,7 +877,8 @@ class TensorRTLLM(ITritonDeployable):
             if os.path.exists(tokenizer_path):
                 shutil.copy(tokenizer_path, self.model_dir)
             else:
-                self.tokenizer.save_pretrained(self.model_dir)
+                if self.tokenizer is not None:
+                    self.tokenizer.save_pretrained(self.model_dir)
 
             nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
             if os.path.exists(nemo_model_config):
@@ -1511,23 +1515,34 @@ class TensorRTLLM(ITritonDeployable):
         return outputs
 
     @batch
+    @first_value(
+        "max_output_len",
+        "top_k",
+        "top_p",
+        "temperature",
+        "random_seed",
+        "no_repeat_ngram_size",
+        "output_generation_logits",
+        "output_context_logits",
+    )
     def triton_infer_fn(self, **inputs: np.ndarray):
         """Triton infer function for streaming"""
         output_dict = {}
         context_logits_available = False
         generation_logits_available = False
+        prompts = str_ndarray2list(inputs.pop("prompts"))
+        infer_input = {"input_texts": prompts}
         try:
-            infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
-                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
+                infer_input["max_output_len"] = inputs.pop("max_output_len")
             if "top_k" in inputs:
-                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+                infer_input["top_k"] = inputs.pop("top_k")
             if "top_p" in inputs:
-                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+                infer_input["top_p"] = inputs.pop("top_p")
             if "temperature" in inputs:
-                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+                infer_input["temperature"] = inputs.pop("temperature")
             if "random_seed" in inputs:
-                infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
+                infer_input["random_seed"] = inputs.pop("random_seed")
             if "stop_words_list" in inputs:
                 stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
                 infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
@@ -1535,7 +1550,7 @@ class TensorRTLLM(ITritonDeployable):
                 bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
                 infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
             if "no_repeat_ngram_size" in inputs:
-                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
+                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")
             if "task_id" in inputs:
                 task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
                 infer_input["task_ids"] = task_id[0]
@@ -1543,11 +1558,11 @@ class TensorRTLLM(ITritonDeployable):
                 lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
                 infer_input["lora_uids"] = lora_uids[0].tolist()
             if "output_generation_logits" in inputs:
-                generation_logits_available = inputs["output_generation_logits"][0][0]
-                infer_input["output_generation_logits"] = inputs.pop("output_generation_logits")[0][0]
+                generation_logits_available = inputs["output_generation_logits"]
+                infer_input["output_generation_logits"] = inputs.pop("output_generation_logits")
             if "output_context_logits" in inputs:
-                context_logits_available = inputs["output_context_logits"][0][0]
-                infer_input["output_context_logits"] = inputs.pop("output_context_logits")[0][0]
+                context_logits_available = inputs["output_context_logits"]
+                infer_input["output_context_logits"] = inputs.pop("output_context_logits")
 
             if generation_logits_available:
                 # generation_logits is a 4d torch tensor of dim [BS,1,#generated_tokens,vocab_size]
@@ -1573,25 +1588,26 @@ class TensorRTLLM(ITritonDeployable):
             output_dict["outputs"] = cast_output(output_texts, np.bytes_)
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_dict["outputs"] = cast_output([err_msg], np.bytes_)
+            output_dict["outputs"] = cast_output([err_msg] * len(prompts), np.bytes_)
 
         return output_dict
 
     @batch
+    @first_value("max_output_len", "top_k", "top_p", "temperature", "random_seed", "no_repeat_ngram_size")
     def triton_infer_fn_streaming(self, **inputs: np.ndarray):
         """Triton infer function for streaming"""
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
-                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
+                infer_input["max_output_len"] = inputs.pop("max_output_len")
             if "top_k" in inputs:
-                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+                infer_input["top_k"] = inputs.pop("top_k")
             if "top_p" in inputs:
-                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+                infer_input["top_p"] = inputs.pop("top_p")
             if "temperature" in inputs:
-                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+                infer_input["temperature"] = inputs.pop("temperature")
             if "random_seed" in inputs:
-                infer_input["random_seed"] = inputs.pop("random_seed")[0][0]
+                infer_input["random_seed"] = inputs.pop("random_seed")
             if "stop_words_list" in inputs:
                 stop_words_list = str_ndarray2list(inputs.pop("stop_words_list"))
                 infer_input["stop_words_list"] = [[stop_word] for stop_word in stop_words_list]
@@ -1599,7 +1615,7 @@ class TensorRTLLM(ITritonDeployable):
                 bad_words_list = str_ndarray2list(inputs.pop("bad_words_list"))
                 infer_input["bad_words_list"] = [[bad_word] for bad_word in bad_words_list]
             if "no_repeat_ngram_size" in inputs:
-                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")[0][0]
+                infer_input["no_repeat_ngram_size"] = inputs.pop("no_repeat_ngram_size")
             if "task_id" in inputs:
                 task_id = np.char.decode(inputs.pop("task_id").astype("bytes"), encoding="utf-8")
                 infer_input["task_ids"] = task_id[0]

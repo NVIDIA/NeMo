@@ -29,7 +29,6 @@ from typing_extensions import Annotated
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
-from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -575,12 +574,14 @@ def deploy(
     pipeline_parallelism_size: int = 1,
     context_parallel_size: int = 1,
     expert_model_parallel_size: int = 1,
+    expert_tensor_parallel_size: int = 1,
     dtype: str = "bfloat16",
     max_input_len: int = 4096,
     max_output_len: int = 256,
     max_batch_size: int = 8,
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
+    enable_flash_decode: bool = True,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
@@ -624,6 +625,8 @@ def deploy(
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
         benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
+        enable_flash_decode (bool): If True runs in-framework deployment with flash decode enabled(Not supported for
+        trtllm backend).
     """
     import os
     import uvicorn
@@ -658,7 +661,10 @@ def deploy(
             pipeline_model_parallel_size=pipeline_parallelism_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
+            expert_tensor_parallel_size=expert_tensor_parallel_size,
             inference_max_seq_length=max_input_len,
+            enable_flash_decode=enable_flash_decode,
+            max_batch_size=max_batch_size,
         )
 
         if torch.distributed.is_initialized():
@@ -766,6 +772,7 @@ def evaluate(
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
+    from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
         _legacy_evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
@@ -959,11 +966,15 @@ def export_ckpt(
     Raises:
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary exporter functionality.
+        FileExistsError: If the output path is provided (that is, when not using models cache)
+            and it exists and overwrite is not set to True.
     """
     if not isinstance(path, Path):
         path = Path(path)
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
+        if output_path.exists() and not overwrite:
+            raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
     output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
@@ -988,6 +999,7 @@ def generate(
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
+    enable_flash_decode: bool = True,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -1054,6 +1066,7 @@ def generate(
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
         output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
             predictions. Defaults to None.
+        enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
@@ -1076,7 +1089,13 @@ def generate(
         trainer=trainer,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        enable_flash_decode=enable_flash_decode,
     )
+
+    max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
+    # set kv cache allocation to only num tokens in prompt + max tokens to generate
+    inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
+    inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
 
     dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
     dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
@@ -1218,12 +1237,13 @@ def _validate_config(
 
     # Data validation
     assert data.micro_batch_size > 0
-    assert data.global_batch_size > 0
-    assert data.seq_length > 0
+    if isinstance(trainer.strategy, nl.MegatronStrategy):
+        assert data.global_batch_size > 0
+        assert data.seq_length > 0
 
-    assert (
-        data.global_batch_size % data.micro_batch_size == 0
-    ), "Global batch size must be divisible by micro batch size in data module."
+        assert (
+            data.global_batch_size % data.micro_batch_size == 0
+        ), "Global batch size must be divisible by micro batch size in data module."
 
     # Trainer validation
 

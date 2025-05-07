@@ -22,6 +22,7 @@ import torch
 import torch.distributed
 import wrapt
 from jinja2 import Template
+from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
@@ -56,7 +57,7 @@ def noop_decorator(func):
 use_pytriton = True
 batch = noop_decorator
 try:
-    from pytriton.decorators import batch
+    from pytriton.decorators import batch, first_value
     from pytriton.model_config import Tensor
 except Exception:
     use_pytriton = False
@@ -79,6 +80,10 @@ class MegatronLLMDeploy:
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
+        max_batch_size: int = 32,
+        random_seed: Optional[int] = None,
+        enable_flash_decode: bool = False,
+        legacy_ckpt: bool = False,
     ):
         """
         Returns the appropriate deployable instance for the given NeMo checkpoint.
@@ -90,6 +95,7 @@ class MegatronLLMDeploy:
             tensor_model_parallel_size (int): Size of the tensor model parallelism.
             pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
             context_parallel_size (int): Size of the context parallelism.
+            enable_flash_decode (bool): Whether to enable flash decode for inference.
 
         Returns:
             ITritonDeployable: An instance of a deployable class compatible with Triton inference server.
@@ -102,6 +108,10 @@ class MegatronLLMDeploy:
                 tensor_model_parallel_size=tensor_model_parallel_size,
                 pipeline_model_parallel_size=pipeline_model_parallel_size,
                 context_parallel_size=context_parallel_size,
+                max_batch_size=max_batch_size,
+                random_seed=random_seed,
+                enable_flash_decode=enable_flash_decode,
+                legacy_ckpt=legacy_ckpt,
             )
         else:
             raise Exception("Only NeMo 2.0 checkpoint is supported.")
@@ -122,6 +132,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_batch_times_seqlen_threshold (int): squence threshold.
         inference_max_seq_length (int): max_seq_length for inference. Required by MCoreEngine (>=0.12). Defaults to
         4096.
+        max_batch_size (int): max batch size for inference. Defaults to 32.
+        random_seed (Optional[int]): random seed for inference. Defaults to None.
+        enable_flash_decode (bool): enable flash decode for inference. Defaults to False.
     """
 
     def __init__(
@@ -133,9 +146,14 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
         expert_model_parallel_size: int = 1,
+        expert_tensor_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
         inference_max_seq_length: int = 4096,
+        max_batch_size: int = 32,
+        random_seed: Optional[int] = None,
+        enable_flash_decode: bool = True,
+        legacy_ckpt: bool = False,
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
 
@@ -144,10 +162,11 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             pipeline_model_parallel_size=pipeline_model_parallel_size,
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
+            expert_tensor_parallel_size=expert_tensor_parallel_size,
             sequence_parallel=False,
             setup_optimizers=False,
             store_optimizer_states=False,
-            ckpt_load_strictness="log_all",
+            ckpt_load_strictness=StrictHandling.LOG_ALL if legacy_ckpt else None,
         )
 
         trainer = nl.Trainer(
@@ -164,42 +183,35 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             ),
         )
 
-        self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_model_and_tokenizer(
+        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_mcore_engine(
             path=Path(nemo_checkpoint_filepath),
             trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             inference_max_seq_length=inference_max_seq_length,
+            max_batch_size=max_batch_size,
+            random_seed=random_seed,
+            enable_flash_decode=enable_flash_decode,
         )
 
     def generate(
-        self,
-        prompts: List[str],
-        max_batch_size: int = 4,
-        inference_params: Optional[CommonInferenceParams] = None,
-        random_seed: Optional[int] = None,
+        self, prompts: List[str], inference_params: Optional[CommonInferenceParams] = None
     ) -> List[InferenceRequest]:
         """
         Generates text based on the provided input prompts.
 
         Args:
             prompts (List[str]): A list of input strings.
-            max_batch_size (int): The maximum batch size used for inference.
             inference_params (Optional[CommonInferenceParams]): Parameters for controlling the inference process.
-            random_seed (Optional[int]): A random seed for reproducibility.
-
         Returns:
             List[InferenceRequest]: A list containing the generated results.
         """
 
         inference_params = inference_params or CommonInferenceParams()
-        results = inference.generate(
-            model=self.inference_wrapped_model,
-            tokenizer=self.mcore_tokenizer,
+        results = self.mcore_engine.generate(
             prompts=prompts,
-            max_batch_size=max_batch_size,
-            random_seed=random_seed,
-            inference_params=inference_params,
+            add_BOS=False,
+            common_inference_params=inference_params,
         )
         return list(results)
 
@@ -213,9 +225,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             torch.distributed.broadcast(message, src=0)
             if message == 0:
                 prompts = broadcast_list(data=[None], src=0)
-                max_batch_size, random_seed, temperature, top_k, top_p, num_tokens_to_generate, log_probs = (
-                    broadcast_list(data=[None], src=0)
-                )
+                temperature, top_k, top_p, num_tokens_to_generate, log_probs = broadcast_list(data=[None], src=0)
 
                 inference_params = CommonInferenceParams(
                     temperature=temperature,
@@ -225,7 +235,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                     return_log_probs=log_probs,
                 )
 
-                self.generate(prompts, max_batch_size, inference_params, random_seed)
+                self.generate(prompts, inference_params)
             else:
                 return
 
@@ -280,7 +290,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
-            Tensor(name="max_length", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True),
             Tensor(name="apply_chat_template", shape=(-1,), dtype=np.bool_, optional=True),
         )
@@ -294,18 +303,27 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         )
 
     @batch
+    @first_value(
+        "max_length",
+        "max_batch_size",
+        "top_k",
+        "top_p",
+        "temperature",
+        "random_seed",
+        "compute_logprob",
+        "apply_chat_template",
+    )
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
         prompts = str_ndarray2list(inputs.pop("prompts"))
-        max_batch_size = inputs.pop("max_batch_size")[0][0] if "max_batch_size" in inputs else 32
-        random_seed = inputs.pop("random_seed")[0][0] if "random_seed" in inputs else None
-        temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else 1.0
-        top_k = inputs.pop("top_k")[0][0] if "top_k" in inputs else 1
-        top_p = inputs.pop("top_p")[0][0] if "top_p" in inputs else 0.0
-        num_tokens_to_generate = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
-        log_probs = inputs.pop("compute_logprob")[0][0] if "compute_logprob" in inputs else False
-        apply_chat_template = inputs.pop("apply_chat_template")[0][0] if "apply_chat_template" in inputs else False
+        temperature = inputs.pop("temperature", 1.0)
+        top_k = inputs.pop("top_k", 1)
+        top_p = inputs.pop("top_p", 0.0)
+        num_tokens_to_generate = inputs.pop("max_length", 256)
+        log_probs = inputs.pop("compute_logprob", False)
+        apply_chat_template = inputs.pop("apply_chat_template", False)
         text_only = True
+
         if apply_chat_template:
             # Deserialize the JSON string back to a dictionary
             prompts = [self.str_to_dict(prompt) for prompt in prompts]
@@ -318,8 +336,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 broadcast_list(prompts, src=0)
                 broadcast_list(
                     data=[
-                        max_batch_size,
-                        random_seed,
                         temperature,
                         top_k,
                         top_p,
@@ -337,7 +353,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             return_log_probs=log_probs,
         )
 
-        results = self.generate(prompts, max_batch_size, inference_params, random_seed)
+        results = self.generate(prompts, inference_params)
         output_texts = [r.generated_text if text_only else r for r in results]
         output_texts = self.remove_eos_token(output_texts)
         output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
