@@ -302,7 +302,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="log_probs", shape=(-1,), dtype=np.single),
         )
 
-
     def _infer_fn(
         self,
         prompts,
@@ -330,7 +329,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             log_probs (bool): Whether to compute log probabilities
             apply_chat_template (bool): Whether to apply chat template
             text_only (bool): Whether to return only text or full results
-            
+
         Returns:
             tuple: (output_texts, output_log_probs) where output_log_probs is None if log_probs is False
         """
