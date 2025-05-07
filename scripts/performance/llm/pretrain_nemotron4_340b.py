@@ -31,10 +31,10 @@ from ..utils import (
     args_sanity_check,
     get_comm_overlap_callback_idx,
     get_user_configs,
+    logging,
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
-    logging,
 )
 
 
