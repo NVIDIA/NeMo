@@ -311,15 +311,6 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-cpin",
-        "--cpu_pinning",
-        type=int,
-        help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
-        required=False,
-        # action="store_true",
-        default=0,  
-    )
-    parser.add_argument(
         "-nlay",
         "--num_layers",
         type=int,
