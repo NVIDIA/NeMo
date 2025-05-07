@@ -22,6 +22,7 @@ from nemo.deploy.nlp.hf_deployable_ray import HFRayDeployable
 
 LOGGER = logging.getLogger("NeMo")
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Deploy a HuggingFace model using Ray")
     parser.add_argument(
@@ -99,13 +100,13 @@ def parse_args():
         type=int,
         default=1,
         help="Number of GPUs per model replica",
-    )   
+    )
     parser.add_argument(
         "--num_cpus_per_replica",
         type=int,
         default=8,
         help="Number of CPUs per model replica",
-    )  
+    )
     parser.add_argument(
         "--cuda_visible_devices",
         type=str,
@@ -114,41 +115,43 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def signal_handler(signum, frame, deployer):
     LOGGER.info("Received interrupt signal. Shutting down gracefully...")
     deployer.stop()
     sys.exit(0)
 
+
 def main():
     args = parse_args()
-    
+
     # Initialize Ray deployment
     ray_deployer = DeployRay(
         num_cpus=args.num_cpus,
         num_gpus=args.num_gpus,
         include_dashboard=args.include_dashboard,
         runtime_env={
-                "env_vars": {
-                    "CUDA_VISIBLE_DEVICES": args.cuda_visible_devices,
-                }
+            "env_vars": {
+                "CUDA_VISIBLE_DEVICES": args.cuda_visible_devices,
             }
+        },
     )
-    
+
     # Set up signal handlers
     signal.signal(signal.SIGINT, lambda signum, frame: signal_handler(signum, frame, ray_deployer))
     signal.signal(signal.SIGTERM, lambda signum, frame: signal_handler(signum, frame, ray_deployer))
-    
+
     try:
         # Start Ray Serve
         ray_deployer.start(host=args.host, port=args.port)
-        
+
         # Create the HuggingFace model deployment
         app = HFRayDeployable.options(
             num_replicas=args.num_replicas,
             ray_actor_options={
                 "num_gpus": args.num_gpus_per_replica,
                 "num_cpus": args.num_cpus_per_replica,
-            }
+            },
         ).bind(
             hf_model_id_path=args.model_path,
             task=args.task,
@@ -157,13 +160,13 @@ def main():
             tp_plan=args.tp_plan,
             model_id=args.model_id,
         )
-        
+
         # Deploy the model
         ray_deployer.run(app, args.model_id)
-        
+
         LOGGER.info(f"Model deployed successfully at {args.host}:{args.port}")
         LOGGER.info("Press Ctrl+C to stop the deployment")
-        
+
         # Keep the script running
         while True:
             signal.pause()
@@ -172,5 +175,6 @@ def main():
         ray_deployer.stop()
         sys.exit(1)
 
+
 if __name__ == "__main__":
-    main() 
+    main()

@@ -177,7 +177,7 @@ def main():
             tensor_model_parallel_size=args.tensor_model_parallel_size,
             pipeline_model_parallel_size=args.pipeline_model_parallel_size,
             context_parallel_size=args.context_parallel_size,
-            model_id=args.model_id
+            model_id=args.model_id,
         )
 
         # Deploy the model
