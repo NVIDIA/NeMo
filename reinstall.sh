@@ -28,6 +28,8 @@ export CONDA_PREFIX=${CONDA_PREFIX:-""}
 
 trt() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/trt/
+  mkdir -p $WHEELS_DIR
 
   # Skip TRT installation on macOS ARM
   if [[ "$(uname)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
@@ -91,6 +93,8 @@ trt() {
 
 trtllm() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/trtllm/
+  mkdir -p $WHEELS_DIR
 
   # Skip TRT installation on macOS ARM
   if [[ "$(uname)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
@@ -136,6 +140,10 @@ trtllm() {
       cd $TRTLLM_DIR
       python3 ./scripts/build_wheel.py --job_count $(nproc) --trt_root /usr/local/tensorrt --dist_dir $WHEELS_DIR --python_bindings --benchmarks
     fi
+  }
+
+  if [[ "$mode" == "build" ]]; then
+    build
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
       build
@@ -147,6 +155,8 @@ trtllm() {
 
 te() {
   local mode="$1"
+  local WHEELS_DIR=$WHEELS_DIR/te/
+  mkdir -p $WHEELS_DIR
 
   TE_DIR="$INSTALL_DIR/TransformerEngine"
   if [ ! -d "$TE_DIR/.git" ]; then
@@ -166,6 +176,10 @@ te() {
       git submodule update
       pip wheel --wheel-dir $WHEELS_DIR/ $TE_DIR
     fi
+  }
+
+  if [[ "$mode" == "build" ]]; then
+    build
   else
     if [ -d "$WHEELS_DIR" ] && [ -z "$(ls -A "$WHEELS_DIR")" ]; then
       build
@@ -323,7 +337,7 @@ nemo() {
   pip install --force-reinstall --no-deps --no-cache-dir "${DEPS[@]}"
   pip install --no-cache-dir "${DEPS[@]}"
   # needs no-deps to avoid installing triton on top of pytorch-triton.
-  pip install --no-deps --no-cache-dir "liger-kernel==0.5.4; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
+  pip install --no-deps --no-cache-dir "liger-kernel==0.5.8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
   pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git@87a86aba72cfd2f0d8abecaf81c13c4528ea07d8; (platform_machine == 'x86_64' and platform_system != 'Darwin')"
   echo 'Installing nemo itself'
   pip install --no-cache-dir -e $NEMO_DIR/.[all]
