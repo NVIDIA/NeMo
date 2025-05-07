@@ -67,6 +67,19 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
 
     return model_cfg
 
+def update_ckpt(state_dict):
+    new_state_dict = {}
+    for key in state_dict.keys():
+        if 't5_encoder' in key:
+            new_key = key.replace('t5_encoder', 'encoder')
+            new_state_dict[new_key] = state_dict[key]
+        elif 't5_decoder' in key:
+            new_key = key.replace('t5_decoder', 'decoder')
+            new_state_dict[new_key] = state_dict[key]
+        else:
+            new_state_dict[key] = state_dict[key]
+    return new_state_dict
+
 def run_inference(
         hparams_file,
         checkpoint_file,
@@ -108,7 +121,8 @@ def run_inference(
         # Load weights from checkpoint file
         print("Loading weights from checkpoint")
         ckpt = torch.load(checkpoint_file, weights_only=False)
-        model.load_state_dict(ckpt['state_dict'])
+        state_dict = update_ckpt(ckpt['state_dict'])
+        model.load_state_dict(state_dict)
         checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)

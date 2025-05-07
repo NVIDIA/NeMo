@@ -264,4 +264,9 @@ dataset_meta_info = {
         'whisper_language': 'pl',
         'load_cached_codes_if_available': False
     },
+    'j_libri_unseen_test_no_codes': {
+        'manifest_path' : '/home/jasoli/data_prime/manifests/test_clean_withContextAudioPaths.json',
+        'audio_dir' : '/mnt/drive1/data/LibriTTS/',
+        'feature_dir' : None,
+    },
 }
