@@ -141,17 +141,24 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
                  fcd_metric.update_from_audio_file(gt_audio_filepath, True)
 
         pred_audio_filepath = audio_file_lists[ridx]
-        if language == "en":
-            with torch.no_grad():
-                pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
+
+        try:
+            if language == "en":
+                with torch.no_grad():
+                    # import ipdb; ipdb.set_trace()
+                    pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
+                    pred_text = process_text(pred_text)
+                    gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
+                    gt_audio_text = process_text(gt_audio_text)
+            else:
+                pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
                 pred_text = process_text(pred_text)
-                gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
+                gt_audio_text = transcribe_with_whisper(whisper_model, whisper_processor, gt_audio_filepath, language, device)
                 gt_audio_text = process_text(gt_audio_text)
-        else:
-            pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
-            pred_text = process_text(pred_text)
-            gt_audio_text = transcribe_with_whisper(whisper_model, whisper_processor, gt_audio_filepath, language, device)
-            gt_audio_text = process_text(gt_audio_text)
+        except Exception as e:
+            print("Error during ASR: {}".format(e))
+            pred_text = ""
+            gt_audio_text = ""
 
         if 'normalized_text' in record:
             gt_text = process_text(record['normalized_text'])
