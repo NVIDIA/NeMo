@@ -106,7 +106,7 @@ class HyenaMixer(MegatronModule):
 
         self.fast_conv_proj = self.hyena_config.fast_conv_proj
         self.fast_conv_mixer = self.hyena_config.fast_conv_mixer
-        self.use_b2b_causal_conv1d = self.hyena_config.use_b2b_causal_conv1d
+        self.use_b2b_causal_conv1d = self.transformer_config.use_b2b_causal_conv1d
 
         # Per attention head and per partition values.
         assert torch.distributed.is_initialized()
