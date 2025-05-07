@@ -1,0 +1,14 @@
+black~=24.3
+click>=8.1
+coverage
+isort>5.1.0,<6.0.0
+parameterized
+pytest
+pytest-mock
+pytest-runner
+ruamel.yaml
+sphinx
+sphinxcontrib-bibtex
+wandb
+wget
+wrapt

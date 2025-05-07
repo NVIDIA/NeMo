@@ -17,14 +17,14 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nemo-toolkit"
+name = "nemo-export-deploy"
 dynamic = ["dependencies", "optional-dependencies", "version"]
-description = "NeMo - a toolkit for Conversational AI"
+description = "NeMo Export and Deploy - a library to export and deploy LLMs and MMs"
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
-authors = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
-maintainers = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
+authors = [{ name = "NVIDIA", email = "nemo-export-deploy@nvidia.com" }]
+maintainers = [{ name = "NVIDIA", email = "nemo-export-deploy@nvidia.com" }]
 keywords = [
     "NLP",
     "NeMo",

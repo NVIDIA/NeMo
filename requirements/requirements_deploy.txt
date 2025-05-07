@@ -1,0 +1,5 @@
+accelerate
+fastapi
+nvidia-pytriton ; platform_system != 'Darwin'
+pydantic-settings
+uvicorn

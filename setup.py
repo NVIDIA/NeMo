@@ -22,6 +22,7 @@ import subprocess
 import os
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
+from itertools import chain
 
 
 spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
@@ -54,11 +55,20 @@ def req_file(filename, folder="requirements"):
 
 install_requires = req_file("requirements.txt")
 
+extras_require = {
+    'test': req_file("requirements_test.txt"),
+    'export': req_file(["requirements_export.txt"]),
+    'deploy': req_file('requirements_deploy.txt'),
+}
+
+extras_require['all'] = list(chain(*extras_require.values()))
+
+extras_require['export_deploy'] = req_file(["requirements_export.txt", "requirements_deploy.txt"])
+
 
 ###############################################################################
 #                            Code style checkers                              #
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
-
 
 class StyleCommand(distutils_cmd.Command):
     __ISORT_BASE = 'isort'
@@ -187,7 +197,7 @@ setuptools.setup(
     # dependencies). You can install these using the following syntax,
     # $ pip install -e ".[all]"
     # $ pip install nemo_toolkit[all]
-    # extras_require=extras_require,
+    extras_require=extras_require,
     # Add in any packaged data.
     include_package_data=True,
     exclude=['nemo/automodel', 'nemo/collections', 'nemo/core', 'nemo/lightning', 'nemo/utils', 'tests'],
@@ -197,9 +207,4 @@ setuptools.setup(
     keywords=__keywords__,
     # Custom commands.
     cmdclass={'style': StyleCommand},
-    entry_points={
-        "nemo_run.cli": [
-            "llm = nemo.collections.llm",
-        ],
-    },
 )
