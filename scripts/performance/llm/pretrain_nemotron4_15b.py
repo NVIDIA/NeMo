@@ -44,7 +44,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    num_layers: int, 
+    num_layers: int,
     hidden_size: int,
     enable_cuda_graphs: bool,
 ):
@@ -106,20 +106,44 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "nemotron4", "15b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, num_layers, hidden_size, _, enable_cuda_graphs = kwargs[:12]
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        num_layers,
+        hidden_size,
+        _,
+        enable_cuda_graphs,
+    ) = kwargs[:12]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, num_layers, hidden_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        num_layers,
+        hidden_size,
+        enable_cuda_graphs,
     )
 
-    pinning_args=[]
+    pinning_args = []
     exp_tuning = ""
     if args.cpu_pinning > 0:
         pinning_args = [
-            "--cpu-bind=verbose", 
-            f"--cpus-per-task={args.cpu_pinning}", 
-            "--hint=multithread", 
-            "--distribution=*:block"
+            "--cpu-bind=verbose",
+            f"--cpus-per-task={args.cpu_pinning}",
+            "--hint=multithread",
+            "--distribution=*:block",
         ]
         exp_tuning += "_pinned"
 
@@ -152,19 +176,27 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        nsys_ranks=[0,1,2,3,4,5,6,7]
-        nsys_args=[
+        nsys_ranks = [0, 1, 2, 3, 4, 5, 6, 7]
+        nsys_args = [
             "--force-overwrite=true",
             "--capture-range=cudaProfilerApi",
             "--capture-range-end=stop",
             "--cuda-graph-trace=node",
-            "--cuda-event-trace=false"]
-        
+            "--cuda-event-trace=false",
+        ]
+
         if args.profiling_gpu_metrics:
-            nsys_ranks=[0]
+            nsys_ranks = [0]
             nsys_args.append("--gpu-metrics-device=all")
-        
-        plugins.append(NsysPlugin(start_step=args.profiling_start_step, end_step=args.profiling_stop_step, ranks=nsys_ranks, nsys_extra_args=nsys_args))
+
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=nsys_ranks,
+                nsys_extra_args=nsys_args,
+            )
+        )
 
     with run.Experiment(exp_name) as exp:
         exp.add(

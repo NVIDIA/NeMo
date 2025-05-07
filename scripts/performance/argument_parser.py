@@ -317,7 +317,7 @@ def parse_cli_args():
         help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
         required=False,
         # action="store_true",
-        default=0,  
+        default=0,
     )
     parser.add_argument(
         "-nlay",
@@ -341,23 +341,13 @@ def parse_cli_args():
         help="Enable CUDA graphs. Disabled by default",
         action="store_true",
         required=False,
-        default=False, 
+        default=False,
     )
     parser.add_argument(
-        "-pss",
-        "--profiling_start_step",
-        type=int,
-        help="Defines start step for profiling",
-        required=False,
-        default=46
+        "-pss", "--profiling_start_step", type=int, help="Defines start step for profiling", required=False, default=46
     )
     parser.add_argument(
-        "-pso",
-        "--profiling_stop_step",
-        type=int,
-        help="Defines start step for profiling",
-        required=False,
-        default=50
+        "-pso", "--profiling_stop_step", type=int, help="Defines start step for profiling", required=False, default=50
     )
 
     def list_of_strings(arg):

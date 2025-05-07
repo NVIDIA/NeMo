@@ -47,7 +47,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    num_layers: int, 
+    num_layers: int,
     hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        num_layers, 
+        num_layers,
         hidden_size,
         _,
         enable_cuda_graphs,
@@ -148,7 +148,7 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        num_layers, 
+        num_layers,
         hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -156,14 +156,14 @@ if __name__ == "__main__":
         activation_offload_layers,
     )
 
-    pinning_args=[]
+    pinning_args = []
     exp_tuning = ""
     if args.cpu_pinning > 0:
         pinning_args = [
-            "--cpu-bind=verbose", 
-            f"--cpus-per-task={args.cpu_pinning}", 
-            "--hint=multithread", 
-            "--distribution=*:block"
+            "--cpu-bind=verbose",
+            f"--cpus-per-task={args.cpu_pinning}",
+            "--hint=multithread",
+            "--distribution=*:block",
         ]
         exp_tuning += "_pinned"
 
@@ -199,19 +199,27 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        nsys_ranks=list(range(num_nodes * args.gpus_per_node))
-        nsys_args=[]
+        nsys_ranks = list(range(num_nodes * args.gpus_per_node))
+        nsys_args = []
         if args.profiling_gpu_metrics:
-            nsys_ranks=[0]
-            nsys_args=[
+            nsys_ranks = [0]
+            nsys_args = [
                 "--force-overwrite=true",
                 "--capture-range=cudaProfilerApi",
                 "--capture-range-end=stop",
                 "--cuda-graph-trace=node",
                 "--cuda-event-trace=false",
-                "--gpu-metrics-device=all"]
-        
-        plugins.append(NsysPlugin(start_step=args.profiling_start_step, end_step=args.profiling_stop_step, ranks=nsys_ranks, nsys_extra_args=nsys_args))
+                "--gpu-metrics-device=all",
+            ]
+
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=nsys_ranks,
+                nsys_extra_args=nsys_args,
+            )
+        )
 
     with run.Experiment(exp_name) as exp:
         exp.add(
