@@ -18,6 +18,7 @@ import os
 import shutil
 from collections import deque
 from typing import Dict, List, Optional, Tuple, Union
+import numpy as np
 
 
 class ContextState:
@@ -214,14 +215,17 @@ class ContextGraph:
                 node_next = {}
                 if token not in node.next:
                     # context_score = i + 1 # add node level
-                    context_score = (i+1) * 1.3*i # add node level
+                    if i > 0:
+                        token_score = context_score + np.log(5*i) # add node level
+                    else:
+                        token_score = context_score
                     self.num_nodes += 1
                     is_end = i == len(tokens) - 1
                     node_score = node.node_score + context_score
                     node.next[token] = ContextState(
                         id=self.num_nodes,
                         token=token,
-                        token_score=context_score,
+                        token_score=token_score,
                         node_score=node_score,
                         output_score=node_score if is_end else 0,
                         is_end=is_end,

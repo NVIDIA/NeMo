@@ -51,184 +51,6 @@ _UNK_ID = -3  # Unk
 _SPECIAL_SYMBOLS_MAP = {"<s>": _BOS_ID, "</s>": _EOS_ID, "<unk>": _UNK_ID}
 
 
-def _log_10_to_e(score):
-    """Convert logarithm with base 10 to natural"""
-    return score / np.log10(np.e)
-
-
-class KenLMBatchedWrapper:
-    """
-    KenLM model wrapper for single element and batched queries (slow) for reference decoding and testing purposes.
-    """
-
-    @kenlm_required
-    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int = DEFAULT_TOKEN_OFFSET):
-        """
-        Constructor from KenLM (binary) or ARPA (text) model
-
-        Args:
-            lm_path: path to the LM file (binary KenLM or text ARPA model)
-            vocab_size: full vocabulary size for the LM
-            token_offset: offset for the tokens used for building LM
-        """
-        self.ngram_lm = kenlm.Model(str(lm_path))
-        self.token_offset = token_offset
-        self.vocab_size = vocab_size
-
-    @classmethod
-    def from_file(
-        cls, lm_path: Path | str, vocab_size: int, token_offset: int = DEFAULT_TOKEN_OFFSET
-    ) -> "KenLMBatchedWrapper":
-        """
-        Constructor from KenLM (binary) or ARPA (text) model (same as `__init__`).
-        Useful for fast switching between NGramGPULanguageModel and this class.
-
-        Args:
-            lm_path: path to .nemo checkpoint or ARPA (text) file
-            vocab_size: model vocabulary size:
-            token_offset: offset for the tokens used for building ARPA LM
-
-        Returns:
-            KenLMBatchedWrapper instance
-        """
-        return cls(lm_path=lm_path, vocab_size=vocab_size, token_offset=token_offset)
-
-    def get_init_state(self, bos=True) -> "kenlm.State":
-        """
-        Get initial state for the LM (KenLM)
-
-        Args:
-            bos: use begin-of-sentence (start-of-sentence) state, default True
-
-        Returns:
-            initial state
-        """
-        init_lm_state = kenlm.State()
-
-        if not bos:
-            return init_lm_state
-
-        self.ngram_lm.BeginSentenceWrite(init_lm_state)
-        return init_lm_state
-
-    def get_init_states(self, batch_size: int, bos=True) -> list["kenlm.State"]:
-        """
-        Get initial states for the LM (KenLM) for batched queries
-
-        Args:
-            batch_size: batch size
-            bos: use begin-of-sentence (start-of-sentence) state, default True
-
-        Returns:
-            batch (list) of states
-        """
-        return [self.get_init_state(bos=bos) for _ in range(batch_size)]
-
-    def advance(self, states: list["kenlm.State"]) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
-        """
-        Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
-        Args:
-            states: batch of states
-
-        Returns:
-            tuple containing next states and scores
-        """
-        batch_size = len(states)
-        new_states = [[] for _ in range(len(states))]
-        scores = torch.zeros(batch_size, self.vocab_size)
-        for i, state in enumerate(states):
-            for label in range(self.vocab_size):
-                score, new_state = self.advance_single(state, label)
-                scores[i, label] = score
-                new_states[i].append(new_state)
-
-        return scores, new_states
-
-    def advance_single(self, state: "kenlm.State", label: int) -> tuple[float, "kenlm.State"]:
-        """
-        Computes the score with KenLM N-gram language model for `label` given `state`
-        Args:
-            state: KenLM state
-            label: text token
-
-        Returns:
-            tuple: score, next state
-        """
-        if self.token_offset:
-            label = chr(label + self.token_offset)
-        else:
-            label = str(label)
-
-        next_state = kenlm.State()
-        lm_score = self.ngram_lm.BaseScore(state, label, next_state)
-        lm_score /= np.log10(np.e)
-
-        return lm_score, next_state
-
-    def score_sentence(self, sentence: list[int], bos: bool = True, eos: bool = False) -> torch.Tensor:
-        """
-        Compute log-probabilities for all labels in the sentence using N-Gram LM.
-
-        Args:
-            sentence: list of tokens
-            bos: start with BOS symbol
-
-        Returns:
-            Tensor with scores for the sentence. Size: [L+1] if eos else [L]
-        """
-        state = self.get_init_state(bos=bos)
-        scores = []
-        for label in sentence:
-            score, state = self.advance_single(state=state, label=label)
-            scores.append(score)
-        if eos:
-            scores.append(self.get_final_single(state=state))
-        return torch.FloatTensor(scores)
-
-    def score_sentences(self, sentences: list[list[int]], bos: bool = True, eos: bool = False) -> torch.Tensor:
-        """
-        Compute log-probabilities for all labels in sentences using N-Gram LM.
-
-        Args:
-            sentences: list of sequences of tokens
-            bos: start with BOS symbol
-
-        Returns:
-            Tensor with scores for each sentence. Size: [B, L+1] if eos else [B, L]
-        """
-        return pad_sequence(
-            [self.score_sentence(sentence, bos=bos, eos=eos) for sentence in sentences], batch_first=True
-        )
-
-    def get_final_single(self, state: "kenlm.State") -> float:
-        """
-        Get final score for the state
-
-        Args:
-            state: state
-
-        Returns:
-            final score
-        """
-        new_state = kenlm.State()  # needed for query, but we ignore it further since not needed in decoding
-        return _log_10_to_e(self.ngram_lm.BaseScore(state, "</s>", new_state))
-
-    def get_final(self, states: list["kenlm.State"]) -> torch.Tensor:
-        """
-        Get final scores for the states
-
-        Args:
-            states: list of states
-
-        Returns:
-            Tensor [B] with final scores
-        """
-        final_scores = torch.zeros(len(states))
-        for i, state in enumerate(states):
-            final_scores[i] = self.get_final_single(state)
-
-        return final_scores
-
 
 class TBranch(NamedTuple):
     """Structure (tuple) to represent N-Gram element (symbol, weight, backoff)"""
@@ -253,6 +75,7 @@ class NGram(NamedTuple):
     weight: float
     backoff: float
 
+
 @dataclass
 class SuffixTreeStorage:
     """
@@ -274,7 +97,7 @@ class SuffixTreeStorage:
 
     _node_cache: dict[int, int] = field(default_factory=dict)
 
-    unk_prob: float = float("-inf")
+    unk_score: float = 0.0
     normalize_unk: bool = True
 
     num_states: int = 0
@@ -311,7 +134,6 @@ class SuffixTreeStorage:
         self.states["final"] = NEG_INF
         self.bos_state = 1 if separate_bos_state else self.start_state
         self._node_cache[0] = 0
-        self.unk_prob = 0.0  # 
 
     def _add_tbranches_first_order(self, tbranches: list, bos_id: int, unk_id: int):
         """Add all unigrams"""
@@ -372,46 +194,11 @@ class SuffixTreeStorage:
             num_vocab_labels += 1
             self._node_cache[tbranch.next_node.id] = next_state
 
-        # if self.normalize_unk:
-        #     num_unk_labels = self.vocab_size - num_vocab_labels
-        #     if num_unk_labels > 1:
-        #         self.unk_prob -= np.log(num_unk_labels)
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
-                self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_prob)
+                self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_score)
                 self.num_arcs += 1
 
-        # # add BOS unigram
-        # assert self.bos_state == 1
-        # # NB: we do not add BOS unigram to the arcs, but only to the states
-        # self.states[self.bos_state] = (
-        #     0,
-        #     0,
-        #     self.states[self.start_state]["order"] + 1,
-        #     self.start_state,
-        #     bos_unigram["backoff"],
-        #     NEG_INF,
-        # )
-
-    # def _find_state(self, symbols: tuple[int, ...], bos_id: int) -> int:
-    #     """
-    #     Find the state given sequence of symbols
-    #     Args:
-    #         symbols: sequence of symbols
-    #         bos_id: ID of the Begin-of-Sentence symbol
-
-    #     Returns:
-    #         state in tree for the last symbol
-    #     """
-    #     if len(symbols) > 1:
-    #         return self._arc_cache[tuple(symbols)]
-    #     assert len(symbols) == 1
-    #     label = symbols[0]
-    #     if label == bos_id:
-    #         return 1
-    #     elif label >= 0:
-    #         return self.arcs[label]["to"]
-    #     raise ValueError(f"Invalid symbol {label}")
 
     def _add_tbranches_next_order(self, tbranches: list, bos_id: int):
         """Add tbranches for the order > 1; should be called after adding unigrams, using increasing order"""
@@ -478,27 +265,6 @@ class SuffixTreeStorage:
         self._tbranches_cnt = 0
         # for max order - no need in accumulator
 
-    # def _start_adding_ngrams_for_order(self, order: int, max_tbranches: int):
-    #     """Prepare for adding ngrams for the given order: initialize temporary storage"""
-    #     self._start_arcs = self.num_arcs
-    #     self._cur_order = order
-    #     if order < self.max_order:
-    #         dtype = [
-    #             ("symbol", np.int32),
-    #             ("node", ContextState),
-    #         ]
-    #         self._tbranches = np.zeros([max_tbranches], dtype=dtype)
-    #         self._tbranches_cnt = 0
-    #     # for max order - no need in accumulator
-
-    # def _add_tbranch(self, tbranch: NGram, bos_id: int):
-    #     """Helper to add ngram"""
-    #     # assert len(ngram.symbols) == self._cur_order
-    #     if self._cur_order == self.max_order:
-    #         self._add_ngram_max_order(tbranch=tbranch, bos_id=bos_id)
-    #         return
-    #     self._tbranches[self._tbranches_cnt] = tbranch
-    #     self._tbranches_cnt += 1
 
     def _end_adding_ngrams_for_order(self, order: int, bos_id: int, unk_id: int):
         """Finish adding ngrams for the given order"""
@@ -666,41 +432,6 @@ class GPUBoostingTreeModel(ModelPT):
             )
         return model
 
-    # @classmethod
-    # def from_file(
-    #     cls,
-    #     lm_path: Path | str,
-    #     vocab_size: int,
-    #     normalize_unk: bool = True,
-    #     use_triton: bool | None = None,
-    #     token_offset: int = DEFAULT_TOKEN_OFFSET,
-    # ) -> "GPUBoostingTreeModel":
-    #     """
-    #     Constructor from ARPA or Nemo (`.nemo`) checkpoint.
-
-    #     Args:
-    #         lm_path: path to .nemo checkpoint or ARPA (text) file
-    #         vocab_size: model vocabulary size:
-    #         normalize_unk: normalize unk probabilities (for tokens missing in LM) to make
-    #             all unigram probabilities sum to 1.0 (default: True)
-    #         use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
-    #         token_offset: offset for the tokens used for building ARPA LM
-
-    #     Returns:
-    #         NGramGPULanguageModel instance
-    #     """
-    #     if not isinstance(lm_path, Path):
-    #         lm_path = Path(lm_path)
-    #     if lm_path.suffix == ".nemo":
-    #         return cls.from_nemo(lm_path=lm_path, vocab_size=vocab_size, use_triton=use_triton)
-    #     return cls.from_arpa(
-    #         lm_path=lm_path,
-    #         vocab_size=vocab_size,
-    #         normalize_unk=normalize_unk,
-    #         token_offset=token_offset,
-    #         use_triton=use_triton,
-    #     )
-
     
     @classmethod
     def _read_cb_tree(
@@ -740,7 +471,7 @@ class GPUBoostingTreeModel(ModelPT):
         cls,
         cb_tree: ContextGraph,
         vocab_size: int,
-        normalize_unk: bool = True,
+        unk_score: float = True,
         use_triton: bool | None = None,
         token_offset: int = DEFAULT_TOKEN_OFFSET,
     ) -> "GPUBoostingTreeModel":
@@ -750,8 +481,7 @@ class GPUBoostingTreeModel(ModelPT):
         Args:
             lm_path: path to ARPA model (human-readable)
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
-            normalize_unk: unk normalization to make all output probabilities sum to 1.0 (default: True).
-                Setting to False can be useful for one-to-one comparison with KenLM (tests, etc.).
+            unk_score: score for unknown tokens
             use_triton: allow using Triton implementation;
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
@@ -771,7 +501,7 @@ class GPUBoostingTreeModel(ModelPT):
             num_states=0,
             num_arcs=0,
             num_arcs_max=max_states * 2 + vocab_size * 2 + 1,
-            normalize_unk=normalize_unk,
+            unk_score=unk_score,
             vocab_size=vocab_size,
             max_order=max(order2cnt)+1,
         )
@@ -802,93 +532,8 @@ class GPUBoostingTreeModel(ModelPT):
         suffix_tree_np.sanity_check()
         # import pdb; pdb.set_trace()
 
-        # with open(lm_path, "r", encoding="utf-8") as f:
-        #     order2cnt = cls._read_header(f=f)
-        #     # init suffix tree storage
-        #     max_order = max(order2cnt.keys())
-        #     total_ngrams = sum(order2cnt.values())
-        #     max_states = 2 + vocab_size + sum(order2cnt[o] for o in range(2, max_order))  # without last!
-        #     suffix_tree_np = SuffixTreeStorage(
-        #         num_states_max=max_states,
-        #         num_states=0,
-        #         num_arcs=0,
-        #         num_arcs_max=total_ngrams + vocab_size * 2 + 1,
-        #         normalize_unk=normalize_unk,
-        #         vocab_size=vocab_size,
-        #         max_order=max_order,
-        #     )
-        #     # add ngrams to suffix tree
-        #     ngram_cur_order_i = 0
-        #     cur_order = 1
-        #     # import pdb; pdb.set_trace()
-        #     for ngram in tqdm(cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams):
-        #         if ngram_cur_order_i == 0:
-        #             suffix_tree_np._start_adding_ngrams_for_order(order=cur_order, max_ngrams=order2cnt[cur_order])
-        #         ngram_cur_order_i += 1
-        #         suffix_tree_np._add_ngram(ngram=ngram, bos_id=_BOS_ID)
-
-        #         if ngram_cur_order_i == order2cnt[cur_order]:
-        #             suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=_BOS_ID, unk_id=_UNK_ID)
-        #             logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
-        #             cur_order += 1
-        #             ngram_cur_order_i = 0
-
-        #     assert ngram_cur_order_i == 0
-        #     suffix_tree_np.sanity_check()
-
-
         return GPUBoostingTreeModel.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
 
-    @classmethod
-    def dummy_unigram_lm(
-        cls,
-        vocab_size: int,
-        use_triton: bool | None = None,
-    ) -> "GPUBoostingTreeModel":
-        """
-        Constructs a trivial unigram LM with uniform distribution over the vocabulary.
-        Useful for testing purposes (e.g., decoding).
-
-        Returns:
-            NGramGPULanguageModel instance
-        """
-        model = GPUBoostingTreeModel(
-            OmegaConf.structured(
-                NGramLMConfig(
-                    num_states=2,
-                    num_arcs=vocab_size,
-                    max_order=1,
-                    vocab_size=vocab_size,
-                    use_triton=use_triton,
-                )
-            )
-        )
-        unigram_weight = -np.log(vocab_size)
-
-        # start state
-        model.backoff_weights.data[0] = 0.0
-        model.final_weights.data[0] = unigram_weight
-        model.backoff_to_states.data[0] = 0
-        model.start_end_arcs.data[0, :] = torch.tensor([0, vocab_size], dtype=model.start_end_arcs.dtype)
-        model.state_order.data[0] = 1
-
-        # BOS state
-        model.backoff_weights.data[1] = 0.0
-        model.final_weights.data[1] = unigram_weight
-        model.backoff_to_states.data[1] = 0  # to start state
-        model.start_end_arcs.data[1, :] = torch.tensor(
-            [vocab_size, vocab_size], dtype=model.start_end_arcs.dtype
-        )  # no arcs
-        model.state_order.data[1] = 2
-
-        # all tokens - unigrams from start to start state (cycles)
-        model.arcs_weights.data.fill_(unigram_weight)
-        model.from_states.data.fill_(model.START_STATE)
-        model.to_states.data.fill_(model.START_STATE)
-        model.ilabels.data[:vocab_size].copy_(torch.arange(vocab_size, dtype=model.ilabels.dtype))
-
-        model._resolve_final()
-        return model
 
     @classmethod
     def from_suffix_tree(
@@ -921,74 +566,6 @@ class GPUBoostingTreeModel(ModelPT):
         model._resolve_final()
         return model
 
-    # @classmethod
-    # def _read_header(cls, f) -> dict[int, int]:
-    #     """
-    #     Parse ARPA header
-
-    #     Args:
-    #         f: file object
-
-    #     Returns:
-    #         dictionary with order -> number of ngrams
-    #     """
-    #     is_start = True
-    #     order2cnt: dict[int, int] = defaultdict(int)
-    #     for line in f:
-    #         line = line.strip()
-    #         if is_start:
-    #             assert line == "\\data\\"
-    #             is_start = False
-    #             continue
-
-    #         if line.startswith("ngram"):
-    #             ngram_order, cnt = line.split("=")
-    #             order = int(ngram_order.split()[-1])
-    #             cnt = int(cnt)
-    #             order2cnt[order] = cnt
-    #             continue
-    #         else:
-    #             assert not line, "empty line expected after header"
-    #             break
-    #     return order2cnt
-
-    # @classmethod
-    # def _read_ngrams(cls, f, token_offset: int) -> Iterator[NGram]:
-    #     special_words_pattern = '|'.join(re.escape(symbol) for symbol in _SPECIAL_SYMBOLS_MAP)
-    #     pattern = re.compile(rf'({special_words_pattern}|.)\s?')
-    #     for line in f:
-    #         if line.endswith("\n"):
-    #             line = line[:-1]
-
-    #         if not line:
-    #             continue
-
-    #         if line.startswith("\\end\\"):
-    #             break
-
-    #         if line.startswith("\\"):
-    #             continue
-
-    #         ngram = cls._line_to_ngram(line=line, pattern=pattern, token_offset=token_offset)
-    #         yield ngram
-
-    # @staticmethod
-    # def _line_to_ngram(line: str, pattern: re.Pattern, token_offset: int) -> NGram:
-    #     """Parse ARPA line to N-Gram structure"""
-    #     weight, symbols_str, *backoff_opt = line.split("\t")
-    #     if backoff_opt:
-    #         assert len(backoff_opt) == 1
-    #         backoff = _log_10_to_e(float(backoff_opt[0]))
-    #     else:
-    #         backoff = 0.0
-    #     weight = _log_10_to_e(float(weight))
-    #     symbols_re = pattern.findall(symbols_str)
-
-    #     symbols = tuple(
-    #         (ord(symbol) - token_offset if symbol not in _SPECIAL_SYMBOLS_MAP else _SPECIAL_SYMBOLS_MAP[symbol])
-    #         for symbol in symbols_re
-    #     )
-    #     return NGram(symbols=symbols, weight=weight, backoff=backoff)
 
     def _init_from_suffix_tree_np(self, suffix_tree_np: SuffixTreeStorage):
         """Helper function to init params from suffix tree params"""
