@@ -1632,11 +1632,11 @@ class MagpieTTSModel(ModelPT):
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
                     # TODO @rfejgin: should we add argmax sampling for EOS here too?
-                    all_codes_next_argmax = audio_codes_next
+                    #all_codes_next_argmax = audio_codes_next
                 else:
                     # Parallel sampling from all codebooks
                     audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
-                    all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
+                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
