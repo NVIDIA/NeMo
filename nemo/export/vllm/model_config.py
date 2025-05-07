@@ -53,13 +53,14 @@ class NemoModelConfig(ModelConfig):
         quantization: Optional[str] = None,
         quantization_param_path: Optional[str] = None,
         enforce_eager: bool = False,
-        max_seq_len_to_capture: Optional[int] = None,
+        max_seq_len_to_capture: Optional[int] = 8192,
         max_logprobs: int = 5,
         disable_sliding_window: bool = False,
         use_async_output_proc: bool = False,
         disable_mm_preprocessor_cache: bool = False,
         logits_processor_pattern: Optional[str] = None,
         override_pooler_config: Optional[PoolerConfig] = None,
+        override_generation_config: Optional[Dict[str, Any]] = None,
         enable_sleep_mode: bool = False,
         model_impl: Union[str, ModelImpl] = ModelImpl.AUTO,
     ) -> None:
@@ -99,6 +100,8 @@ class NemoModelConfig(ModelConfig):
         self.generation_config = None
         self.task = "generate"  # Only the generate task is supported
         self.is_hybrid = False  # No hybrid models are supported
+        self.attention_chunk_size = None  # Llama4-specific parameter
+        self.override_generation_config = override_generation_config
 
         if self.task in ("draft", "generate"):
             self.truncation_side = "left"
@@ -106,7 +109,7 @@ class NemoModelConfig(ModelConfig):
             self.truncation_side = "right"
 
         self.encoder_config = self._get_encoder_config()
-        self.pooler_config = self._init_pooler_config(override_pooler_config)
+        self.pooler_config = self._init_pooler_config()
         self.enable_sleep_mode = enable_sleep_mode
 
         from vllm.platforms import current_platform  # vLLM uses local import for current_platform

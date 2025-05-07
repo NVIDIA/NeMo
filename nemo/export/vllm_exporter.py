@@ -34,6 +34,7 @@ from vllm.config import (
 )
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
+from vllm.v1.core.sched.scheduler import Scheduler as V1Scheduler
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
@@ -92,9 +93,7 @@ class vLLMExporter(ITritonDeployable):
 
     def __init__(self):
         self.request_id = 0
-        # TODO: Support v1 vllm engine
-        if envs.VLLM_USE_V1:
-            envs.set_vllm_use_v1(False)
+        assert envs.VLLM_USE_V1, "Ony vLLM V1 is supported"
 
     def export(
         self,
@@ -169,7 +168,6 @@ class vLLMExporter(ITritonDeployable):
             quantization=quantization,
             quantization_param_path=None,
             enforce_eager=False,
-            max_seq_len_to_capture=None,
         )
 
         if model_config.nemo_model_config.get("fp8", False):
@@ -245,6 +243,7 @@ class vLLMExporter(ITritonDeployable):
             num_lookahead_slots=0,
             delay_factor=0.0,
             enable_chunked_prefill=False,
+            scheduler_cls=V1Scheduler,
         )
 
         load_config = LoadConfig(
@@ -273,7 +272,7 @@ class vLLMExporter(ITritonDeployable):
         else:
             assert parallel_config.distributed_executor_backend == "uni" or parallel_config.world_size == 1
 
-            from vllm.executor.uniproc_executor import UniProcExecutor
+            from vllm.v1.executor.abstract import UniProcExecutor
 
             executor_class = UniProcExecutor
 
