@@ -19,8 +19,8 @@ torchrun --nproc_per_node=2 tests/collections/llm/gpt/model/test_hyena_mixer_cp.
 
 import argparse
 import os
-from datetime import timedelta
 import time
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
