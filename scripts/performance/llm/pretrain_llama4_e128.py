@@ -130,7 +130,7 @@ if __name__ == "__main__":
         ),
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
+        plugins.append(NsysPlugin(start_step=45, end_step=50, ranks=list(range(num_nodes * args.gpus_per_node))))
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
