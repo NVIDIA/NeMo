@@ -14,7 +14,7 @@
 
 # Run training
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  torchrun --nproc-per-node 1 examples/duplex_s2s/salm_train.py \
+  torchrun --nproc-per-node 1 examples/speechlm2/salm_train.py \
     model.pretrained_llm=/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1 \
     model.pretrained_asr=/home/TestData/speechlm/pretrained_models/canary-1b-flash.nemo \
     data.train_ds.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_train-clean-5.jsonl.gz \
@@ -23,15 +23,15 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
 
 # Convert to HF format
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  python examples/duplex_s2s/to_hf.py \
-  class_path=nemo.collections.duplex_s2s.models.SALM \
+  python examples/speechlm2/to_hf.py \
+  class_path=nemo.collections.speechlm2.models.SALM \
   ckpt_path=salm_results/checkpoints/step\\=10-last.ckpt \
-  ckpt_config=examples/duplex_s2s/conf/salm.yaml \
+  ckpt_config=examples/speechlm2/conf/salm.yaml \
   output_dir=test_salm_hf_model
 
 # Run generation
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  python examples/duplex_s2s/salm_eval.py \
+  python examples/speechlm2/salm_eval.py \
   pretrained_name=test_salm_hf_model \
   inputs=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2-first10.jsonl.gz \
   batch_size=4 \

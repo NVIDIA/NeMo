@@ -14,19 +14,19 @@
 
 # Run training
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  torchrun --nproc-per-node 1 examples/duplex_s2s/s2s_duplex_speech_decoder_train.py \
+  torchrun --nproc-per-node 1 examples/speechlm2/s2s_duplex_speech_decoder_train.py \
     model.pretrained_llm=/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1 \
     model.pretrained_audio_codec=/home/TestData/speechlm/pretrained_models/Low_Frame-rate_Speech_Codec++_bf16.nemo \
     model.pretrained_asr=/home/TestData/speechlm/pretrained_models/stt_en_fastconformer_hybrid_large_streaming_80ms.nemo \
     model.scoring_asr=/home/TestData/speechlm/pretrained_models/stt_en_fastconformer_transducer_large.nemo \
-    data.train_ds.input_cfg.0.shar_path=/home/TestData/speechlm/lhotse/duplex_s2s/train_micro \
-    data.validation_ds.datasets.val_set_0.shar_path=/home/TestData/speechlm/lhotse/duplex_s2s/train_micro \
+    data.train_ds.input_cfg.0.shar_path=/home/TestData/speechlm/lhotse/speechlm2/train_micro \
+    data.validation_ds.datasets.val_set_0.shar_path=/home/TestData/speechlm/lhotse/speechlm2/train_micro \
     trainer.max_steps=10
 
 # Convert to HF format
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  python examples/duplex_s2s/to_hf.py \
-    class_path=nemo.collections.duplex_s2s.models.DuplexS2SSpeechDecoderModel \
+  python examples/speechlm2/to_hf.py \
+    class_path=nemo.collections.speechlm2.models.DuplexS2SSpeechDecoderModel \
     ckpt_path=s2s_sdv2_results/checkpoints/step\\=10-last.ckpt \
-    ckpt_config=examples/duplex_s2s/conf/s2s_duplex_speech_decoder.yaml \
-    output_dir=test_duplex_s2s_speech_decoder_hf_model
+    ckpt_config=examples/speechlm2/conf/s2s_duplex_speech_decoder.yaml \
+    output_dir=test_speechlm2_speech_decoder_hf_model
