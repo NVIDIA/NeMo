@@ -606,7 +606,12 @@ class MagpieTTSDataset(TextToSpeechDataset):
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
 
-        example['raw_text'] = data.text
+        if "original_text" in data.manifest_entry:
+            # For Manifests in which text field is IPA.
+            example['raw_text'] = data.manifest_entry['original_text']
+        else:
+            example['raw_text'] = data.text
+            
         example['language'] = data.manifest_entry.get('language', 'en')
 
         if "reward" in data.manifest_entry:
