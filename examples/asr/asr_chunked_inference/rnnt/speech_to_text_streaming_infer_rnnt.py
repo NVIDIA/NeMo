@@ -100,6 +100,40 @@ def make_divisible_by(x, factor: int = 8):
 
 
 @dataclass
+class ContextSize:
+    left: int
+    chunk: int
+    right: int
+
+    def total(self) -> int:
+        return self.left + self.chunk + self.right
+
+    def subsample(self, factor: int) -> "ContextSize":
+        return ContextSize(
+            left=self.left // factor,
+            chunk=self.chunk // factor,
+            right=self.right // factor,
+        )
+
+
+@dataclass
+class ContextSizeBatch:
+    left: torch.Tensor
+    chunk: torch.Tensor
+    right: torch.Tensor
+
+    def total(self) -> torch.Tensor:
+        return self.left + self.chunk + self.right
+
+    def subsample(self, factor: int) -> "ContextSizeBatch":
+        return ContextSizeBatch(
+            left=torch.div(self.left, factor, rounding_mode="floor"),
+            chunk=torch.div(self.chunk, factor, rounding_mode="floor"),
+            right=torch.div(self.right, factor, rounding_mode="floor"),
+        )
+
+
+@dataclass
 class TranscriptionConfig:
     """
     Transcription Configuration for buffered inference.
@@ -265,34 +299,40 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     features_frame2audio_samples = make_divisible_by(int(audio_sample_rate * feature_stride_sec), factor=model_stride)
     encoder_frame2audio_samples = features_frame2audio_samples * model_stride
 
-    left_ctx_encoder_frames = int(cfg.left_context_secs * features_per_sec / model_stride)
-    chunk_ctx_encoder_frames = int(cfg.chunk_secs * features_per_sec / model_stride)
-    right_ctx_encoder_frames = int(cfg.right_context_secs * features_per_sec / model_stride)
+    context_encoder_frames = ContextSize(
+        left=int(cfg.left_context_secs * features_per_sec / model_stride),
+        chunk=int(cfg.chunk_secs * features_per_sec / model_stride),
+        right=int(cfg.right_context_secs * features_per_sec / model_stride),
+    )
+    context_samples = ContextSize(
+        left=context_encoder_frames.left * model_stride * features_frame2audio_samples,
+        chunk=context_encoder_frames.chunk * model_stride * features_frame2audio_samples,
+        right=context_encoder_frames.right * model_stride * features_frame2audio_samples,
+    )
 
-    left_ctx_audio_samples = left_ctx_encoder_frames * model_stride * features_frame2audio_samples
-    chunk_ctx_audio_samples = chunk_ctx_encoder_frames * model_stride * features_frame2audio_samples
-    right_ctx_audio_samples = right_ctx_encoder_frames * model_stride * features_frame2audio_samples
-    full_ctx_audio_samples = left_ctx_audio_samples + chunk_ctx_audio_samples + right_ctx_audio_samples
+    full_ctx_audio_samples = context_samples.total()
     logging.info(
-        f"Corrected contexts (sec): Left {left_ctx_audio_samples / audio_sample_rate:.2f}, "
-        f"Mid {chunk_ctx_audio_samples / audio_sample_rate:.2f}, "
-        f"Right {right_ctx_audio_samples / audio_sample_rate:.2f}"
+        "Corrected contexts (sec): "
+        f"Left {context_samples.left / audio_sample_rate:.2f}, "
+        f"Chunk {context_samples.chunk / audio_sample_rate:.2f}, "
+        f"Right {context_samples.right / audio_sample_rate:.2f}"
     )
     logging.info(
-        f"Corrected contexts (subsampled encoder frames): Left {left_ctx_encoder_frames}, "
-        f"Mid {chunk_ctx_encoder_frames}, "
-        f"Right {right_ctx_encoder_frames}"
+        "Corrected contexts (subsampled encoder frames): "
+        f"Left {context_encoder_frames.left}, "
+        f"Chunk {context_encoder_frames.chunk}, "
+        f"Right {context_encoder_frames.right}"
     )
     logging.info(
-        f"Corrected contexts (audio samples): Left {left_ctx_audio_samples}, "
-        f"Mid {chunk_ctx_audio_samples}, "
-        f"Right {right_ctx_audio_samples}"
+        "Corrected contexts (in audio samples): "
+        f"Left {context_samples.left}, "
+        f"Chunk {context_samples.chunk}, "
+        f"Right {context_samples.right}"
     )
-    latency_secs = (chunk_ctx_audio_samples + right_ctx_audio_samples) / audio_sample_rate
+    latency_secs = (context_samples.chunk + context_samples.right) / audio_sample_rate
     logging.info(f"Theoretical latency: {latency_secs:.2f} seconds")
 
     with torch.no_grad(), torch.inference_mode():
-        streaming_transcripts = []
         all_hyps = []
         for i in tqdm(range(0, len(records), cfg.batch_size)):
             # get audio
@@ -301,6 +341,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 device=map_location,
                 sample_rate=audio_sample_rate,
             )
+            batch_size = audio_batch.shape[0]
+            device = audio_batch.device
 
             # decode audio by chunks
 
@@ -308,94 +350,79 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             state: Optional[BatchedGreedyDecodingState] = None
             left_sample = 0
             # right_sample = initial latency in audio samples
-            right_sample = min(chunk_ctx_audio_samples + right_ctx_audio_samples, audio_batch.shape[1])
+            right_sample = min(context_samples.chunk + context_samples.right, audio_batch.shape[1])
             # start with empty buffer
-            buffer = torch.zeros([audio_batch.shape[0], 0], dtype=audio_batch.dtype, device=audio_batch.device)
-            buffer_left_context = 0
-            buffer_chunk_context = 0
-            buffer_right_context = 0
-            buffer_size = torch.zeros_like(audio_batch_lengths)
+            buffer = torch.zeros([batch_size, 0], dtype=audio_batch.dtype, device=device)
+            buffer_size = ContextSize(left=0, chunk=0, right=0)
+            buffer_size_batch = ContextSizeBatch(
+                left=torch.zeros_like(audio_batch_lengths),
+                chunk=torch.zeros_like(audio_batch_lengths),
+                right=torch.zeros_like(audio_batch_lengths),
+            )
             rest_audio_lengths = audio_batch_lengths.clone()
+
+            # iterate over audio samples
             while left_sample < audio_batch.shape[1]:
+                # add samples to buffer
                 buffer = torch.cat((buffer, audio_batch[:, left_sample:right_sample]), dim=1)
                 added_samples = min(right_sample, audio_batch.shape[1]) - left_sample
                 is_last_chunk = right_sample >= audio_batch.shape[1]
-                # TODO: is_last_chunk as tensor?
-                current_audio_chunk_len = torch.minimum(
-                    rest_audio_lengths, torch.full_like(rest_audio_lengths, fill_value=added_samples)
-                )
-                buffer_size += current_audio_chunk_len
-                buffer_left_context += buffer_chunk_context
-                buffer_chunk_context = 0
-                buffer_right_context += added_samples
-                if not is_last_chunk:
-                    if buffer_right_context > right_ctx_audio_samples:
-                        buffer_chunk_context += buffer_right_context - right_ctx_audio_samples
-                        buffer_right_context = right_ctx_audio_samples
+                is_last_chunk_batch = added_samples >= rest_audio_lengths
+                added_samples_batch = torch.where(is_last_chunk_batch, rest_audio_lengths, added_samples)
+
+                buffer_size.left += buffer_size.chunk
+                buffer_size_batch.left += buffer_size_batch.chunk
+                buffer_size.chunk = 0
+                buffer_size_batch.chunk.fill_(0)
+                buffer_size.right += added_samples
+                buffer_size_batch.right += added_samples_batch
+
+                if is_last_chunk:
+                    buffer_size.chunk = buffer_size.right
+                    buffer_size.right = 0
                 else:
-                    # last chunk - zero right context
-                    buffer_chunk_context = buffer_right_context
-                    buffer_right_context = 0
+                    buffer_size.chunk = context_samples.chunk
+                    buffer_size.right -= context_samples.chunk
+                    assert buffer_size.right == context_samples.right
+
+                buffer_size_batch.chunk = torch.where(
+                    is_last_chunk_batch, buffer_size_batch.right, context_samples.chunk
+                )
+                buffer_size_batch.right = torch.where(
+                    is_last_chunk_batch, 0, buffer_size_batch.right - context_samples.chunk
+                )
+
+                # fix left context
+                buffer_size_batch.left = torch.where(buffer_size_batch.chunk > 0, buffer_size_batch.left, 0)
 
                 # leave only full_ctx_audio_samples in buffer
                 extra_samples_in_buffer = max(0, buffer.shape[1] - full_ctx_audio_samples)
                 if extra_samples_in_buffer > 0:
                     buffer = buffer[:, extra_samples_in_buffer:]
-                    buffer_size -= extra_samples_in_buffer
-                    buffer_size = torch.where(buffer_size < 0, torch.zeros_like(buffer_size), buffer_size)
-                    if not is_last_chunk:
-                        assert buffer_left_context - left_ctx_audio_samples == extra_samples_in_buffer
-                    # NB: left ctx can contain extra samples if it is a last batch
-                    buffer_left_context -= extra_samples_in_buffer
-                    assert buffer_left_context >= 0
-                assert buffer_left_context + buffer_chunk_context + buffer_right_context == buffer.shape[1]
+                    buffer_size.left -= extra_samples_in_buffer
+                    buffer_size_batch.left = torch.where(
+                        buffer_size_batch.left > extra_samples_in_buffer,
+                        buffer_size_batch.left - extra_samples_in_buffer,
+                        0,
+                    )
+
+                assert buffer_size_batch.total().max().item() == buffer_size.total() == buffer.shape[1]
 
                 encoder_output, encoder_output_len = asr_model(
                     input_signal=buffer,
-                    input_signal_length=buffer_size,
+                    input_signal_length=buffer_size_batch.total(),
                 )
                 encoder_output = encoder_output.transpose(1, 2)  # [B, T, C]
-                # discard extra encoder output frame
-                encoder_output = encoder_output[:, :-1]
-                encoder_output_len = torch.where(encoder_output_len == 0, 0, encoder_output_len - 1)
-
-
+                # ? discard extra encoder output frame
                 # remove extra context from encoder_output
-                encoder_left_context = buffer_left_context // encoder_frame2audio_samples
-                encoder_chunk_context = buffer_chunk_context // encoder_frame2audio_samples
-                encoder_right_context = buffer_right_context // encoder_frame2audio_samples
-                encoder_full_context = encoder_left_context + encoder_chunk_context + encoder_right_context
-                encoder_extra_added_frames = encoder_output.shape[1] - encoder_full_context
-                assert encoder_extra_added_frames >= 0
-                if encoder_extra_added_frames > 0:
-                    logging.warning("Maybe incorrect length")
-                    logging.warning(
-                        f"{buffer_left_context} + {buffer_chunk_context} + {buffer_right_context} :: {buffer_size}"
-                    )
-                    logging.warning(
-                        f"{encoder_left_context} + {encoder_chunk_context} + {encoder_right_context} != {encoder_output.shape[1]} || {encoder_output_len}"
-                    )
-                encoder_right_context += encoder_extra_added_frames
-                encoder_full_context += encoder_extra_added_frames
-
-                encoder_output = encoder_output[:, encoder_left_context:]
-                encoder_output_len -= encoder_left_context
-                # fix negative lengths
-                encoder_output_len = torch.where(
-                    encoder_output_len > 0, encoder_output_len, torch.full_like(encoder_output_len, fill_value=0)
-                )
-                if encoder_right_context > 0:
-                    encoder_output = encoder_output[:, :-encoder_right_context]
-                    encoder_output_len = torch.where(
-                        encoder_output_len > encoder_chunk_context,
-                        torch.full_like(encoder_output_len, fill_value=encoder_chunk_context),
-                        encoder_output_len,
-                    )
-                # assert (encoder_output_len > 0).any()
+                encoder_context = buffer_size.subsample(factor=encoder_frame2audio_samples)
+                encoder_context_batch = buffer_size_batch.subsample(factor=encoder_frame2audio_samples)
+                # remove left context
+                encoder_output = encoder_output[:, encoder_context.left :]
 
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
-                    out_len=encoder_output_len,
+                    out_len=encoder_context_batch.chunk,  # decode only chunk
                     prev_batched_state=state,
                 )
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
@@ -408,16 +435,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         hyp.y_sequence = hyp.y_sequence.tolist()
 
                 # move to next sample
-                rest_audio_lengths -= current_audio_chunk_len
+                rest_audio_lengths -= added_samples_batch
                 left_sample = right_sample
-                right_sample = min(right_sample + chunk_ctx_audio_samples, audio_batch.shape[1])  # add next chunk
+                right_sample = min(right_sample + context_samples.chunk, audio_batch.shape[1])  # add next chunk
 
             all_hyps.extend(current_hyps)
+
     for hyp in all_hyps:
         text = asr_model.tokenizer.ids_to_text(hyp.y_sequence)
         hyp.text = text
-        streaming_transcripts.append(text)
-    # print(streaming_transcripts)
+    # print([hyp.text for hyp in all_hyps])
 
     output_filename, pred_text_attr_name = write_transcription(
         all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
