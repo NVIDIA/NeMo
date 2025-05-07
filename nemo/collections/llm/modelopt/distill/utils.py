@@ -12,23 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from contextlib import contextmanager
 from types import MethodType
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict
 
 import torch
-import yaml
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
-from megatron.core.transformer import TransformerConfig, TransformerLayer
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
 
-from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, ProjectionLayer
+from .loss import LogitsKLLoss
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -42,79 +39,24 @@ DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationM
 DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
 
-def load_distillation_config(
-    config_path: Optional[str], student_cfg: TransformerConfig, teacher_cfg: TransformerConfig
-) -> Dict[str, Any]:
-    """Read the distillation yaml config file specified by ``args.export_kd_cfg``.
+def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
+    """Create a default distillation config for MCore GPT Models."""
+    logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel
+    distill_cfg = {
+        "criterion": {},
+        "loss_balancer": _DummyLossBalancer(),  # HACK: to appease ModelOpt until validation relaxed
+        "skip_lm_loss": True,
+    }
+    if cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
+        distill_cfg["criterion"][logit_pair] = LogitsKLLoss(cfg)
 
-    Args:
-        config_path: Path to user-defined distillation settings yaml file.
-            If `None`, uses default logits-only distillation mode for GPT models.
-        student_cfg: Model config for student model.
-        teacher_cfg: Model config for teacher model.
-
-    WARNING: Assumes intermediate hidden sizes are always that found in the model config's ``hidden_size`` attribute.
-    """
-    if not config_path:
-        logging.warning("Distillation config not provided. Using default.")
-        cfg = {
-            "logit_layers": ["output_layer", "output_layer"],
-            "intermediate_layer_pairs": [],
-            "skip_lm_loss": True,
-            "kd_loss_scale": 1.0,
-        }
-    else:
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
-
-    intermediate_pairs = cfg["intermediate_layer_pairs"]
-    logit_pair = cfg["logit_layers"]
-    skip_lm_loss = cfg["skip_lm_loss"]
-    loss_scale = cfg["kd_loss_scale"]
-
-    criterion = {}
-    if student_cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
-        criterion[tuple(logit_pair)] = LogitsKLLoss(student_cfg)
-        # NOTE: Projection layer shared among intermediate layer pairs.
-        projection_layer = ProjectionLayer(student_cfg, teacher_cfg)
-
-        for student_layer, teacher_layer in intermediate_pairs:
-            if parallel_state.get_tensor_and_context_parallel_rank() == 0:
-                print(
-                    "Distillation: Adding intermediate loss between"
-                    f" `{student_layer}` of student (hidden size {student_cfg.hidden_size}) and"
-                    f" `{teacher_layer}` of teacher (hidden size {teacher_cfg.hidden_size})."
-                )
-            student_layer = _adjust_layer_index_for_pp(student_layer, student_cfg)
-            teacher_layer = _adjust_layer_index_for_pp(teacher_layer, teacher_cfg)
-            criterion[(student_layer, teacher_layer)] = HiddenStateCosineLoss(
-                student_cfg, projection_layer=projection_layer
-            )
-
-    loss_balancer = LogitsAndIntermediatesLossBalancer(kd_loss_scale=loss_scale, skip_original_loss=skip_lm_loss)
-
-    cfg["criterion"] = criterion
-    cfg["loss_balancer"] = loss_balancer
-
-    return cfg
+    return distill_cfg
 
 
-def _adjust_layer_index_for_pp(submodule_name, model_cfg):
-    """Adjust any sequence-based layer indices found in a submodule name for Pipeline Parallelism."""
-
-    match = re.search(r'(?<=\.)\d+(?=\.)', submodule_name)
-    if not match:
-        return submodule_name
-
-    offset = TransformerLayer._get_layer_offset(model_cfg)
-    new_layer_idx = int(match.group(0)) - offset
-    if new_layer_idx < 0:
-        raise ValueError(f"Layer {submodule_name} does not fall on final PP rank.")
-
-    new_submodule_name = submodule_name.replace(match.group(0), str(new_layer_idx))
-    if parallel_state.get_tensor_and_context_parallel_rank() == 0:
-        print(f'Distillation: Renamed layer "{submodule_name}" on final PP rank to "{new_submodule_name}"')
-    return new_submodule_name
+class _DummyLossBalancer(DistillationLossBalancer):
+    def forward(self, loss_dict):
+        # pylint: disable=C0116
+        return next(iter(loss_dict.values()))
 
 
 def teacher_provider(
