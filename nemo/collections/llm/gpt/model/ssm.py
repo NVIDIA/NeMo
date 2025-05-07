@@ -965,6 +965,19 @@ class NemotronHConfigBase(SSMConfig):
     first_last_layers_bf16: bool = True
     is_hybrid_model: bool = True
 
+@dataclass
+class NemotronHConfig4B(NemotronHConfigBase):
+    """NemotronHConfig4B"""
+
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    num_layers: int = 52
+    hidden_size: int = 3072
+    mamba_num_heads: int = 112
+    kv_channels: int = 128
+    mamba_state_dim: int = 128
+    ffn_hidden_size: int = 12288
+    num_attention_heads: int = 32
+    use_mamba_mem_eff_path: bool = False
 
 @dataclass
 class NemotronHConfig8B(NemotronHConfigBase):
@@ -1017,6 +1030,7 @@ __all__ = [
     "NVIDIAMambaConfig8B",
     "NVIDIAMambaHybridConfig8B",
     "NemotronHConfigBase",
+    "NemotronHConfig4B",
     "NemotronHConfig8B",
     "NemotronHConfig47B",
     "NemotronHConfig56B",
