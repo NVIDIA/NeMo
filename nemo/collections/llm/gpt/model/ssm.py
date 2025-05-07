@@ -969,6 +969,7 @@ class NemotronHConfigBase(SSMConfig):
     first_last_layers_bf16: bool = True
     is_hybrid_model: bool = True
 
+
 @dataclass
 class NemotronHConfig4B(NemotronHConfigBase):
     """NemotronHConfig4B"""
@@ -982,6 +983,7 @@ class NemotronHConfig4B(NemotronHConfigBase):
     ffn_hidden_size: int = 12288
     num_attention_heads: int = 32
     use_mamba_mem_eff_path: bool = False
+
 
 @dataclass
 class NemotronHConfig8B(NemotronHConfigBase):
