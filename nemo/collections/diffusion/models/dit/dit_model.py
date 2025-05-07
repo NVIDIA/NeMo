@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
 
 from typing import Dict, Literal, Optional
 
 import torch
+import torch.distributed
 import torch.nn as nn
-import torch.nn.functional as F
 from diffusers.models.embeddings import Timesteps
 from einops import rearrange, repeat
 from megatron.core import parallel_state, tensor_parallel
@@ -141,7 +142,7 @@ class DiTCrossAttentionModel(VisionModule):
 
         self.config: TransformerConfig = config
 
-        self.transformer_decoder_layer_spec = transformer_decoder_layer_spec(attn_mask_type=config.attn_mask_type)
+        self.transformer_decoder_layer_spec = transformer_decoder_layer_spec()
         self.pre_process = pre_process
         self.post_process = post_process
         self.add_encoder = True
@@ -190,6 +191,8 @@ class DiTCrossAttentionModel(VisionModule):
                     w=max_img_w // patch_spatial,
                 )
         else:
+            # here I just follow the original logic, that except with SinCosPosEmb3D, the pos_emb would be feeded to transformer blocks,
+            # so the other embedders should be replicated across pp ranks.
             self.pos_embedder = pos_embedder(
                 config,
                 t=max_frames // patch_temporal,
@@ -239,7 +242,6 @@ class DiTCrossAttentionModel(VisionModule):
                 ]
                 * B,
                 dtype=torch.bfloat16,
-                device=x.device,
             ),
         ).view(-1)
         if self.pre_process:
@@ -251,16 +253,16 @@ class DiTCrossAttentionModel(VisionModule):
             else:
                 pos_emb = self.pos_embedder(pos_ids)
                 pos_emb = rearrange(pos_emb, "B S D -> S B D")
-            x_S_B_D = rearrange(x_B_S_D, "B S D -> S B D").contiguous()
+            x_S_B_D = rearrange(x_B_S_D, "B S D -> S B D")
         else:
             # intermediate stage of pipeline
             x_S_B_D = None  ### should it take encoder_hidden_states
             if (not hasattr(self, "pos_embedder")) or isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
                 pos_emb = None
             else:
-                ## if transformer blocks need pos_emb, then pos_embedder should
-                ## be replicated across pp ranks.
-                pos_emb = rearrange(self.pos_embedder(pos_ids), "B S D -> S B D").contiguous()
+                # if transformer blocks need pos_emb, then pos_embedder should
+                # be replicated across pp ranks.
+                pos_emb = rearrange(self.pos_embedder(pos_ids), "B S D -> S B D")
 
         timesteps_B_D = self.t_embedder(timesteps.flatten()).to(torch.bfloat16)  # (b d_text_embedding)
 
@@ -268,17 +270,15 @@ class DiTCrossAttentionModel(VisionModule):
         fps_B_D = self.fps_embedder(fps)
         fps_B_D = nn.functional.pad(fps_B_D, (0, self.config.hidden_size - fps_B_D.shape[1]))
         affline_emb_B_D += fps_B_D
-        affline_emb_B_D = self.affline_norm(affline_emb_B_D)
 
-        crossattn_emb = rearrange(crossattn_emb, 'B S D -> S B D').contiguous()
+        crossattn_emb = rearrange(crossattn_emb, 'B S D -> S B D')
 
         if self.config.sequence_parallel:
             if self.pre_process:
                 x_S_B_D = tensor_parallel.scatter_to_sequence_parallel_region(x_S_B_D)
-            if hasattr(self, "pos_embedder") and isinstance(
-                self.pos_embedder, dit_embeddings.FactorizedLearnable3DEmbedding
-            ):
-                pos_emb = tensor_parallel.scatter_to_sequence_parallel_region(pos_emb)
+                if isinstance(self.pos_embedder, dit_embeddings.FactorizedLearnable3DEmbedding):
+                    pos_emb = tensor_parallel.scatter_to_sequence_parallel_region(pos_emb)
+
             crossattn_emb = tensor_parallel.scatter_to_sequence_parallel_region(crossattn_emb)
             # `scatter_to_sequence_parallel_region` returns a view, which prevents
             # the original tensor from being garbage collected. Clone to facilitate GC.
@@ -361,8 +361,7 @@ class DiTCrossAttentionModel(VisionModule):
         vpp_world = parallel_state.get_virtual_pipeline_model_parallel_world_size()
         vpp_world = vpp_world if vpp_world else 1
         pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-        if embedder_weight_key in sharded_state_dict:
-            del sharded_state_dict[embedder_weight_key]
+        del sharded_state_dict[embedder_weight_key]
         replica_id = (
             tp_rank,
             (vpp_rank + pp_rank * vpp_world),

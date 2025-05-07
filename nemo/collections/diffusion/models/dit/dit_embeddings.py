@@ -12,20 +12,82 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
 
-import math
-from typing import Dict, Literal, Optional
 
-import numpy as np
+import logging
+from typing import Optional
+
 import torch
-import torch.nn.functional as F
 from diffusers.models.embeddings import TimestepEmbedding, get_3d_sincos_pos_embed
 from einops import rearrange
-from einops.layers.torch import Rearrange
 from megatron.core import parallel_state
-from megatron.core.models.common.embeddings.rotary_pos_embedding import get_pos_emb_on_this_cp_rank
 from megatron.core.transformer.module import MegatronModule
 from torch import nn
+
+log = logging.getLogger(__name__)
+
+
+class SDXLTimestepEmbedding(nn.Module):
+    def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
+        super().__init__()
+        log.critical(
+            f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
+        )
+        self.linear_1 = nn.Linear(in_features, out_features, bias=not use_adaln_lora)
+        self.activation = nn.SiLU()
+        self.use_adaln_lora = use_adaln_lora
+        if use_adaln_lora:
+            self.linear_2 = nn.Linear(out_features, 3 * out_features, bias=False)
+        else:
+            self.linear_2 = nn.Linear(out_features, out_features, bias=True)
+
+    def forward(self, sample: torch.Tensor) -> torch.Tensor:
+        emb = self.linear_1(sample)
+        emb = self.activation(emb)
+        emb = self.linear_2(emb)
+
+        if self.use_adaln_lora:
+            adaln_lora_B_3D = emb
+            emb_B_D = sample
+        else:
+            emb_B_D = emb
+            adaln_lora_B_3D = None
+
+        return emb_B_D, adaln_lora_B_3D
+
+
+class ParallelSDXLTimestepEmbedding(SDXLTimestepEmbedding):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        use_adaln_lora: bool = False,
+        seed: Optional[int] = None,
+    ):
+        super().__init__(
+            in_features=in_features,
+            out_features=out_features,
+            use_adaln_lora=use_adaln_lora,
+        )
+        if seed is not None:
+            with torch.random.fork_rng():
+                torch.manual_seed(seed)
+                self.linear_1.reset_parameters()
+                self.linear_2.reset_parameters()
+
+        # Check for pipeline model parallelism and set attributes accordingly
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            setattr(self.linear_1.weight, "pipeline_parallel", True)
+            if self.linear_1.bias is not None:
+                setattr(self.linear_1.bias, "pipeline_parallel", True)
+            setattr(self.linear_2.weight, "pipeline_parallel", True)
+            if self.linear_2.bias is not None:
+                setattr(self.linear_2.bias, "pipeline_parallel", True)
+
+    def forward(self, sample: torch.Tensor) -> torch.Tensor:
+        sample = sample.to(torch.bfloat16, non_blocking=True)
+        return super().forward(sample)
 
 
 class ParallelTimestepEmbedding(TimestepEmbedding):

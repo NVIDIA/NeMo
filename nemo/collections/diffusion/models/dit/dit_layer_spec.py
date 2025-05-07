@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 import copy
 from dataclasses import dataclass
 from typing import Literal, Union
@@ -19,7 +21,6 @@ from typing import Literal, Union
 import torch
 import torch.nn as nn
 from megatron.core.jit import jit_fuser
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.attention import (
     CrossAttention,
     CrossAttentionSubmodules,
@@ -27,11 +28,18 @@ from megatron.core.transformer.attention import (
     SelfAttentionSubmodules,
 )
 from megatron.core.transformer.cuda_graphs import CudaGraphManager
+from megatron.core.transformer.custom_layers.transformer_engine import (
+    TEColumnParallelLinear,
+    TEDotProductAttention,
+    TENorm,
+    TERowParallelLinear,
+)
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
+from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
 from megatron.core.utils import make_viewless_tensor
@@ -42,54 +50,22 @@ from nemo.collections.diffusion.models.dit.dit_attention import (
     JointSelfAttentionSubmodules,
 )
 
-try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEColumnParallelLinear,
-        TEDotProductAttention,
-        TENorm,
-        TERowParallelLinear,
-    )
-except ImportError:
-    from nemo.utils import logging
-
-    logging.warning(
-        "Failed to import Transformer Engine dependencies. "
-        "`from megatron.core.transformer.custom_layers.transformer_engine import *`"
-        "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
-    )
-
 
 # pylint: disable=C0116
 @dataclass
 class DiTWithAdaLNSubmodules(TransformerLayerSubmodules):
-    """
-    Submodules for DiT with AdaLN.
-    """
-
-    # pylint: disable=C0115
-
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 @dataclass
 class STDiTWithAdaLNSubmodules(TransformerLayerSubmodules):
-    """
-    Submodules for STDiT with AdaLN.
-    """
-
-    # pylint: disable=C0115
     spatial_self_attention: Union[ModuleSpec, type] = IdentityOp
     temporal_self_attention: Union[ModuleSpec, type] = IdentityOp
     full_self_attention: Union[ModuleSpec, type] = IdentityOp
 
 
 class RMSNorm(nn.Module):
-    """
-    RMSNorm Module.
-    """
-
-    # pylint: disable=C0115
     def __init__(self, hidden_size: int, config, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
@@ -109,12 +85,7 @@ class AdaLN(MegatronModule):
     """
 
     def __init__(
-        self,
-        config: TransformerConfig,
-        n_adaln_chunks=9,
-        norm=nn.LayerNorm,
-        modulation_bias=False,
-        use_second_norm=False,
+        self, config: TransformerConfig, n_adaln_chunks=9, use_adaln_lora=True, adaln_lora_dim=256, norm=nn.LayerNorm
     ):
         super().__init__(config)
         if norm == TENorm:
@@ -122,29 +93,22 @@ class AdaLN(MegatronModule):
         else:
             self.ln = norm(config.hidden_size, elementwise_affine=False, eps=self.config.layernorm_epsilon)
         self.n_adaln_chunks = n_adaln_chunks
-        self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(),
-            ColumnParallelLinear(
-                config.hidden_size,
-                self.n_adaln_chunks * config.hidden_size,
-                config=config,
-                init_method=nn.init.normal_,
-                bias=modulation_bias,
-                gather_output=True,
-            ),
-        )
-        self.use_second_norm = use_second_norm
-        if self.use_second_norm:
-            self.ln2 = nn.LayerNorm(config.hidden_size, elementwise_affine=False, eps=1e-6)
+        if use_adaln_lora:
+            self.adaLN_modulation = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(config.hidden_size, adaln_lora_dim, bias=False),
+                nn.Linear(adaln_lora_dim, self.n_adaln_chunks * config.hidden_size, bias=False),
+            )
+        else:
+            self.adaLN_modulation = nn.Sequential(
+                nn.SiLU(), nn.Linear(config.hidden_size, self.n_adaln_chunks * config.hidden_size, bias=False)
+            )
         nn.init.constant_(self.adaLN_modulation[-1].weight, 0)
 
         setattr(self.adaLN_modulation[-1].weight, "sequence_parallel", config.sequence_parallel)
 
-    @jit_fuser
     def forward(self, timestep_emb):
-        output, bias = self.adaLN_modulation(timestep_emb)
-        output = output + bias if bias else output
-        return output.chunk(self.n_adaln_chunks, dim=-1)
+        return self.adaLN_modulation(timestep_emb).chunk(self.n_adaln_chunks, dim=-1)
 
     @jit_fuser
     def modulate(self, x, shift, scale):
@@ -155,21 +119,17 @@ class AdaLN(MegatronModule):
         return residual + gate * x
 
     @jit_fuser
-    def modulated_layernorm(self, x, shift, scale, layernorm_idx=0):
-        if self.use_second_norm and layernorm_idx == 1:
-            layernorm = self.ln2
-        else:
-            layernorm = self.ln
+    def modulated_layernorm(self, x, shift, scale):
         # Optional Input Layer norm
-        input_layernorm_output = layernorm(x).type_as(x)
+        input_layernorm_output = self.ln(x).type_as(x)
 
         # DiT block specific
         return self.modulate(input_layernorm_output, shift, scale)
 
-    @jit_fuser
-    def scaled_modulated_layernorm(self, residual, x, gate, shift, scale, layernorm_idx=0):
+    # @jit_fuser
+    def scaled_modulated_layernorm(self, residual, x, gate, shift, scale):
         hidden_states = self.scale_add(residual, x, gate)
-        shifted_pre_mlp_layernorm_output = self.modulated_layernorm(hidden_states, shift, scale, layernorm_idx)
+        shifted_pre_mlp_layernorm_output = self.modulated_layernorm(hidden_states, shift, scale)
         return hidden_states, shifted_pre_mlp_layernorm_output
 
 
@@ -560,7 +520,7 @@ class DiTLayer(TransformerLayer):
 
 
 class MMDiTLayer(TransformerLayer):
-    """A multi-modal transformer layer.
+    """A single transformer layer.
 
     Transformer layer takes input with size [s, b, h] and returns an
     output of the same size.
@@ -675,15 +635,6 @@ class MMDiTLayer(TransformerLayer):
 
 
 class FluxSingleTransformerBlock(TransformerLayer):
-    """
-    Flux Single Transformer Block.
-
-    Single transformer layer mathematically equivalent to original Flux single transformer.
-
-    This layer is re-implemented with megatron-core and also altered in structure for better performance.
-
-    """
-
     def __init__(
         self,
         config: TransformerConfig,
@@ -797,8 +748,8 @@ def get_stdit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
     )
 
 
-def get_dit_adaln_block_with_transformer_engine_spec(attn_mask_type=AttnMaskType.padding) -> ModuleSpec:
-    params = {"attn_mask_type": attn_mask_type}
+def get_dit_adaln_block_with_transformer_engine_spec() -> ModuleSpec:
+    params = {"attn_mask_type": AttnMaskType.padding}
     return ModuleSpec(
         module=DiTLayerWithAdaLN,
         submodules=DiTWithAdaLNSubmodules(
@@ -897,8 +848,8 @@ def get_flux_single_transformer_engine_spec() -> ModuleSpec:
                 submodules=SelfAttentionSubmodules(
                     linear_qkv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,
-                    q_layernorm=TENorm,
-                    k_layernorm=TENorm,
+                    q_layernorm=RMSNorm,
+                    k_layernorm=RMSNorm,
                     linear_proj=TERowParallelLinear,
                 ),
             ),
@@ -921,10 +872,10 @@ def get_flux_double_transformer_engine_spec() -> ModuleSpec:
                 module=JointSelfAttention,
                 params={"attn_mask_type": AttnMaskType.no_mask},
                 submodules=JointSelfAttentionSubmodules(
-                    q_layernorm=TENorm,
-                    k_layernorm=TENorm,
-                    added_q_layernorm=TENorm,
-                    added_k_layernorm=TENorm,
+                    q_layernorm=RMSNorm,
+                    k_layernorm=RMSNorm,
+                    added_q_layernorm=RMSNorm,
+                    added_k_layernorm=RMSNorm,
                     linear_qkv=TEColumnParallelLinear,
                     added_linear_qkv=TEColumnParallelLinear,
                     core_attention=TEDotProductAttention,

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 import math
 import os
 from dataclasses import dataclass, field
@@ -928,6 +930,3 @@ def transform_single_proj_out(proj_weight):
     linear_fc2 = proj_weight.detach()[:, 3072:].clone()
     linear_proj = proj_weight.detach()[:, :3072].clone()
     return linear_fc2, linear_proj
-
-
-# pylint: disable=C0116

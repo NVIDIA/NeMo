@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -335,4 +337,4 @@ class AutoEncoder(nn.Module):
             logger.warning(f"Following keys are missing from checkpoint loaded: {missing}")
 
 
-# pylint: disable=C0116
+# flake8: noqa

@@ -17,7 +17,6 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import numpy as np
 import torch
 import torch.distributed
-from einops import rearrange
 from megatron.core import parallel_state
 from torch import Tensor
 
@@ -427,13 +426,8 @@ class EDMPipeline:
         latent_state = raw_state
 
         # Condition
-        condition = {}  # Create a new dictionary for condition
-        # Copy all keys from data_batch except 'video'
-        for key, value in data_batch.items():
-            if key not in ['video', 't5_text_embeddings']:
-                condition[key] = value
-        condition['crossattn_emb'] = self.random_dropout_input(
+        data_batch['crossattn_emb'] = self.random_dropout_input(
             data_batch['t5_text_embeddings'], dropout_rate=dropout_rate
         )
 
-        return raw_state, latent_state, condition
+        return raw_state, latent_state, data_batch

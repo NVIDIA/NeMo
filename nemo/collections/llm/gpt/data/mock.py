@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116,C0301
+
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 import lightning.pytorch as pl
@@ -134,6 +136,11 @@ class MockDataModule(pl.LightningDataModule):
             self.setup()
         return self._create_dataloader(self._test_ds)
 
+    def predict_dataloader(self) -> EVAL_DATALOADERS:
+        if not hasattr(self, "_predict_ds"):
+            self.setup()
+        return self._create_dataloader(self._predict_ds)
+
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
         return DataLoader(
             dataset,
@@ -187,6 +194,7 @@ class _MockGPTDataset(Dataset):
             "labels": tokens[1:],
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
+            'a': tokens,
         }
 
         if self.create_attention_mask:
