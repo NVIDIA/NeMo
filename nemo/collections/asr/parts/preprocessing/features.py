@@ -276,7 +276,6 @@ class FilterbankFeatures(nn.Module):
         mel_norm="slaney",
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
-        corrected_pad=False,  # corrected padding, False for backward compatibility
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -310,7 +309,6 @@ class FilterbankFeatures(nn.Module):
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
         self.exact_pad = exact_pad
-        self.corrected_pad = corrected_pad
 
         if exact_pad:
             logging.info("STFT using exact pad")
@@ -411,10 +409,7 @@ class FilterbankFeatures(nn.Module):
     def get_seq_len(self, seq_len):
         # Assuming that center is True is stft_pad_amount = 0
         pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
-        if self.corrected_pad:
-            seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft + self.hop_length - 1), self.hop_length)
-        else:
-            seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length) + 1
+        seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length) + 1
         return seq_len.to(dtype=torch.long)
 
     @property
@@ -422,7 +417,9 @@ class FilterbankFeatures(nn.Module):
         return self.fb
 
     def forward(self, x, seq_len, linear_spec=False):
-        seq_len = self.get_seq_len(seq_len)
+        seq_len_unfixed = self.get_seq_len(seq_len)
+        # fix for seq_len = 0 for streaming; if size was 0, it is always padded to 1, and normalizer fails
+        seq_len = torch.where(seq_len == 0, seq_len_unfixed, torch.zeros_like(seq_len_unfixed))
 
         if self.stft_pad_amount is not None:
             x = torch.nn.functional.pad(

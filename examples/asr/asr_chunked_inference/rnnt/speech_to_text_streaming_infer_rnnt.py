@@ -354,7 +354,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     input_signal=buffer,
                     input_signal_length=buffer_size,
                 )
-                encoder_output = encoder_output.transpose(1, 2)
+                encoder_output = encoder_output.transpose(1, 2)  # [B, T, C]
+                # discard extra encoder output frame
+                encoder_output = encoder_output[:, :-1]
+                encoder_output_len = torch.where(encoder_output_len == 0, 0, encoder_output_len - 1)
+
 
                 # remove extra context from encoder_output
                 encoder_left_context = buffer_left_context // encoder_frame2audio_samples
@@ -363,7 +367,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_full_context = encoder_left_context + encoder_chunk_context + encoder_right_context
                 encoder_extra_added_frames = encoder_output.shape[1] - encoder_full_context
                 assert encoder_extra_added_frames >= 0
-                if encoder_extra_added_frames > 1:
+                if encoder_extra_added_frames > 0:
                     logging.warning("Maybe incorrect length")
                     logging.warning(
                         f"{buffer_left_context} + {buffer_chunk_context} + {buffer_right_context} :: {buffer_size}"
