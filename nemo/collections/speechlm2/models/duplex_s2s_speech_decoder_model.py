@@ -33,17 +33,14 @@ from transformers import DynamicCache
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
-from nemo.collections.speechlm2.models.duplex_s2s_model import (
-    _safe_audio_codec_precision,
-    replace_control_speech_codes,
-    tokens_to_str,
-)
+from nemo.collections.speechlm2.models.duplex_s2s_model import replace_control_speech_codes, tokens_to_str
 from nemo.collections.speechlm2.modules import AudioPerceptionModule, TransformerARSpeechDecoder
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.metrics.asr_bleu import ASRBLEU
 from nemo.collections.speechlm2.parts.metrics.bleu import BLEU
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
+from nemo.collections.speechlm2.parts.precision import fp32_precision
 from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.utils import logging
@@ -236,7 +233,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         elif diff > 0:
             target_tokens = target_tokens[:, : source_encoded.shape[1]]
 
-        with _safe_audio_codec_precision(), torch.no_grad():
+        with fp32_precision(), torch.no_grad():
             target_codes, target_codes_lens = self.audio_codec.encode(
                 audio=batch["target_audio"], audio_len=batch["target_audio_lens"]
             )
@@ -375,7 +372,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
                 dataset_batch["source_audio_lens"],
             )
 
-            with _safe_audio_codec_precision():  # torchaudio resample is fragile to bfloat16 default dtype as well
+            with fp32_precision():  # torchaudio resample is fragile to bfloat16 default dtype as well
                 self.asr_bleu.update(
                     name=name,
                     refs=dataset_batch["target_texts"],
@@ -491,7 +488,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
 
         if decode_audio:
             gen_audio_codes = replace_control_speech_codes(gen_audio, self._control_codes)
-            with _safe_audio_codec_precision(), torch.no_grad():
+            with fp32_precision(), torch.no_grad():
                 predicted_audio, predicted_audio_lens = self.audio_codec.decode(
                     tokens=gen_audio_codes.transpose(1, 2), tokens_len=lengths
                 )

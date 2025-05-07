@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from contextlib import contextmanager
 from typing import Any
 
 import torch
@@ -42,3 +43,21 @@ class HalfPrecisionForAudio(HalfPrecision):
             return v  # any other type
 
         return _convert(data)
+
+
+@contextmanager
+def fp32_precision():
+    """
+    Workaround for precision related issues when training with bf16-true PyTorch Lightning precision setting.
+    In bf16-true, PTL changes PyTorch's default dtype, which may break implicit assumptions for some models.
+    This context manager restores default float32 precision and runs the computation in float32 autocast context.
+    """
+    default_dtype = torch.get_default_dtype()
+    torch.set_default_dtype(torch.float32)
+    try:
+        with torch.amp.autocast(
+            device_type="cuda" if torch.cuda.is_available() else torch.get_default_device(), dtype=torch.float32
+        ):
+            yield
+    finally:
+        torch.set_default_dtype(default_dtype)

@@ -6,6 +6,7 @@ from whisper_normalizer.english import EnglishTextNormalizer
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+from nemo.collections.speechlm2.parts.precision import fp32_precision
 from nemo.collections.speechlm2.parts.pretrained import load_pretrained_nemo
 from nemo.utils import logging
 
@@ -36,7 +37,8 @@ class ASRBLEU:
         # be quite fragmented and close to the limit after observing many
         # dynamic shapes during the training epoch.
         torch.cuda.memory.empty_cache()
-        self.asr = load_pretrained_nemo(ASRModel, self.pretrained_asr_name).eval()
+        with fp32_precision():  # Some NeMo ASR models weren't trained with bfloat16.
+            self.asr = load_pretrained_nemo(ASRModel, self.pretrained_asr_name).eval()
         WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self.asr, attribute_path="decoding.decoding")
         return self
 
@@ -49,11 +51,12 @@ class ASRBLEU:
         if pred_audio_lens is None:
             pred_audio_lens = [pred_audio.shape[1]] * pred_audio.shape[0]
 
-        asr_hyps = self.asr.transcribe(
-            [audio[:alen] for audio, alen in zip(pred_audio, pred_audio_lens)],
-            batch_size=pred_audio.shape[0],
-            verbose=False,
-        )
+        with fp32_precision():
+            asr_hyps = self.asr.transcribe(
+                [audio[:alen] for audio, alen in zip(pred_audio, pred_audio_lens)],
+                batch_size=pred_audio.shape[0],
+                verbose=False,
+            )
 
         for ref, asr_hyp in zip(refs, asr_hyps):
             asr_hyp = asr_hyp.text
