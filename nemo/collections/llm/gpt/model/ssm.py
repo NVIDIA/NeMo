@@ -561,7 +561,9 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
                 base //= 2
             return base
 
-        if "8B" in source._name_or_path:
+        if "4B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig4B()
+        elif "8B" in source._name_or_path:
             nemotron_h_config = NemotronHConfig8B()
         elif "47B" in source._name_or_path:
             nemotron_h_config = NemotronHConfig47B()
