@@ -150,6 +150,7 @@ jobs:
     needs: [pre-flight, code-linting, cicd-wait-in-queue]
     if: |
       needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success() 
         || (
@@ -239,7 +240,8 @@ jobs:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     if: |
-      needs.pre-flight.outputs.test_to_run != '[]'
+      needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
