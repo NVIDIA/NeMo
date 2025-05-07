@@ -25,7 +25,7 @@ TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HO
   --flux_num_joint_layers 1 \
   --flux_num_single_layers 1
 
-TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HOME=/home/TestData/diffusion coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo \
+TRANSFORMER_OFFLINE=1 MASTER_PORT=29500 MASTER_ADDR=127.0.0.1 LOCAL_RANK=0 HF_HOME=/home/TestData/diffusion coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   /workspace/scripts/flux/flux_infer.py \
   --t5_version google/t5-v1_1-xxl \
   --t5_load_config_only \
