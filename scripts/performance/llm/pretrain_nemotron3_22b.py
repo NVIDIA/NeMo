@@ -27,6 +27,7 @@ from ..utils import (
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
+    logging,
 )
 
 
@@ -77,6 +78,8 @@ def override_recipe_configs(
     )
 
     # data module configs
+    if args.use_hf_tokenizer:
+        logging.warning("HuggingFace tokenizer not supported for Nemotron3 22B. Using NullTokenizer.")
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
