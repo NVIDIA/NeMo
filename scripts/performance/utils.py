@@ -79,7 +79,7 @@ def slurm_executor(
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    numa_bind_factor=int(num_gpus_per_node/2)
+    numa_bind_factor = int(num_gpus_per_node / 2)
     srun_args = [
         "--mpi=pmix",
         f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_bind_factor})) --membind=$((SLURM_LOCALID/{numa_bind_factor}))",
