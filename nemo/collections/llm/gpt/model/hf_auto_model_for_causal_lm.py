@@ -466,8 +466,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     val /= dist.get_world_size(group)
                 return val
 
-            from nemo.utils.env_var_parsing import get_envint
-
             # Reduce loss across DP (or DP x CP) ranks.
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
