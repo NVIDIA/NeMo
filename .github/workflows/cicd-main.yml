@@ -139,6 +139,7 @@ jobs:
     environment: test
     if: |
       needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && needs.pre-flight.outputs.is_ci_workload == 'false'
     steps:
       - name: Running CI tests
