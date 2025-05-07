@@ -327,20 +327,10 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-pss",
-        "--profiling_start_step",
-        type=int,
-        help="Defines start step for profiling",
-        required=False,
-        default=46
+        "-pss", "--profiling_start_step", type=int, help="Defines start step for profiling", required=False, default=46
     )
     parser.add_argument(
-        "-pso",
-        "--profiling_stop_step",
-        type=int,
-        help="Defines start step for profiling",
-        required=False,
-        default=50
+        "-pso", "--profiling_stop_step", type=int, help="Defines start step for profiling", required=False, default=50
     )
 
     def list_of_strings(arg):

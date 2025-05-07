@@ -47,7 +47,7 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    num_layers: int, 
+    num_layers: int,
     hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        num_layers, 
+        num_layers,
         hidden_size,
         _,
         enable_cuda_graphs,
@@ -148,7 +148,7 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        num_layers, 
+        num_layers,
         hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -156,14 +156,14 @@ if __name__ == "__main__":
         activation_offload_layers,
     )
 
-    pinning_args=[]
+    pinning_args = []
     exp_tuning = ""
     if args.cpu_pinning > 0:
         pinning_args = [
-            "--cpu-bind=verbose", 
-            f"--cpus-per-task={args.cpu_pinning}", 
-            "--hint=multithread", 
-            "--distribution=*:block"
+            "--cpu-bind=verbose",
+            f"--cpus-per-task={args.cpu_pinning}",
+            "--hint=multithread",
+            "--distribution=*:block",
         ]
         exp_tuning += "_pinned"
 

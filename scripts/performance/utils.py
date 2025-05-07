@@ -19,12 +19,11 @@ from typing import Dict, List, Optional
 
 import nemo_run as run
 import pandas as pd
-import nemo.lightning as nl
-from nemo.lightning import AutoResume
 from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.config import get_nemorun_home
 from numpy import nan
 
+import nemo.lightning as nl
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -35,6 +34,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_mixed,
     bf16_with_mxfp8_mixed,
 )
+from nemo.lightning import AutoResume
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
@@ -91,7 +91,7 @@ def slurm_executor(
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
 
-    #Extra location mount for checkpointing support
+    # Extra location mount for checkpointing support
     STAGE_PATH = os.getenv('STAGE_PATH')
     mounts.extend([f"{STAGE_PATH}:{STAGE_PATH}"])
     if hf_token is not None:
@@ -315,7 +315,7 @@ def set_primary_perf_configs(
     # other parameters to make them explicit in yaml configs
     recipe.model.config.num_layers = num_layers
     recipe.model.config.hidden_size = hidden_size
-    
+
     if nccl_communicator_config_path is not None:
         recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
@@ -404,7 +404,7 @@ def set_primary_perf_configs(
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
-    recipe.trainer.enable_checkpointing = (os.getenv('ENABLE_CHECKPOINT', 'false') == 'true')
+    recipe.trainer.enable_checkpointing = os.getenv('ENABLE_CHECKPOINT', 'false') == 'true'
     recipe.trainer.val_check_interval = max_steps
     load_checkpoint_path = os.getenv('LOAD_CHECKPOINT_PATH')
 
@@ -424,7 +424,6 @@ def set_primary_perf_configs(
                 load_artifacts=False,
             ),
         )
-
 
     return recipe
 
