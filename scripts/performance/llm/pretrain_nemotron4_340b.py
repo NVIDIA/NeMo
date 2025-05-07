@@ -156,21 +156,8 @@ if __name__ == "__main__":
         activation_offload_layers,
     )
 
-    pinning_args = []
-    exp_tuning = ""
-    if args.cpu_pinning > 0:
-        pinning_args = [
-            "--cpu-bind=verbose",
-            f"--cpus-per-task={args.cpu_pinning}",
-            "--hint=multithread",
-            "--distribution=*:block",
-        ]
-        exp_tuning += "_pinned"
-
-    if args.enable_nsys:
-        exp_tuning += "_nsys"
-
-    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{args.num_gpus}{exp_tuning}"
+    exp_config = f"{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
         args.account,
@@ -185,7 +172,6 @@ if __name__ == "__main__":
             "NVTE_NORM_FWD_USE_CUDNN": "1",
             "NVTE_NORM_BWD_USE_CUDNN": "1",
         },  # for properly overlapping normalization kernels with FSDP communication
-        custom_srun_args=pinning_args,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,

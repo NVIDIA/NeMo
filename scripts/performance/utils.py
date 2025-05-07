@@ -92,8 +92,8 @@ def slurm_executor(
         mounts.extend([f"{nemo_home}:{nemo_home}"])
 
     # Extra location mount for checkpointing support
-    STAGE_PATH = os.getenv('STAGE_PATH')
-    mounts.extend([f"{STAGE_PATH}:{STAGE_PATH}"])
+    NEMORUN_HOME = os.getenv('NEMORUN_HOME')
+    mounts.extend([f"{NEMORUN_HOME}:{NEMORUN_HOME}"])
     if hf_token is not None:
         env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
 
