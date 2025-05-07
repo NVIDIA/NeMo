@@ -259,7 +259,7 @@ def parse_cli_args():
         type=int,
         help="Number of train steps. Defaults to 100",
         required=False,
-        default=100,
+        default=50,
     )
 
     def bool_arg(arg):
@@ -349,7 +349,7 @@ def parse_cli_args():
         type=int,
         help="Defines start step for profiling",
         required=False,
-        default=20
+        default=46
     )
     parser.add_argument(
         "-pso",
@@ -357,7 +357,7 @@ def parse_cli_args():
         type=int,
         help="Defines start step for profiling",
         required=False,
-        default=30
+        default=50
     )
 
     def list_of_strings(arg):

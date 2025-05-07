@@ -199,17 +199,17 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        nsys_ranks=[0,1,2,3,4,5,6,7]
-        nsys_args=[
-            "--force-overwrite=true",
-            "--capture-range=cudaProfilerApi",
-            "--capture-range-end=stop",
-            "--cuda-graph-trace=node",
-            "--cuda-event-trace=false"]
-        
+        nsys_ranks=list(range(num_nodes * args.gpus_per_node))
+        nsys_args=[]
         if args.profiling_gpu_metrics:
             nsys_ranks=[0]
-            nsys_args.append("--gpu-metrics-device=all")
+            nsys_args=[
+                "--force-overwrite=true",
+                "--capture-range=cudaProfilerApi",
+                "--capture-range-end=stop",
+                "--cuda-graph-trace=node",
+                "--cuda-event-trace=false",
+                "--gpu-metrics-device=all"]
         
         plugins.append(NsysPlugin(start_step=args.profiling_start_step, end_step=args.profiling_stop_step, ranks=nsys_ranks, nsys_extra_args=nsys_args))
 
