@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument('--max_batch_size', type=int, help="Max BS for the model for deployment")
     parser.add_argument('--eval_type', type=str, help="Evaluation benchmark to run from NVIDIA Evals Factory")
     parser.add_argument('--limit', type=int, help="Limit evaluation to `limit` num of samples")
+    parser.add_argument('--legacy_ckpt', action="store_true", help="Whether the nemo checkpoint is in legacy format")
 
     return parser.parse_args()
 
@@ -44,7 +45,7 @@ def run_deploy(args):
             args.nemo2_ckpt_path,
             "--max_batch_size",
             str(args.max_batch_size),
-        ]
+        ] + (["--legacy_ckpt"] if args.legacy_ckpt else []),
     )
 
 
