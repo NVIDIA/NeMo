@@ -230,12 +230,12 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
                 )
 
-            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
 
             adapter_kwargs = dict(
                 dim=self.dim,
+                base_linear_name=full_name,
                 activation='identity',
-                norm_position=None,
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,
@@ -246,6 +246,7 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                 model_parallel_config=getattr(m, "config", None),
                 alpha=self.alpha,
                 is_expert=is_expert_linear(full_name),
+                disable_sequence_parallel_comm=disable_sp_comm,
             )
             if name in ['linear_proj', 'linear_fc2']:
                 adapter = ParallelLinearAdapter(in_features, out_features, **adapter_kwargs)

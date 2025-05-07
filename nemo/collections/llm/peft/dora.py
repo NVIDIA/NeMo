@@ -22,8 +22,7 @@ from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_shar
 from torch import nn
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+from nemo.collections.llm.peft.utils import ParallelLinearAdapter, get_adapter_attributes_from_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -181,14 +180,14 @@ class DoRA(PEFT, ModuleMatcher):
         """
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
-            input_is_parallel, in_features, out_features = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
                 out_features,
                 self.dim,
+                base_linear_name=full_name,
                 activation='identity',
-                norm_position=None,
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,
@@ -198,6 +197,7 @@ class DoRA(PEFT, ModuleMatcher):
                 dropout_position=self.dropout_position,
                 model_parallel_config=getattr(m, "config", None),
                 alpha=self.alpha,
+                disable_sequence_parallel_comm=disable_sp_comm,
             )
             return DoRALinear(m, adapter)
         return m

@@ -184,9 +184,7 @@ def finetune_recipe(
             >>> print(recipe)
 
     Note:
-        This recipe uses the SPECTER dataset for fine-tuning. For more information
-        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-        `examples/llm/finetune/` directory.
+        This recipe uses the SPECTER dataset for fine-tuning.
     """
     if seq_length is None:
         seq_length = 512
@@ -230,7 +228,7 @@ def finetune_recipe(
 
 def finetune_performance_optimizations(
     recipe: run.Partial,
-    peft_scheme: str,
+    peft_scheme: Optional[str],
 ) -> run.Partial:
     """
     Modify the given recipe to optimize settings for performance.

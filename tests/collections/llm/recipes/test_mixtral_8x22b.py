@@ -23,7 +23,7 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralModel
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import mixtral_8x22b
-from nemo.lightning import AutoResume, Trainer
+from nemo.lightning import Trainer
 
 
 class TestMixtral8x22B:
@@ -74,10 +74,7 @@ class TestMixtral8x22B:
         assert isinstance(recipe.data, run.Config)
         assert recipe.data.__fn_or_cls__ == MockDataModule
         assert isinstance(recipe.model.config, run.Config)
-        if recipe.model.config.__fn_or_cls__ == MixtralConfig8x22B:
-            assert recipe.data.seq_length == 65536
-        else:
-            assert recipe.data.seq_length == 4096
+        assert recipe.data.seq_length == 4096
         assert recipe.data.global_batch_size == 512
         assert recipe.data.micro_batch_size == 1
 
@@ -126,8 +123,5 @@ class TestMixtral8x22B:
         assert mixtral_config.num_layers == 56
         assert mixtral_config.hidden_size == 6144
         assert mixtral_config.num_attention_heads == 48
-        if mixtral_config.__fn_or_cls__ == MixtralConfig8x22B:
-            assert mixtral_config.seq_length == 65536
-        else:
-            assert mixtral_config.seq_length == 4096
+        assert mixtral_config.seq_length == 4096
         assert mixtral_config.num_moe_experts == 8

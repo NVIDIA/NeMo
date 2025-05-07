@@ -39,9 +39,30 @@ class TransformCTX:
     target_state: dict
 
 
+class _ModelState:
+    """
+    Helper class for used for to modify state dict of a source model during model conversion.
+    """
+
+    def __init__(self, state_dict, config=None):
+        self._state_dict = state_dict
+        self.config = config
+
+    def state_dict(self):
+        # pylint: disable=C0115,C0116
+        return self._state_dict
+
+    def to(self, dtype):
+        # pylint: disable=C0115,C0116
+        for k, v in self._state_dict.items():
+            if v.dtype != dtype:
+                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+            self._state_dict[k] = v.to(dtype)
+
+
 @torch.no_grad
 def apply_transforms(
-    source: nn.Module,
+    source: Union[nn.Module, _ModelState],
     target: TargetModuleT,
     mapping: Dict[str, str],
     transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
@@ -517,6 +538,107 @@ class TransformFns:
         return q_proj, k_proj, v_proj
 
     @staticmethod
+    def split_qkv_bias(ctx: TransformCTX, qkv_bias: torch.Tensor):
+        """
+        Split interleave-concatenated qkv bias to separate q, k, v bias
+
+        Example: export layer linear_qkv bias to HF {q|k|v}_proj bias
+        """
+        megatron_config = ctx.source.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        head_size = megatron_config.kv_channels
+        qkv_total_dim = head_num + 2 * num_query_groups
+
+        qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
+        q_slice = torch.cat(
+            [
+                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                for i in range(num_query_groups)
+            ]
+        )
+        k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+        q_bias = qkv_bias[q_slice].reshape(-1).cpu()
+        k_bias = qkv_bias[k_slice].reshape(-1).cpu()
+        v_bias = qkv_bias[v_slice].reshape(-1).cpu()
+
+        return q_bias, k_bias, v_bias
+
+    @staticmethod
+    def merge_qkv(ctx: TransformCTX, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+        """
+        Merge q, k, v to interleave-concatenated qkv.
+
+        Example: import HF {q|k|v}_proj to layer linear_qkv
+        """
+        megatron_config = ctx.target.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        hidden_size = megatron_config.hidden_size
+        head_size = megatron_config.kv_channels
+        old_tensor_shape = q.size()
+        new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+        new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+
+        q = q.view(*new_q_tensor_shape)
+        k = k.view(*new_kv_tensor_shape)
+        v = v.view(*new_kv_tensor_shape)
+
+        qkv_weights_l = []
+        for i in range(num_query_groups):
+            qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+            qkv_weights_l.append(k[i : i + 1, :, :])
+            qkv_weights_l.append(v[i : i + 1, :, :])
+        qkv_weights = torch.cat(qkv_weights_l)
+        assert qkv_weights.ndim == 3, qkv_weights.shape
+        assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+        assert qkv_weights.shape[1] == head_size, qkv_weights.shape
+        assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
+
+        qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+
+        return qkv_weights
+
+    @staticmethod
+    def merge_qkv_bias(ctx: TransformCTX, qb: torch.Tensor, kb: torch.Tensor, vb: torch.Tensor):
+        """
+        Merge q, k, v bias to interleave-concatenated qkv bias.
+
+        Example: import HF {q|k|v}_proj bias to layer linear_qkv bias
+        """
+        megatron_config = ctx.target.config
+
+        head_num = megatron_config.num_attention_heads
+        num_query_groups = megatron_config.num_query_groups
+        heads_per_group = head_num // num_query_groups
+        head_size = megatron_config.kv_channels
+
+        new_q_tensor_shape = (head_num, head_size)
+        new_kv_tensor_shape = (num_query_groups, head_size)
+
+        qb = qb.view(*new_q_tensor_shape)
+        kb = kb.view(*new_kv_tensor_shape)
+        vb = vb.view(*new_kv_tensor_shape)
+
+        qkv_bias = torch.empty((0, head_size)).type_as(qb)
+        for i in range(num_query_groups):
+            qkv_bias = torch.cat((qkv_bias, qb[i * heads_per_group : (i + 1) * heads_per_group, :]))
+            qkv_bias = torch.cat((qkv_bias, kb[i : i + 1, :]))
+            qkv_bias = torch.cat((qkv_bias, vb[i : i + 1, :]))
+        qkv_bias = qkv_bias.reshape(
+            [
+                head_size * (head_num + 2 * num_query_groups),
+            ]
+        )
+        return qkv_bias
+
+    @staticmethod
     def merge_fc1(gate: torch.Tensor, up: torch.Tensor):
         """
         Merge gate and up proj into concatenated fc1
@@ -552,3 +674,13 @@ class TransformFns:
         Example: export Performant LoRA linear_qkv.adapter.linear_in to HF {q|k|v}_proj.lora_A
         """
         return param, param, param
+
+    @staticmethod
+    def prune_padding(ctx: TransformCTX, embedding: torch.Tensor):
+        """
+        Prune the embedding size to vocab size
+
+        Example: export embedding/output layer to HF with non-padded vocab size
+        """
+        megatron_config = ctx.target.config
+        return embedding[: megatron_config.vocab_size, :]

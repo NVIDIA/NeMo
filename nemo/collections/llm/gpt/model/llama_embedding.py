@@ -22,14 +22,22 @@ import torch.nn.functional as F
 from megatron.core import parallel_state
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 import nemo.collections.llm.gpt.model.base as GPTBase
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativeRankingLoss
 from nemo.collections.llm.gpt.model import GPTConfig
-from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B, LlamaConfig, LlamaModel
+from nemo.collections.llm.gpt.model.llama import (
+    HFLlamaImporter,
+    Llama32Config1B,
+    Llama32Config3B,
+    LlamaConfig,
+    LlamaModel,
+)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
+from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
@@ -84,7 +92,7 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
-    output = GPTBase.get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
@@ -124,6 +132,34 @@ class Llama32EmbeddingConfig1B(Llama32Config1B):
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 1B Model"""
+        model = super().configure_model(tokenizer, pre_process, post_process)
+        # post_process need to be overwritten to False after model init because
+        # final_layernorm is still needed and it will only be initialized when post_process is True in Mcore.
+        # And for forward(), we do not want to run through output_layer thus setting post_process to False.
+        model.post_process = False
+        return model
+
+
+@dataclass
+class Llama32EmbeddingConfig3B(Llama32Config3B):
+    """Llama3.2 Embedding 3B Config"""
+
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
+    forward_step_fn: Callable = nv_embedding_forward_step
+    data_step_fn: Callable = nv_embedding_data_step
+
+    # Training Configs
+    truncation_method: Literal["left", "right"] = 'right'
+    num_hard_negatives: int = 4
+    ce_loss_scale: float = 50
+    label_smoothing: float = 0.0
+    in_batch_negatives: bool = False
+    negative_sample_strategy: Literal["random", "first"] = 'first'
+    add_bos: bool = True
+    add_eos: bool = False
+
+    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        """Configure the NV Embedding Llama3.2 3B Model"""
         model = super().configure_model(tokenizer, pre_process, post_process)
         # post_process need to be overwritten to False after model init because
         # final_layernorm is still needed and it will only be initialized when post_process is True in Mcore.
@@ -280,7 +316,7 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
         from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
 
         LlamaBidirectionalModel.register_for_auto_class("AutoModel")
-        with no_init_weights(True):
+        with no_init_weights():
             return LlamaBidirectionalModel._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -334,7 +370,27 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "layers.*.post_attention_layernorm.weight",
             "decoder.final_layernorm.weight": "norm.weight",
         }
-        transforms = [_export_qkv, _export_linear_fc1, _export_embedding]
+        transforms = [
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                target_key=(
+                    "layers.*.self_attn.q_proj.weight",
+                    "layers.*.self_attn.k_proj.weight",
+                    "layers.*.self_attn.v_proj.weight",
+                ),
+                fn=TransformFns.split_qkv,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("layers.*.mlp.gate_proj.weight", "layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="embed_tokens.weight",
+                fn=TransformFns.prune_padding,
+            ),
+        ]
 
         return io.apply_transforms(
             source,
@@ -349,56 +405,7 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
         return io.load_context(str(self), subpath="model").tokenizer
 
 
-@io.state_transform(
-    source_key="decoder.layers.*.self_attention.linear_qkv.weight",
-    target_key=(
-        "layers.*.self_attn.q_proj.weight",
-        "layers.*.self_attn.k_proj.weight",
-        "layers.*.self_attn.v_proj.weight",
-    ),
-)
-def _export_qkv(ctx: io.TransformCTX, linear_qkv):
-    megatron_config = ctx.source.config
-
-    head_num = megatron_config.num_attention_heads
-    num_query_groups = megatron_config.num_query_groups
-    heads_per_group = head_num // num_query_groups
-    hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
-    qkv_total_dim = head_num + 2 * num_query_groups
-
-    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
-    q_slice = torch.cat(
-        [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
-            for i in range(num_query_groups)
-        ]
-    )
-    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
-
-    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
-    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
-    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
-
-    return q_proj, k_proj, v_proj
-
-
-@io.state_transform(
-    source_key="embedding.word_embeddings.weight",
-    target_key="embed_tokens.weight",
-)
-def _export_embedding(ctx: io.TransformCTX, embedding):
-    megatron_config = ctx.target.config
-    # prune padding.
-    return embedding[: megatron_config.vocab_size, :]
-
-
-@io.state_transform(
-    source_key="decoder.layers.*.mlp.linear_fc1.weight",
-    target_key=("layers.*.mlp.gate_proj.weight", "layers.*.mlp.up_proj.weight"),
-)
-def _export_linear_fc1(linear_fc1):
-    gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
-
-    return gate_proj, up_proj
+__all__ = [
+    "Llama32EmbeddingConfig1B",
+    "LlamaEmbeddingModel",
+]

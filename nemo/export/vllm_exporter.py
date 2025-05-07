@@ -18,6 +18,7 @@ import os.path
 from typing import Iterable, List, Optional, Union
 
 import numpy
+import vllm.envs as envs
 import wrapt
 from vllm import RequestOutput, SamplingParams
 from vllm.config import (
@@ -26,6 +27,7 @@ from vllm.config import (
     LoadConfig,
     LoadFormat,
     LoRAConfig,
+    ObservabilityConfig,
     ParallelConfig,
     SchedulerConfig,
     VllmConfig,
@@ -35,7 +37,7 @@ from vllm.lora.request import LoRARequest
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
-from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
+from nemo.export.utils import convert_lora_nemo_to_canonical, prepare_directory_for_export
 from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
@@ -90,6 +92,9 @@ class vLLMExporter(ITritonDeployable):
 
     def __init__(self):
         self.request_id = 0
+        # TODO: Support v1 vllm engine
+        if envs.VLLM_USE_V1:
+            envs.set_vllm_use_v1(False)
 
     def export(
         self,
@@ -99,7 +104,7 @@ class vLLMExporter(ITritonDeployable):
         device: str = 'auto',
         tensor_parallel_size: int = 1,
         pipeline_parallel_size: int = 1,
-        max_model_len: int = None,
+        max_model_len: Optional[int] = None,
         lora_checkpoints: Optional[List[str]] = None,
         dtype: str = 'auto',
         seed: int = 0,
@@ -107,6 +112,7 @@ class vLLMExporter(ITritonDeployable):
         weight_storage: str = 'auto',
         gpu_memory_utilization: float = 0.9,
         quantization: Optional[str] = None,
+        delete_existing_files: bool = True,
     ):
         """
         Exports the Nemo checkpoint to vLLM and initializes the engine.
@@ -140,7 +146,9 @@ class vLLMExporter(ITritonDeployable):
                 executor, which can range from 0 to 1.
             quantization (str): quantization method that is used to quantize the model weights.
                 Possible choices are None (weights not quantized, default) and "fp8".
+            delete_existing_files (bool): if True, deletes all the files in model_dir.
         """
+        prepare_directory_for_export(model_dir, delete_existing_files=delete_existing_files)
 
         # Pouplate the basic configuration structures
         device_config = DeviceConfig(device)
@@ -279,10 +287,7 @@ class vLLMExporter(ITritonDeployable):
                 device_config=device_config,
                 load_config=load_config,
                 lora_config=lora_config,
-                speculative_config=None,
-                decoding_config=None,
-                observability_config=None,
-                prompt_adapter_config=None,
+                observability_config=ObservabilityConfig(),
             ),
             executor_class=executor_class,
             log_stats=log_stats,
