@@ -47,6 +47,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int, 
+    hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -71,6 +73,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
@@ -125,12 +129,14 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers, 
+        hidden_size,
         _,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+    ) = kwargs[:15]
 
     recipe = override_recipe_configs(
         args,
@@ -142,14 +148,29 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers, 
+        hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
-    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+    pinning_args=[]
+    exp_tuning = ""
+    if args.cpu_pinning > 0:
+        pinning_args = [
+            "--cpu-bind=verbose", 
+            f"--cpus-per-task={args.cpu_pinning}", 
+            "--hint=multithread", 
+            "--distribution=*:block"
+        ]
+        exp_tuning += "_pinned"
+
+    if args.enable_nsys:
+        exp_tuning += "_nsys"
+
+    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{args.num_gpus}{exp_tuning}"
 
     executor = slurm_executor(
         args.account,
@@ -164,6 +185,7 @@ if __name__ == "__main__":
             "NVTE_NORM_FWD_USE_CUDNN": "1",
             "NVTE_NORM_BWD_USE_CUDNN": "1",
         },  # for properly overlapping normalization kernels with FSDP communication
+        custom_srun_args=pinning_args,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
@@ -177,7 +199,19 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
+        nsys_ranks=[0,1,2,3,4,5,6,7]
+        nsys_args=[
+            "--force-overwrite=true",
+            "--capture-range=cudaProfilerApi",
+            "--capture-range-end=stop",
+            "--cuda-graph-trace=node",
+            "--cuda-event-trace=false"]
+        
+        if args.profiling_gpu_metrics:
+            nsys_ranks=[0]
+            nsys_args.append("--gpu-metrics-device=all")
+        
+        plugins.append(NsysPlugin(start_step=args.profiling_start_step, end_step=args.profiling_stop_step, ranks=nsys_ranks, nsys_extra_args=nsys_args))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

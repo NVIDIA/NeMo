@@ -92,7 +92,7 @@ def parse_cli_args():
     parser.add_argument(
         "-en",
         "--enable_nsys",
-        help="Enable Nsys profiling. Diabled by default",
+        help="Enable Nsys profiling. Disabled by default",
         action="store_true",
     )
     parser.add_argument(
@@ -309,6 +309,55 @@ def parse_cli_args():
         help="Path to NCCL communicator config yaml file",
         required=False,
         default=None,
+    )
+    parser.add_argument(
+        "-cpin",
+        "--cpu_pinning",
+        type=int,
+        help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
+        required=False,
+        # action="store_true",
+        default=0,  
+    )
+    parser.add_argument(
+        "-nlay",
+        "--num_layers",
+        type=int,
+        help="Sets number of model layers.",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-hs",
+        "--hidden_size",
+        type=int,
+        help="Sets hidden model size",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-pg",
+        "--profiling_gpu_metrics",
+        help="Enable CUDA graphs. Disabled by default",
+        action="store_true",
+        required=False,
+        default=False, 
+    )
+    parser.add_argument(
+        "-pss",
+        "--profiling_start_step",
+        type=int,
+        help="Defines start step for profiling",
+        required=False,
+        default=20
+    )
+    parser.add_argument(
+        "-pso",
+        "--profiling_stop_step",
+        type=int,
+        help="Defines start step for profiling",
+        required=False,
+        default=30
     )
 
     def list_of_strings(arg):

@@ -158,6 +158,7 @@ class NsysPlugin(run.Plugin):
     end_step: int
     ranks: Optional[list[int]] = None
     nsys_trace: Optional[list[str]] = None
+    nsys_extra_args: Optional[list[str]] = None
     gen_shape: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
@@ -176,6 +177,8 @@ class NsysPlugin(run.Plugin):
         launcher = executor.get_launcher()
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
+        if self.nsys_extra_args is not None:
+            launcher.nsys_extra_args = self.nsys_extra_args
 
 
 @dataclass(kw_only=True)
