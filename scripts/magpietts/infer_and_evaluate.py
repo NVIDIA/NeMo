@@ -60,6 +60,7 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         if model_cfg.model_type == 'decoder_context_tts':
             model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 3
             model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 4
+            model_cfg.forced_mask_token_id = num_audio_tokens_per_codebook - 5
         else:
             model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 1
             model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 2
@@ -89,6 +90,7 @@ def run_inference(
         start_prior_after_n_audio_steps=10,
         confidence_level=0.95,
         use_local_transformer=False,
+        maskgit_n_steps=3,
         legacy_codebooks=False
     ):
     # Load model
@@ -122,7 +124,8 @@ def run_inference(
     model.cuda()
     model.eval()
 
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_sv_{}".format(
+    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
         checkpoint_name,
         temperature,
         topk,
@@ -135,6 +138,7 @@ def run_inference(
         "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
         "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
         use_local_transformer,
+        maskgit_n_steps,
         sv_model
     )
     dataset_meta_info = evalset_config.dataset_meta_info
@@ -221,7 +225,8 @@ def run_inference(
                     estimate_alignment_from_layers=estimate_alignment_from_layers,
                     apply_prior_to_layers=apply_prior_to_layers,
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
-                    use_local_transformer_for_inference=use_local_transformer
+                    use_local_transformer_for_inference=use_local_transformer,
+                    maskgit_n_steps=maskgit_n_steps
                 )
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
@@ -309,7 +314,8 @@ def main():
     parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
-    parser.add_argument('--use_local_transformer', action='store_true')
+    parser.add_argument('--use_local_transformer', action='store_true', help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.")
+    parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
@@ -363,6 +369,7 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
+                maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks
             )
         return
@@ -392,6 +399,7 @@ def main():
             start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
+            maskgit_n_steps=args.maskgit_n_steps,            
             legacy_codebooks=args.legacy_codebooks
         )
     else:
@@ -454,6 +462,7 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
+                maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks
             )
 
