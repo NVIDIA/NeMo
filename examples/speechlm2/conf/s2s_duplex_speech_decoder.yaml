@@ -125,7 +125,7 @@ data:
     sample_rate: ${data.target_sample_rate}
     input_cfg:
       - type: lhotse_shar
-        shar_path: /home/pzelasko/exp/speechlm2/train_micro
+        shar_path: ???
     seed: 42
     shard_seed: "randomized"
     num_workers: 2
@@ -144,7 +144,7 @@ data:
     # They inherit all settings from validation_ds, but can individually override them.
     datasets:
       val_set_0:  # rename to your dataset name, add more as needed
-        shar_path: /home/pzelasko/exp/speechlm2/train_micro
+        shar_path: ???
     sample_rate: ${data.target_sample_rate}
     batch_size: 1
     seed: 42

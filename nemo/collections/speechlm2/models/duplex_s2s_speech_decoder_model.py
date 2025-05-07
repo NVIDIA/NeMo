@@ -118,6 +118,8 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         self.audio_codec = load_pretrained_nemo(
             AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
         ).eval()
+        for p in self.audio_codec.parameters():
+            p.requires_grad = False
         del self.audio_codec.discriminator  # free up some memory
 
     @property

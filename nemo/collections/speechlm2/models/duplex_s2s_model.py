@@ -111,6 +111,8 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
             self.audio_codec = load_pretrained_nemo(
                 AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
             ).eval()
+        for p in self.audio_codec.parameters():
+            p.requires_grad = False
         del self.audio_codec.discriminator  # free up some memory
 
     @property
@@ -331,7 +333,6 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
                 reduction="sum",
             ) / (num_frames * self._num_codebooks)
         loss = self.cfg.text_loss_weight * text_loss + self.cfg.audio_loss_weight * audio_loss
-        print(f"{loss=}")
 
         B, T = inputs["input_embeds"].shape[:2]
         ans = {
