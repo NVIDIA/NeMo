@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
 from nemo.utils.import_utils import safe_import
@@ -75,7 +75,7 @@ def gpt_distillation_data_step(dataloader_iter, attn_mask_cpu=False) -> Dict[str
             batch_required_keys[key] = None
 
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(batch_required_keys)
+    output = get_batch_on_this_cp_rank(batch_required_keys)
 
     return output
 
@@ -158,7 +158,7 @@ class DistillationGPTModel(llm.GPTModel):
 
     def __init__(
         self,
-        student_config: llm.GPTConfig,
+        config: llm.GPTConfig,
         teacher_config: llm.GPTConfig,
         teacher_ckpt_path: str,
         distillation_config_path: Optional[str] = None,
@@ -178,7 +178,7 @@ class DistillationGPTModel(llm.GPTModel):
         This allows one to continue using the model after distillation without this special class.
 
         Args:
-            student_config: Config of student model.
+            config: Config of student model.
             teacher_config: Config of teacher model.
             teacher_ckpt_path: Path to teacher checkpoint (to restore weights).
             distillation_config_path: Path to distillation config YAML file.
@@ -189,13 +189,13 @@ class DistillationGPTModel(llm.GPTModel):
         """
         if not HAVE_MODELOPT:
             raise RuntimeError("nvidia-modelopt is needed to use DistillationGPTModel")
-        super().__init__(student_config, optim, tokenizer, model_transform)
+        super().__init__(config, optim, tokenizer, model_transform)
         self._teacher_config = teacher_config
         self._teacher_ckpt_path = teacher_ckpt_path
         self._distillation_config_path = distillation_config_path
         self._train_called = False
 
-        if not isinstance(student_config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
+        if not isinstance(config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
             raise ValueError("Student and Teacher must both be subclasses of `llm.GPTModel`")
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")

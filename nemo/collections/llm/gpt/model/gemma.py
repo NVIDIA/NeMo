@@ -223,7 +223,7 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -280,10 +280,16 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
         from transformers import GemmaConfig as HFGemmaConfig
 
         return HFGemmaConfig(
+            architectures=["GemmaForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,

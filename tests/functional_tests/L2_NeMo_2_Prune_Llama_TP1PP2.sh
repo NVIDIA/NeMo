@@ -11,12 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
-
-coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_prune.py \
-  --restore_path /tmp/nemo2_ckpt \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_prune.py \
+  --restore_path /home/TestData/nemo2_ckpt/llama_68M_v4 \
   --legacy_ckpt \
-  --tokenizer gpt2 \
   --tp_size 1 \
   --pp_size 2 \
   --devices 2 \
@@ -25,9 +22,9 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
   --num_train_samples 32 \
   --data_paths 1.0 /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
   --index_mapping_dir examples/nlp/language_modeling/gpt_index_mappings \
-  --prune_hidden_size 64 \
-  --prune_ffn_hidden_size 128 \
-  --prune_num_attention_heads 4 \
-  --prune_num_query_groups 4 \
-  --prune_num_layers 2 \
+  --target_hidden_size 64 \
+  --target_ffn_hidden_size 128 \
+  --target_num_attention_heads 4 \
+  --target_num_query_groups 4 \
+  --target_num_layers 2 \
   --save_path /tmp/pruned-llama

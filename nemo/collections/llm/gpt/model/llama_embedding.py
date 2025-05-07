@@ -22,12 +22,19 @@ import torch.nn.functional as F
 from megatron.core import parallel_state
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 import nemo.collections.llm.gpt.model.base as GPTBase
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativeRankingLoss
 from nemo.collections.llm.gpt.model import GPTConfig
-from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B, LlamaConfig, LlamaModel
+from nemo.collections.llm.gpt.model.llama import (
+    HFLlamaImporter,
+    Llama32Config1B,
+    Llama32Config3B,
+    LlamaConfig,
+    LlamaModel,
+)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
 from nemo.lightning.io.state import TransformFns
@@ -85,7 +92,7 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
-    output = GPTBase.get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
@@ -125,6 +132,34 @@ class Llama32EmbeddingConfig1B(Llama32Config1B):
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 1B Model"""
+        model = super().configure_model(tokenizer, pre_process, post_process)
+        # post_process need to be overwritten to False after model init because
+        # final_layernorm is still needed and it will only be initialized when post_process is True in Mcore.
+        # And for forward(), we do not want to run through output_layer thus setting post_process to False.
+        model.post_process = False
+        return model
+
+
+@dataclass
+class Llama32EmbeddingConfig3B(Llama32Config3B):
+    """Llama3.2 Embedding 3B Config"""
+
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
+    forward_step_fn: Callable = nv_embedding_forward_step
+    data_step_fn: Callable = nv_embedding_data_step
+
+    # Training Configs
+    truncation_method: Literal["left", "right"] = 'right'
+    num_hard_negatives: int = 4
+    ce_loss_scale: float = 50
+    label_smoothing: float = 0.0
+    in_batch_negatives: bool = False
+    negative_sample_strategy: Literal["random", "first"] = 'first'
+    add_bos: bool = True
+    add_eos: bool = False
+
+    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+        """Configure the NV Embedding Llama3.2 3B Model"""
         model = super().configure_model(tokenizer, pre_process, post_process)
         # post_process need to be overwritten to False after model init because
         # final_layernorm is still needed and it will only be initialized when post_process is True in Mcore.
@@ -281,7 +316,7 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
         from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
 
         LlamaBidirectionalModel.register_for_auto_class("AutoModel")
-        with no_init_weights(True):
+        with no_init_weights():
             return LlamaBidirectionalModel._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -339,20 +374,20 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
             io.state_transform(
                 source_key="decoder.layers.*.self_attention.linear_qkv.weight",
                 target_key=(
-                    "model.layers.*.self_attn.q_proj.weight",
-                    "model.layers.*.self_attn.k_proj.weight",
-                    "model.layers.*.self_attn.v_proj.weight",
+                    "layers.*.self_attn.q_proj.weight",
+                    "layers.*.self_attn.k_proj.weight",
+                    "layers.*.self_attn.v_proj.weight",
                 ),
                 fn=TransformFns.split_qkv,
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=("layers.*.mlp.gate_proj.weight", "layers.*.mlp.up_proj.weight"),
                 fn=TransformFns.split_fc1,
             ),
             io.state_transform(
                 source_key="embedding.word_embeddings.weight",
-                target_key="model.embed_tokens.weight",
+                target_key="embed_tokens.weight",
                 fn=TransformFns.prune_padding,
             ),
         ]

@@ -21,7 +21,6 @@ from tensorboard.backend.event_processing import event_accumulator
 
 GPT_BASED_MODELS = [
     "gpt3",
-    "bert",
     "llama",
     "qwen",
     "mixtral",
@@ -281,8 +280,6 @@ def calculate_tflops(
         model_tflops = model_flops / 1e12
         model_tflops_per_gpu = model_flops_per_gpu / 1e12
 
-    else:
-        raise NotImplementedError("Model type not supported.")
     return round(model_tflops, 2), round(model_tflops_per_gpu, 2)
 
 

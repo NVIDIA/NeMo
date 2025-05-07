@@ -28,6 +28,11 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
+from nemo.collections.llm.recipes.precision.mixed_precision import (
+    bf16_with_fp8_current_scaling_mixed,
+    bf16_with_fp8_mixed,
+    bf16_with_mxfp8_mixed,
+)
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
@@ -74,7 +79,10 @@ def slurm_executor(
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    srun_args = ["--mpi=pmix"]
+    srun_args = [
+        "--mpi=pmix",
+        "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",
+    ]
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
@@ -85,6 +93,14 @@ def slurm_executor(
     env_vars |= custom_env_vars
     mounts.extend(custom_mounts)
     srun_args.extend(custom_srun_args)
+
+    # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
+    segment = None
+    if num_gpus_per_node == 4 and nodes > 18:
+        for segment_candidate in range(18, 0, -1):
+            if nodes % segment_candidate == 0:
+                segment = segment_candidate
+                break
 
     executor = run.SlurmExecutor(
         account=account,
@@ -102,6 +118,7 @@ def slurm_executor(
         mem="0",
         exclusive=True,
         packager=run.GitArchivePackager(),
+        segment=segment,
     )
 
     return executor
@@ -157,6 +174,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
             & (df["model"] == model_name)
             & (df["size"] == model_size)
             & (df["dtype"] == args.compute_dtype)
+            & (args.num_gpus is None or df['num_gpus'] == args.num_gpus)
         ]
         config_df = config_df.replace({nan: None})
         if len(config_df) == 0:
@@ -181,8 +199,34 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
+    use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
+    use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
+
+    recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
+    recompute_layers = 0 if recompute_layers is None else int(recompute_layers)
+    activation_offload_layers = (
+        config.get("activation_offload_layers")
+        if args.activation_offload_layers is None
+        else args.activation_offload_layers
+    )
+    activation_offload_layers = 0 if activation_offload_layers is None else int(activation_offload_layers)
+
+    if args.recompute_modules is not None:
+        recompute_modules = args.recompute_modules
+        assert isinstance(recompute_modules, list), "recompute_modules must be a list"
+    elif config.get("recompute_modules") is not None:
+        recompute_modules = config.get("recompute_modules").split('/')
+    else:
+        recompute_modules = None
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [enable_cuda_graphs]
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+        recompute_modules,
+    ]
 
     return kwargs
 
@@ -202,8 +246,36 @@ def set_primary_perf_configs(
     ep_size: int,
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
+    compute_dtype: str = None,
+    fp8_recipe: str = None,
+    recompute_modules: Optional[List[str]] = None,
+    nccl_communicator_config_path: str = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
+
+    # print the received arguments for users to debug
+    logging.info("Received model parallel configs: ")
+    logging.info(f"num_nodes: {num_nodes}")
+    logging.info(f"num_gpus_per_node: {num_gpus_per_node}")
+    logging.info(f"mbs: {mbs}")
+    logging.info(f"gbs: {gbs}")
+    logging.info(f"tp_size: {tp_size}")
+    logging.info(f"pp_size: {pp_size}")
+    logging.info(f"cp_size: {cp_size}")
+    logging.info(f"vp_size: {vp_size}")
+    logging.info(f"ep_size: {ep_size}")
+    logging.info(f"etp_size: {etp_size}")
+    logging.info(f"enable_cuda_graphs: {enable_cuda_graphs}")
+    logging.info(f"use_mcore_fsdp: {use_mcore_fsdp}")
+    logging.info(f"recompute_layers: {recompute_layers}")
+    logging.info(f"activation_offload_layers: {activation_offload_layers}")
+    logging.info(f"compute_dtype: {compute_dtype}")
+    logging.info(f"fp8_recipe: {fp8_recipe}")
+    logging.info(f"recompute_modules: {recompute_modules}")
+
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
     recipe.trainer.devices = num_gpus_per_node
@@ -227,6 +299,8 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
 
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+    if nccl_communicator_config_path is not None:
+        recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -237,10 +311,81 @@ def set_primary_perf_configs(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
+    # enable cross entropy fusion with TE kernel
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    # Cuda graph configs
+    if use_mcore_fsdp and enable_cuda_graphs:
+        logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
+        enable_cuda_graphs = False
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    if task == "none" or task == "lora" and hasattr(recipe.data, "packed_sequence_specs"):
+    if (
+        task in ["none", "lora"]
+        and hasattr(recipe.data, "packed_sequence_specs")
+        and recipe.data.packed_sequence_specs is not None
+    ):
         recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+
+    # FSDP configs
+    if use_mcore_fsdp:
+        recipe.model.config.init_model_with_meta_device = True
+        recipe.trainer.strategy.fsdp = "megatron"
+        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+        recipe.trainer.strategy.ddp.average_in_collective = False
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+        recipe.model.config.gradient_accumulation_fusion = False
+        if (
+            comm_overlap_callback_idx is not None
+            and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
+        ):
+            logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
+            recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
+            if tp_size is not None and tp_size > 1:
+                logging.warning(
+                    "Currently, TP overlap performance is poor when FSDP is used because of jitters. "
+                    "A fix is in progress. Disabling TP overlap."
+                )
+                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+
+    # Recompute configs
+    if recompute_layers > 0:
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_method = "block"
+        recipe.model.config.recompute_num_layers = recompute_layers
+
+    # Activation cpu offloading
+    if activation_offload_layers > 0:
+        recipe.model.config.cpu_offloading = True
+        recipe.model.config.cpu_offloading_weights = False
+        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    if compute_dtype.lower() == "bf16":
+        recipe.optim.config.use_precision_aware_optimizer = True
+
+    # low precision training configs
+    if compute_dtype is not None and compute_dtype.lower() == "fp8":
+        if fp8_recipe is None:
+            fp8_recipe = "ds"
+        if fp8_recipe.lower() == "ds":
+            recipe.trainer.plugins = bf16_with_fp8_mixed()
+        elif fp8_recipe.lower() == "cs":
+            recipe.trainer.plugins = bf16_with_fp8_current_scaling_mixed()
+            # disable first/last layer bf16 for benchmarking
+            recipe.trainer.plugins.first_last_layers_bf16 = False
+        elif fp8_recipe.lower() == "mxfp8":
+            recipe.trainer.plugins = bf16_with_mxfp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    # Activation recompute configs
+    if recompute_modules is not None:
+        recipe.model.config.recompute_modules = recompute_modules
+        assert (
+            recipe.model.config.recompute_granularity == "selective"
+        ), "recompute_granularity must be selective when recompute_modules is provided"
+        assert (
+            recipe.model.config.recompute_num_layers is None
+        ), "recompute_num_layers must be None when recompute_modules is provided"
 
     return recipe
 
@@ -255,6 +400,7 @@ def set_exp_logging_configs(
     wandb_prj_name: str,
     wandb_job_name: str,
 ):
+    """Set experiment logging configs."""
     if task == "pre_train" and domain == "llm":
         recipe.trainer.callbacks.append(
             run.Config(

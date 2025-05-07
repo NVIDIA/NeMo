@@ -78,7 +78,7 @@ class KenLMBatchedWrapper:
     ) -> "KenLMBatchedWrapper":
         """
         Constructor from KenLM (binary) or ARPA (text) model (same as `__init__`).
-        Useful for fast switching between FastNGramLM and this class.
+        Useful for fast switching between NGramGPULanguageModel and this class.
 
         Args:
             lm_path: path to .nemo checkpoint or ARPA (text) file
@@ -502,9 +502,10 @@ class NGramLMConfig:
     use_triton: bool | None = None
 
 
-class FastNGramLM(ModelPT):
+class NGramGPULanguageModel(ModelPT):
     """
-    N-Gram LM (NGPULM) supporting batched queries. Fast implementation for parallel queries for full vocabulary.
+    N-Gram GPU-accelerated Language Model (NGPU-LM) supporting batched queries.
+    Fast implementation for parallel queries for full vocabulary.
     Supports autograd (differentiable weights).
     """
 
@@ -589,7 +590,7 @@ class FastNGramLM(ModelPT):
         lm_path: Path | str,
         vocab_size: int,
         use_triton: bool | None = None,
-    ) -> "FastNGramLM":
+    ) -> "NGramGPULanguageModel":
         """
         Constructor from Nemo checkpoint (state dict).
 
@@ -598,7 +599,7 @@ class FastNGramLM(ModelPT):
             vocab_size: model vocabulary size
             use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
         """
-        model = FastNGramLM.restore_from(restore_path=str(lm_path), map_location="cpu")
+        model = NGramGPULanguageModel.restore_from(restore_path=str(lm_path), map_location="cpu")
         model._resolve_final()
         assert model.vocab_size == vocab_size
         model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
@@ -616,7 +617,7 @@ class FastNGramLM(ModelPT):
         normalize_unk: bool = True,
         use_triton: bool | None = None,
         token_offset: int = DEFAULT_TOKEN_OFFSET,
-    ) -> "FastNGramLM":
+    ) -> "NGramGPULanguageModel":
         """
         Constructor from ARPA or Nemo (`.nemo`) checkpoint.
 
@@ -629,7 +630,7 @@ class FastNGramLM(ModelPT):
             token_offset: offset for the tokens used for building ARPA LM
 
         Returns:
-            FastNGramLM instance
+            NGramGPULanguageModel instance
         """
         if not isinstance(lm_path, Path):
             lm_path = Path(lm_path)
@@ -651,7 +652,7 @@ class FastNGramLM(ModelPT):
         normalize_unk: bool = True,
         use_triton: bool | None = None,
         token_offset: int = DEFAULT_TOKEN_OFFSET,
-    ) -> "FastNGramLM":
+    ) -> "NGramGPULanguageModel":
         """
         Constructor from ARPA LM (text format).
 
@@ -666,7 +667,7 @@ class FastNGramLM(ModelPT):
             token_offset: offset for the tokens used for building ARPA LM
 
         Returns:
-            FastNGramLM instance
+            NGramGPULanguageModel instance
         """
         logging.info(f"{cls.__name__}: reading LM from {lm_path}")
         with open(lm_path, "r", encoding="utf-8") as f:
@@ -701,10 +702,63 @@ class FastNGramLM(ModelPT):
 
             assert ngram_cur_order_i == 0
             suffix_tree_np.sanity_check()
-        return FastNGramLM.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
+        return NGramGPULanguageModel.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
 
     @classmethod
-    def from_suffix_tree(cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None) -> "FastNGramLM":
+    def dummy_unigram_lm(
+        cls,
+        vocab_size: int,
+        use_triton: bool | None = None,
+    ) -> "NGramGPULanguageModel":
+        """
+        Constructs a trivial unigram LM with uniform distribution over the vocabulary.
+        Useful for testing purposes (e.g., decoding).
+
+        Returns:
+            NGramGPULanguageModel instance
+        """
+        model = NGramGPULanguageModel(
+            OmegaConf.structured(
+                NGramLMConfig(
+                    num_states=2,
+                    num_arcs=vocab_size,
+                    max_order=1,
+                    vocab_size=vocab_size,
+                    use_triton=use_triton,
+                )
+            )
+        )
+        unigram_weight = -np.log(vocab_size)
+
+        # start state
+        model.backoff_weights.data[0] = 0.0
+        model.final_weights.data[0] = unigram_weight
+        model.backoff_to_states.data[0] = 0
+        model.start_end_arcs.data[0, :] = torch.tensor([0, vocab_size], dtype=model.start_end_arcs.dtype)
+        model.state_order.data[0] = 1
+
+        # BOS state
+        model.backoff_weights.data[1] = 0.0
+        model.final_weights.data[1] = unigram_weight
+        model.backoff_to_states.data[1] = 0  # to start state
+        model.start_end_arcs.data[1, :] = torch.tensor(
+            [vocab_size, vocab_size], dtype=model.start_end_arcs.dtype
+        )  # no arcs
+        model.state_order.data[1] = 2
+
+        # all tokens - unigrams from start to start state (cycles)
+        model.arcs_weights.data.fill_(unigram_weight)
+        model.from_states.data.fill_(model.START_STATE)
+        model.to_states.data.fill_(model.START_STATE)
+        model.ilabels.data[:vocab_size].copy_(torch.arange(vocab_size, dtype=model.ilabels.dtype))
+
+        model._resolve_final()
+        return model
+
+    @classmethod
+    def from_suffix_tree(
+        cls, suffix_tree_np: SuffixTreeStorage, use_triton: bool | None = None
+    ) -> "NGramGPULanguageModel":
         """
         Constructor from suffix tree storage.
 
@@ -715,9 +769,9 @@ class FastNGramLM(ModelPT):
                 (will crash if Triton is unavailable)
 
         Returns:
-            FastNGramLM instance
+            NGramGPULanguageModel instance
         """
-        model = FastNGramLM(
+        model = NGramGPULanguageModel(
             OmegaConf.structured(
                 NGramLMConfig(
                     num_states=suffix_tree_np.num_states,
@@ -903,18 +957,26 @@ class FastNGramLM(ModelPT):
             scores.scatter_(dim=1, index=labels_lengths.unsqueeze(-1).to(torch.int64), src=final_weights.unsqueeze(-1))
         return scores
 
-    def advance(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def advance(self, states: torch.Tensor, eos_id: Optional[int] = None) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
         Args:
             states: batch of states
+            eos_id: if not None, for eos symbol use final state weight
 
         Returns:
             tuple with next states and scores
         """
         if self.use_triton and states.device.type == "cuda":
-            return self._advance_triton(states=states)
-        return self._advance_pytorch(states=states)
+            scores, next_states = self._advance_triton(states=states)
+        else:
+            scores, next_states = self._advance_pytorch(states=states)
+
+        # replace weight corresponding to eos_id with final state weight
+        if eos_id is not None:
+            scores[:, eos_id] = self.get_final(states=states)
+            next_states[:, eos_id] = states
+        return scores, next_states
 
     def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
