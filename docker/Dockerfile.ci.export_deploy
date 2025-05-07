@@ -75,6 +75,7 @@ EOF
 
 FROM base-image
 WORKDIR /tmp/NeMo
+ENV INSTALL_DIR="/opt"
 RUN \
   --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
   --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \

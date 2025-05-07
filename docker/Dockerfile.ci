@@ -45,7 +45,7 @@ EOF
 
 FROM base-image 
 WORKDIR /tmp/NeMo
-ENV INSTALL_DIR="/workspace"
+ENV INSTALL_DIR="/opt"
 RUN \  
   --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \
   --mount=type=bind,from=mcore-wheel,source=/opt/wheels/mcore,target=/opt/wheels/mcore \
