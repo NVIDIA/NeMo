@@ -176,7 +176,10 @@ class NsysPlugin(run.Plugin):
         launcher = executor.get_launcher()
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
-
+        launcher.nsys_filename = "profile_%q{SLURM_JOBID}_%q{SLURM_NODEID}_%q{SLURM_PROCID}"
+        launcher.nsys_extra_args=["--force-overwrite=true", "--capture-range=cudaProfilerApi",
+            "--capture-range-end=stop","--cuda-graph-trace=node",
+            "--cuda-event-trace=false", "--nvtx-domain-include=NCCL"]
 
 @dataclass(kw_only=True)
 class MemoryProfilePlugin(run.Plugin):
