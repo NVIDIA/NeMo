@@ -189,9 +189,9 @@ def main():
     )
     parser.add_argument('--devices', type=int, default=8, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
-    parser.add_argument('--dp-size', type=int, default=4, help='Data Parallel size; to be used with fsdp2')
+    parser.add_argument('--dp-size', type=int, default=2, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
-    parser.add_argument('--cp-size', type=int, default=2, help='Context Parallel size; to be used with fsdp2')
+    parser.add_argument('--cp-size', type=int, default=4, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
         '--sequence-parallel',
         action='store_true',
@@ -207,7 +207,7 @@ def main():
         default=1,
         help='Number of batches to accumulate gradient over.',
     )
-    parser.add_argument('--max-steps', type=int, default=20, help='Maximum number of training steps')
+    parser.add_argument('--max-steps', type=int, default=2, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')

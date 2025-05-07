@@ -372,6 +372,17 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 labels = labels.view(-1)
                 assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
                 loss = self.loss_fn(logits, labels, loss_mask)
+
+                num_tokens = loss_mask.sum().float()
+                # change nan to 0, this is for CP to ignore loss for padded tokens
+                loss = torch.nan_to_num(loss, nan=0.)
+                loss = torch.cat([loss.view(1), num_tokens.view(1)])
+
+                if loss[1] > 0:
+                    loss = loss[0] / loss[1]
+                else:
+                    loss = loss[0]
+
         else:
             batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
 
@@ -454,7 +465,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 if divide_by_world_size:
                     val /= dist.get_world_size(group)
                 return val
-
+            from nemo.utils.env_var_parsing import get_envint
             # Reduce loss across DP (or DP x CP) ranks.
             mean_loss = reduce_item(
                 mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
