@@ -128,7 +128,7 @@ if __name__ == "__main__":
         ),
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=45, end_step=50, ranks=list(range(num_nodes*args.gpus_per_node))))
+        plugins.append(NsysPlugin(start_step=45, end_step=50, ranks=list(range(num_nodes * args.gpus_per_node))))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
