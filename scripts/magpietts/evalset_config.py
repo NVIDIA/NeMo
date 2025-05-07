@@ -20,6 +20,21 @@ dataset_meta_info = {
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
+    'libri_dev_clean_eval_large': {
+        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_large.json',
+        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
+        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
+    },
+    'libri_dev_clean_eval_mid': {
+        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_mid.json',
+        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
+        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
+    },    
+    'libri_dev_clean_eval_tiny': {
+        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_tiny.json',
+        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
+        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
+    },     
     'libri_val': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
@@ -46,6 +61,11 @@ dataset_meta_info = {
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
         'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
         'load_cached_codes_if_available': False
+    },
+    'riva_val_text_context': {
+        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/RivattsEnglishLindyRodney21fps_val_nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_phoneme_tts_TextContext.json',
+        'audio_dir' : "/datap/misc/Datasets/riva/RivattsEnglish",
+        'feature_dir' : '/',
     },
     'libri_unseen_test_shehzeen_phoneme': {
         'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
