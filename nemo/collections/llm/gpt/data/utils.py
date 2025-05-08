@@ -842,7 +842,7 @@ def _preprocess_hf_chat_template(
         hf_chat_dict['messages'], return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt'
     )
     input_ids = tokens['input_ids'][0]
-    mask = tokens['assistant_masks'].to(bool)
+    mask = torch.tensor(tokens['assistant_masks']).to(bool)
     return dict(input_ids=input_ids, mask=mask)
 
 
