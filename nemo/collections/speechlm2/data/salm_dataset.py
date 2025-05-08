@@ -11,24 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
-import warnings
 from itertools import groupby
 
 import torch
 import torch.utils.data
-from lhotse import CutSet, Seconds, compute_num_frames
-from lhotse.cut import Cut
+from lhotse import CutSet
 from lhotse.dataset.collation import collate_audio, collate_vectors
-from lhotse.utils import ifnone
 
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.text_adapters import TextTurn
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
-from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
+from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
-from nemo.utils import logging
 
 
 class SALMDataset(torch.utils.data.Dataset):

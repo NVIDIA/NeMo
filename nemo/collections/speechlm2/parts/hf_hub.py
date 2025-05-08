@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from huggingface_hub import CONFIG_NAME, PyTorchModelHubMixin
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 from transformers.utils import cached_file
 
 
