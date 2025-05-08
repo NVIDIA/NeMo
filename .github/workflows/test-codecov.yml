@@ -17,7 +17,7 @@ jobs:
         with:
           pattern: coverage-${{ matrix.flag }}-*
           run-id: 14872165367
-          token: ${{ secrets.PAT }}
+          github-token: ${{ secrets.PAT }}
 
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
