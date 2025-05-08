@@ -25,6 +25,7 @@ from jinja2 import Template
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
+from .inference_base import create_mcore_engine
 import nemo.lightning as nl
 from nemo.collections.llm import inference
 from nemo.deploy import ITritonDeployable
@@ -137,39 +138,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_batch_times_seqlen_threshold: int = 1000,
         inference_max_seq_length: int = 4096,
     ):
-        self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
-
-        strategy = nl.MegatronStrategy(
-            tensor_model_parallel_size=tensor_model_parallel_size,
-            pipeline_model_parallel_size=pipeline_model_parallel_size,
-            context_parallel_size=context_parallel_size,
-            expert_model_parallel_size=expert_model_parallel_size,
-            sequence_parallel=False,
-            setup_optimizers=False,
-            store_optimizer_states=False,
-            ckpt_load_strictness="log_all",
-        )
-
-        trainer = nl.Trainer(
-            accelerator="gpu",
-            devices=num_devices,
-            num_nodes=num_nodes,
-            strategy=strategy,
-            plugins=nl.MegatronMixedPrecision(
-                precision="bf16-mixed",
-                params_dtype=torch.bfloat16,
-                pipeline_dtype=torch.bfloat16,
-                autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-            ),
-        )
-
-        self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_model_and_tokenizer(
+        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = create_mcore_engine(
             path=Path(nemo_checkpoint_filepath),
-            trainer=trainer,
-            params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            inference_max_seq_length=inference_max_seq_length,
+            params_dtype=params_dtype
         )
 
     def generate(
@@ -191,15 +162,11 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         Returns:
             List[InferenceRequest]: A list containing the generated results.
         """
-
         inference_params = inference_params or CommonInferenceParams()
-        results = inference.generate(
-            model=self.inference_wrapped_model,
-            tokenizer=self.mcore_tokenizer,
+        results = self.mcore_engine.generate(
             prompts=prompts,
-            max_batch_size=max_batch_size,
-            random_seed=random_seed,
-            inference_params=inference_params,
+            add_BOS=False,
+            common_inference_params=inference_params,
         )
         return list(results)
 
