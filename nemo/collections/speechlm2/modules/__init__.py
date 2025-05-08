@@ -13,3 +13,8 @@
 # limitations under the License.
 from .perception import AudioPerceptionModule
 from .speech_generation import TransformerARSpeechDecoder
+
+__all__ = [
+    'AudioPerceptionModule',
+    'TransformerARSpeechDecoder',
+]

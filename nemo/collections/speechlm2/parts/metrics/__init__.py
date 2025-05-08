@@ -13,3 +13,8 @@
 # limitations under the License.
 from .asr_bleu import ASRBLEU
 from .bleu import BLEU
+
+__all__ = [
+    'ASRBLEU',
+    'BLEU',
+]
