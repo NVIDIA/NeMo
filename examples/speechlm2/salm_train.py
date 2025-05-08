@@ -15,7 +15,7 @@ import os
 
 import torch
 from lightning.pytorch import Callback, Trainer
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.speechlm2 import SALM, DataModule, SALMDataset
 from nemo.collections.speechlm2.parts.precision import HalfPrecisionForAudio
@@ -51,7 +51,8 @@ def train(cfg):
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
     precision = cfg.trainer.get("precision", "bf16-true")
-    cfg.trainer.pop("precision", None)
+    with open_dict(cfg):
+        cfg.trainer.pop("precision", None)
     trainer = Trainer(
         precision=HalfPrecisionForAudio(precision),
         **resolve_trainer_cfg(cfg.trainer),
