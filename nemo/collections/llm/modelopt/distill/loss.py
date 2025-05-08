@@ -65,6 +65,27 @@ class BaseLoss(_Loss, metaclass=ABCMeta):
         return (loss, tp_reduce, is_sequence_parallel)
 
 
+class MSELoss(BaseLoss):
+    """Calculates MSE loss between two tensors without reducing the sequence dim."""
+
+    def forward(self, predictions: Tensor, targets: Tensor) -> Tensor:
+        """Forward function.
+
+        Args:
+            predictions: Student model tensors (size [s, b, h])
+            targets: Teacher model tensors (size [s, b, h])
+
+        Returns:
+            MSE loss of tensors (size [b, s])
+        """
+        predictions, targets = self.pre_forward(predictions, targets)
+
+        loss = F.mse_loss(predictions, targets, reduction="none")
+        loss = loss.sum(dim=-1)
+
+        return self.post_forward(loss)
+
+
 class HiddenStateCosineLoss(BaseLoss):
     """
     Calculates Cosine loss between two tensors without reducing the sequence dim.
