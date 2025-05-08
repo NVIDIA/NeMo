@@ -73,6 +73,7 @@ from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConf
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import (
     BatchedFrameASRRNNT,
+    BatchedFrameASRTDT,
     LongestCommonSubsequenceBatchedFrameASRRNNT,
 )
 from nemo.collections.asr.parts.utils.transcribe_utils import (
@@ -135,7 +136,7 @@ class TranscriptionConfig:
     stateful_decoding: bool = False  # Whether to perform stateful decoding
 
     # Merge algorithm for transducers
-    merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs'], choice of algorithm to apply during inference.
+    merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs', 'tdt'], choice of algorithm to apply during inference.
     lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
 
     # Config for word / character error rate calculation
@@ -214,13 +215,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
-        if cfg.stateful_decoding:
+        if cfg.stateful_decoding or cfg.merge_algo == 'tdt':
             cfg.decoding.strategy = "greedy"
         else:
             cfg.decoding.strategy = "greedy_batch"
         cfg.decoding.preserve_alignments = True  # required to compute the middle token for transducers.
         cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
         cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
+
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
@@ -266,6 +268,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )
         # Set the LCS algorithm delay.
         frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
+
+    elif cfg.merge_algo == 'tdt':
+        frame_asr = BatchedFrameASRTDT(
+            asr_model=asr_model,
+            frame_len=chunk_len,
+            total_buffer=cfg.total_buffer_in_secs,
+            batch_size=cfg.batch_size,
+            max_steps_per_timestep=cfg.max_steps_per_timestep,
+            stateful_decoding=cfg.stateful_decoding,
+        )
 
     else:
         raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
