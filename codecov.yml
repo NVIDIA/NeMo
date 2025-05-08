@@ -14,5 +14,7 @@ coverage:
           - "!nemo/collections/tts"
           - "!nemo/core"
           - "!nemo/collections/common"
+          - "!nemo/collections/multimodal_autoregressive"
+          - "!nemo/collections/diffusion"
 fixes:
   - "/workspace/::"
