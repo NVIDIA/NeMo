@@ -795,13 +795,16 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         with no_init_weights():
             trust_remote_code = False
             if hasattr(self.config, 'auto_map'):
-                if self.config.auto_map.get('AutoConfig', None) \
-                    == 'nvidia/Llama-3_3-Nemotron-Super-49B-v1--configuration_decilm.DeciLMConfig' \
-                    and self.config.auto_map.get('AutoModelForCausalLM', None) \
-                    == 'nvidia/Llama-3_3-Nemotron-Super-49B-v1--modeling_decilm.DeciLMForCausalLM':
+                if (
+                    self.config.auto_map.get('AutoConfig', None)
+                    == 'nvidia/Llama-3_3-Nemotron-Super-49B-v1--configuration_decilm.DeciLMConfig'
+                    and self.config.auto_map.get('AutoModelForCausalLM', None)
+                    == 'nvidia/Llama-3_3-Nemotron-Super-49B-v1--modeling_decilm.DeciLMForCausalLM'
+                ):
                     trust_remote_code = True
-            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype,
-                trust_remote_code=trust_remote_code)
+            return AutoModelForCausalLM.from_config(
+                self.config, torch_dtype=dtype, trust_remote_code=trust_remote_code
+            )
 
     def apply(self, output_path: Path) -> Path:
         """Apply the conversion from NeMo to HF format.
@@ -960,6 +963,7 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         if type(source).__name__ == "Llama33NemotronSuper49BConfig":
             assert hasattr(source, 'heterogeneous_layers_config_encoded_json')
             from transformers import AutoConfig
+
             config = AutoConfig.from_pretrained('nvidia/Llama-3_3-Nemotron-Super-49B-v1', trust_remote_code=True)
             config.num_hidden_layers = source.num_layers
             config.hidden_size = source.hidden_size
