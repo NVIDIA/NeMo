@@ -53,6 +53,14 @@ except ImportError:
         """Not imported: causal_conv1d_fn. An error will be raised if this is called."""
         raise ImportError("causal_conv1d is required by the Hyena model but cannot be imported")
 
+try:
+    from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
+except ImportError:
+
+    def b2b_causal_conv1d(*args, **kwargs):
+        """Not imported: b2b_causal_conv1d. An error will be raised if this is called."""
+        raise ImportError("b2b_causal_conv1d is required by the Hyena model but cannot be imported")
+
 
 def _get_zigzag_indices(N, device=None):
     """Generates the zigzag indices for rearrangement.
@@ -1130,6 +1138,92 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             },
             sharded_offsets,
         )
+
+
+class B2BCausalConv1dModule(nn.Module):
+    """Module that performs back-to-back causal convolution operations using optimized CUDA kernels.
+
+    Combines the projection and mixer convolutions into a single optimized operation.
+    """
+    def __init__(self, proj_conv_module, short_conv_module, b2b_causal_conv1d=b2b_causal_conv1d):
+        """Initialize the B2BCausalConv1dModule.
+
+        Args:
+            proj_conv_module: The projection convolution module
+            short_conv_module: The short convolution module
+            b2b_causal_conv1d: The CUDA kernel function for back-to-back causal convolution
+        """
+        super().__init__()
+        self.b2b_causal_conv1d_fn = b2b_causal_conv1d
+        # Store references to the modules, not their weights
+        self._proj_conv_module = proj_conv_module
+        self._short_conv_module = short_conv_module
+        # Combined padding from both convolutions - this is a key difference from the
+        # sequential execution of two convs which applies padding separately
+        self.effective_pad_size = (self._short_conv_module.kernel_size - 1) + (self._proj_conv_module.kernel_size - 1)
+
+    def forward(self, x, _use_cp=True):
+        """Forward pass for the B2BCausalConv1dModule.
+
+        Args:
+            x: Input tensor [B, D, L]
+            _use_cp: Whether to use context parallelism
+        Returns:
+            Tensor: Output of the back-to-back causal convolution operation
+        """
+        # Extract weights at runtime to avoid parameter registration
+        # and reshape them to the expected dimensions
+        proj_weight = self._proj_conv_module.short_conv_weight
+        short_weight = self._short_conv_module.short_conv_weight
+
+        # Reshape proj_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+        if proj_weight.dim() == 3:
+            proj_weight = proj_weight.reshape(-1, proj_weight.size(-1))
+
+        # Reshape short_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+        if short_weight.dim() == 3:
+            # If the middle dimension is 1, we can just squeeze it
+            if short_weight.size(1) == 1:
+                short_weight = short_weight.squeeze(1)
+            else:
+                # Otherwise reshape to flatten the first two dimensions
+                short_weight = short_weight.reshape(-1, short_weight.size(-1))
+
+        # maybe handle num_groups
+        proj_weight = proj_weight.repeat_interleave(self._proj_conv_module.group_dim, dim=0)
+        short_weight = short_weight.repeat_interleave(self._short_conv_module.group_dim, dim=0)
+
+        # Support context parallelism similar to how it's done in ParallelCausalDepthwiseConv1d
+        if _use_cp and get_context_parallel_world_size() > 1:
+
+            cp_group = get_context_parallel_group()
+            cp_rank = get_context_parallel_rank()
+
+            # Transfer patches across ranks
+            seq_dim = 2  # Last dimension (L)
+
+            # Get overlapping patches - using the combined effective padding size
+            chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.effective_pad_size)
+
+            # We're exchanging larger patches once instead of smaller patches twice
+            received_a, received_b = ExchangeOverlappingRegionsCausal.apply(chunk_a, chunk_b, cp_group, cp_rank)
+
+            # Pad and rearrange
+            x = rearrange(x, "b h (nc s) -> (nc b) h s", nc=2)
+            padding = torch.concat([received_a, received_b], dim=0)
+
+            x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
+            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+            result = result[..., self.effective_pad_size:]  # Remove padding from output
+            result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
+        else:
+            # Add proper causal padding for the non-CP case
+            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
+
+            # Call the CUDA kernel and remove the padding from result
+            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+            result = result[..., self.effective_pad_size:]  # Remove padding from output
+        return result
 
 
 def make_upper_case(tokens, lowercase_start=97, lowercase_end=122, case_diff=32):
