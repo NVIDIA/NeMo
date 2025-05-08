@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: LicenseRef-Apache2
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,13 +27,13 @@ import torch.distributed as dist
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
-from torch.distributed.nn.functional import all_gather as functional_all_gather
-from torch.nn.parallel import DistributedDataParallel as DDP
-
 from nemo.collections.llm.gpt.model.hyena import HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer
+from nemo.utils import logging
+from torch.distributed.nn.functional import all_gather as functional_all_gather
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_size=1, context_parallel_size=1):
@@ -62,7 +62,7 @@ def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_si
     # Initialize process group if not already initialized
     if not dist.is_initialized():
         dist.init_process_group(backend="nccl", init_method="env://", timeout=timeout_timedelta)
-        print(f"Initialized distributed training with local rank {local_rank}")
+        logging.info(f"Initialized distributed training with local rank {local_rank}")
 
     # Initialize parallel state
     parallel_state.initialize_model_parallel(
@@ -74,7 +74,7 @@ def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_si
     # Verify initialization
     cp_rank = parallel_state.get_context_parallel_rank()
     cp_world_size = parallel_state.get_context_parallel_world_size()
-    print(f"CP rank: {cp_rank}, CP world size: {cp_world_size}")
+    logging.info(f"CP rank: {cp_rank}, CP world size: {cp_world_size}")
     return local_rank
 
 
@@ -172,7 +172,7 @@ class B2BConv1d(torch.nn.Module):
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
         submodules = hyena_stack_spec_no_te.submodules.hyena_layer.submodules.mixer.submodules
 
-        print("Creating HyenaMixer...")
+        logging.info("Creating HyenaMixer...")
         self.mixer = HyenaMixer(
             transformer_config=hyena_test_config,
             hyena_config=hyena_config,
@@ -218,14 +218,30 @@ if __name__ == "__main__":
         default=2,
         help="Context parallel size",
     )
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        default="/tmp/nemo2_hyena_results",
+        help="Directory for logs",
+    )
     args = parser.parse_args()
 
-    # Initialize parallel state outside the try block
+    # Create log directory
+    os.makedirs(args.log_dir, exist_ok=True)
+
+    # Set up file handler for NeMo logging
+    rank = int(os.getenv("RANK", "0"))
+    log_file = os.path.join(args.log_dir, f"rank_{rank}.log")
+    logging.add_file_handler(log_file)
+
+    # Initialize parallel state
     local_rank = init_parallel_state(
         tensor_model_parallel_size=args.tensor_model_parallel_size,
         pipeline_model_parallel_size=args.pipeline_model_parallel_size,
         context_parallel_size=args.context_parallel_size,
     )
+
+    logging.info(f"Starting hyena mixer test with args: {args}")
 
     try:
         # Initialize the model parallel RNG
@@ -238,11 +254,14 @@ if __name__ == "__main__":
         batch_size = 2
         seq_len = 512
         b2b_conv1d = B2BConv1d(
-            hyena_config, hyena_test_config, seq_len=512, use_b2b_causal_conv1d=args.use_b2b_causal_conv1d
+            hyena_config, 
+            hyena_test_config, 
+            seq_len=512, 
+            use_b2b_causal_conv1d=args.use_b2b_causal_conv1d,
         )
 
-        # Print configuration
-        print(f"Rank {dist.get_rank()}: Using b2b_causal_conv1d: {args.use_b2b_causal_conv1d}")
+        # Log configuration
+        logging.info(f"Using b2b_causal_conv1d: {args.use_b2b_causal_conv1d}")
 
         ddp_b2b_conv1d = DDP(
             b2b_conv1d,
@@ -260,15 +279,20 @@ if __name__ == "__main__":
         cp_group = parallel_state.get_context_parallel_group()
         dist.broadcast(input_features, min(dist.get_process_group_ranks(cp_group)), group=cp_group)
 
-        print(f"Rank {dist.get_rank()}: Running without context parallel")
+        logging.info("Running without context parallel")
         output_features = ddp_b2b_conv1d(input_features, _use_cp=False)
 
         if dist.get_rank() == 0:
-            assert output_features.shape == (
-                batch_size,
-                b2b_conv1d.mixer.hidden_size,
-                seq_len,
-            ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+            try:
+                assert output_features.shape == (
+                    batch_size,
+                    b2b_conv1d.mixer.hidden_size,
+                    seq_len,
+                ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+                logging.info(f"Output features shape: {output_features.shape}")
+            except AssertionError as e:
+                logging.error(f"Assertion error for output features shape: {e}")
+                raise
 
         loss = output_features.float().mean()
         loss.backward()
@@ -283,27 +307,37 @@ if __name__ == "__main__":
         ddp_b2b_conv1d.zero_grad()
         dist.barrier()
 
-        print(f"Rank {dist.get_rank()}: Running with context parallel")
+        logging.info("Running with context parallel")
         # Split the input features across the context parallel group
         input_features_cp = zigzag_split_across_group_ranks(input_features, group=cp_group, seq_dim=2)
 
         output_features_cp = ddp_b2b_conv1d(input_features_cp, _use_cp=True)
         if dist.get_rank() == 0:
-            assert output_features_cp.shape == (
-                batch_size,
-                b2b_conv1d.mixer.hidden_size,
-                seq_len // parallel_state.get_context_parallel_world_size(),
-            ), f"output_features_cp.shape: {output_features_cp.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+            try:
+                assert output_features_cp.shape == (
+                    batch_size,
+                    b2b_conv1d.mixer.hidden_size,
+                    seq_len // parallel_state.get_context_parallel_world_size(),
+                ), f"output_features_cp.shape: {output_features_cp.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+                logging.info(f"Output features CP shape: {output_features_cp.shape}")
+            except AssertionError as e:
+                logging.error(f"Assertion error for output features CP shape: {e}")
+                raise
 
         # Gather from all ranks according to zigzag splitting.
         output_features_cp_gathered = zigzag_gather_from_group_ranks(output_features_cp, group=cp_group, seq_dim=2)
         if dist.get_rank() == 0:
-            # Verify shapes are correct
-            assert output_features_cp_gathered.shape == (
-                batch_size,
-                b2b_conv1d.mixer.hidden_size,
-                seq_len,
-            ), f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+            try:
+                # Verify shapes are correct
+                assert output_features_cp_gathered.shape == (
+                    batch_size,
+                    b2b_conv1d.mixer.hidden_size,
+                    seq_len,
+                ), f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
+                logging.info(f"Output features CP gathered shape: {output_features_cp_gathered.shape}")
+            except AssertionError as e:
+                logging.error(f"Assertion error for output features CP gathered shape: {e}")
+                raise
 
         loss_with_cp = output_features_cp_gathered.float().mean()
         loss_with_cp.backward()
@@ -320,11 +354,28 @@ if __name__ == "__main__":
 
         # Only perform comparison on rank 0
         if dist.get_rank() == 0:
-            torch.testing.assert_close(loss, loss_with_cp)
-            torch.testing.assert_close(output_features, output_features_cp_gathered)
+            logging.info(f"Comparing loss values: without CP = {loss.item()}, with CP = {loss_with_cp.item()}")
+            try:
+                torch.testing.assert_close(loss, loss_with_cp)
+                logging.info("Loss comparison successful")
+            except AssertionError as e:
+                logging.error(f"Loss comparison failed: {e}")
+                raise
+
+            try:
+                torch.testing.assert_close(output_features, output_features_cp_gathered)
+                logging.info("Output tensor comparison successful")
+            except AssertionError as e:
+                logging.error(f"Output tensor comparison failed: {e}")
+                raise
 
             # Check gradients with and without CP.
-            assert len(grads_without_cp) == len(grads_with_cp)
+            try:
+                assert len(grads_without_cp) == len(grads_with_cp)
+                logging.info(f"Comparing {len(grads_without_cp)} gradient tensors")
+            except AssertionError as e:
+                logging.error(f"Gradient count mismatch: {e}")
+                raise
 
             gradient_mismatch = False
             for (n_without_cp, g_without_cp), (n_with_cp, g_with_cp) in zip(grads_without_cp, grads_with_cp):
@@ -332,14 +383,17 @@ if __name__ == "__main__":
                     torch.testing.assert_close(g_without_cp, g_with_cp)
                 except AssertionError as e:
                     gradient_mismatch = True
-                    print(f"Rank {dist.get_rank()}: Gradient mismatch for {n_without_cp}: {e}")
+                    logging.error(f"Gradient mismatch for {n_without_cp}: {e}")
 
             if gradient_mismatch:
-                print(f"Rank {dist.get_rank()}: There were gradient mismatches!")
+                logging.warning("There were gradient mismatches!")
             else:
-                print(f"Rank {dist.get_rank()}: All gradients matched successfully!")
+                logging.info("All gradients matched successfully!")
 
     finally:
+        # Log final cleanup
+        logging.info("Test completed, cleaning up resources")
+
         # Reset CUDA device
         torch.cuda.empty_cache()
 

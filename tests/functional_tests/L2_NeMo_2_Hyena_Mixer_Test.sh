@@ -35,11 +35,7 @@ coverage run -a \
     -m torch.distributed.run \
     --nproc_per_node=2 \
     tests/collections/llm/gpt/model/test_hyena_mixer_cp.py \
-    --data_type=mock \
-    --use_toy_model \
-    --mbs=2 \
-    --gbs=4 \
-    --max_steps=4 \
+    --context_parallel_size=2 \
     --log_dir=$LOG_DIR
 
 # Check exit status
