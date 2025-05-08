@@ -51,7 +51,7 @@ def train(cfg):
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
     torch.backends.cudnn.allow_tf32 = True
-    precision = (cfg.trainer.get("precision", "bf16-true"),)
+    precision = cfg.trainer.get("precision", "bf16-true")
     with open_dict(cfg):
         cfg.trainer.pop("precision", None)
     trainer = Trainer(

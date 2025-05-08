@@ -18,7 +18,7 @@ from lightning import LightningModule
 from omegaconf import DictConfig, OmegaConf, open_dict
 from peft import PeftModel
 from torch import Tensor
-from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+from torch.distributed.fsdp import fully_shard
 from torch.distributed.tensor import Replicate, Shard
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
@@ -47,7 +47,7 @@ from nemo.utils import logging
 
 
 class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg: dict) -> None:
         assert isinstance(cfg, dict), (
             "You must pass the config to DuplexS2SModel as a Python dict to support hyperparameter serialization "
             f"in PTL checkpoints (we got: '{type(cfg)=}')."
@@ -65,9 +65,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         # However, for S2S we need to access the activations before LM head directly
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
-        llm = load_pretrained_hf(
-            self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights, dtype=torch.bfloat16
-        ).train()
+        llm = load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights).train()
         self.llm = llm.model  # fetch PretrainedBaseModel from model "ForCausalLM"
         self.lm_head = llm.lm_head
         # Note: we have to "move out" the token embedding outside of LLM to avoid
@@ -115,9 +113,10 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         """Workaround for PTL auto-downcasting the codec model to bf16 with bf16-true precision."""
         if hasattr(self, "audio_codec") and next(self.audio_codec.parameters()).dtype == torch.float:
             return  # skip if already set up and has the right dtype
-        self.audio_codec = load_pretrained_nemo(
-            AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
-        ).eval()
+        with fp32_precision():
+            self.audio_codec = load_pretrained_nemo(
+                AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
+            ).eval()
         for p in self.audio_codec.parameters():
             p.requires_grad = False
         del self.audio_codec.discriminator  # free up some memory
@@ -185,9 +184,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         out = self.llm(
             inputs_embeds=input_embeds, past_key_values=cache, use_cache=cache is not None, return_dict=True
         )
-
         B, T = input_embeds.shape[:2]
-
         text_logits = self.lm_head(out['last_hidden_state'])  # (B, T, text_vocab_size)
 
         if loss_mask is not None:
@@ -207,7 +204,6 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         }
         if cache is not None:
             ans["cache"] = out["past_key_values"]
-
         return ans
 
     def prepare_inputs(self, batch: dict):
@@ -378,7 +374,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
                 self.asr_bleu.update(
                     name=name,
                     refs=dataset_batch["target_texts"],
-                    pred_audio=torchaudio.functional.resample(results["audio"].float(), 22050, 16000),
+                    pred_audio=torchaudio.functional.resample(results["audio"], 22050, 16000),
                     pred_audio_lens=(results["audio_len"] / 22050 * 16000).to(torch.long),
                 )
 
