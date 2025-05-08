@@ -923,7 +923,6 @@ jobs:
     with:
       RUNNER: azure-gpu-vm-runner1-h100
       SCRIPT: L2_HF_Transformer_PEFT_2gpu_FSDP2_fp8
-      IS_OPTIONAL: true
 
   L2_HF_Transformer_PEFT_2gpu_FSDP2:
     needs: [pre-flight, cicd-test-container-build]
@@ -973,7 +972,6 @@ jobs:
     with:
       RUNNER: azure-gpu-vm-runner1-h100
       SCRIPT: L2_HF_Transformer_SFT_2gpu_FSDP2_fp8
-      IS_OPTIONAL: true
 
   L2_HF_Transformer_SFT_2gpu_nemorun:
     needs: [pre-flight, cicd-test-container-build]
