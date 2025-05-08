@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from typing import Union
 
 import torch
-import torch.cuda.nvtx as nvtx
 import torch.nn as nn
 from einops import rearrange
 from megatron.core.parallel_state import (
@@ -256,40 +255,29 @@ class HyenaMixer(MegatronModule):
         Returns:
             Tuple of (output tensor, bias)
         """
-        # NVTX Range for the entire forward pass
-        with nvtx.range(f"HyenaMixer_forward_layer{self.layer_number}"):
-            # CP control
-            if _hyena_use_cp:
-                cp_group = get_context_parallel_group()
-            else:
-                cp_group = None
+        # CP control
+        if _hyena_use_cp:
+            cp_group = get_context_parallel_group()
+        else:
+            cp_group = None
 
-            if cp_group is not None and get_context_parallel_world_size() > 1:
-                _proj_use_cp = True
-            else:
-                _proj_use_cp = False
+        if cp_group is not None and get_context_parallel_world_size() > 1:
+            _proj_use_cp = True
+        else:
+            _proj_use_cp = False
+        features, _ = self._maybe_use_fp8(self.dense_projection, x)
+        features = rearrange(features, "l b d -> b d l").contiguous()
 
-            with nvtx.range("dense_projection"):
-                features, _ = self._maybe_use_fp8(self.dense_projection, x)
-                features = rearrange(features, "l b d -> b d l").contiguous()
+        if self.use_b2b_causal_conv1d and self.operator_type == "hyena_short_conv":
+            # Use the B2B mixer with the original weights
+            z = self.b2b_kernel(features, _use_cp=_proj_use_cp)
+        else:
+            features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
+            x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
+                dim=2
+            )
+            z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp)
 
-            if self.use_b2b_causal_conv1d and self.operator_type == "hyena_short_conv":
-                # Use the B2B mixer with the original weights
-                with nvtx.range("b2b_causal_conv1d"):
-                    z = self.b2b_kernel(features, _use_cp=_proj_use_cp)
-            else:
-                with nvtx.range("standard_pipeline"):
-                    with nvtx.range("hyena_proj_conv"):
-                        features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
-
-                    with nvtx.range("rearrange_split"):
-                        x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(dim=2)
-
-                    with nvtx.range("mixer_forward"):
-                        z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp)
-
-            with nvtx.range("output_projection"):
-                z = rearrange(z, "b d l -> l b d").contiguous()
-                y, bias = self.dense(z)
-
-            return y, bias
+        z = rearrange(z, "b d l -> l b d").contiguous()
+        y, bias = self.dense(z)
+        return y, bias
