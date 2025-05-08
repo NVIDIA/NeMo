@@ -387,7 +387,7 @@ class Llama4Config(Llama3Config):
     gated_linear_unit: bool = True
     rotary_interleaved: bool = True
     apply_rope_fusion: bool = False
-    nope_layer_interval: int = 4
+    no_rope_freq: Optional[Union[int, List[int]]] = 4
     transformer_layer_spec: Union[ModuleSpec, Callable[["LlamaConfig"], ModuleSpec]] = field(
         default_factory=lambda: get_llama4_layer_spec
     )
@@ -408,6 +408,7 @@ class Llama4Config(Llama3Config):
     rope_scaling: bool = True
     rope_scaling_factor: float = 8.0
     attention_chunk_size: int = 8192
+    attention_temperature_tuning: bool = True
 
 
 @dataclass

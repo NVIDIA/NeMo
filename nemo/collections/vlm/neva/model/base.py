@@ -70,6 +70,8 @@ MODEL_CONFIG_ATTR = [
     'share_embeddings_and_output_weights',
     'moe_token_dispatcher_type',
     'moe_router_load_balancing_type',
+    'attention_chunk_size',
+    'attention_temperature_tuning',
 ]
 
 
@@ -823,7 +825,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if self.sequence_parallel_lm and self.pre_process:
             if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [S/CP,1,H] -> [1,S/CP,H]
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
             )  # [S/(CP*TP),B,H]
