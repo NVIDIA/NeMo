@@ -75,9 +75,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = load_pretrained_nemo(
-            ASRModel, self.cfg.pretrained_asr, pretrained_weights=self.cfg.pretrained_weights
-        ).eval()
+        asr = load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr).eval()
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
             self.cfg.perception.encoder = asr.cfg.encoder
@@ -114,9 +112,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         if hasattr(self, "audio_codec") and next(self.audio_codec.parameters()).dtype == torch.float:
             return  # skip if already set up and has the right dtype
         with fp32_precision():
-            self.audio_codec = load_pretrained_nemo(
-                AudioCodecModel, self.cfg.pretrained_audio_codec, pretrained_weights=self.cfg.pretrained_weights
-            ).eval()
+            self.audio_codec = load_pretrained_nemo(AudioCodecModel, self.cfg.pretrained_audio_codec).eval()
         for p in self.audio_codec.parameters():
             p.requires_grad = False
         del self.audio_codec.discriminator  # free up some memory
@@ -572,7 +568,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
             assert dp_mesh.ndim == 1
             self._use_fsdp = True
 
-            fsdp_config = {"mesh": dp_mesh, "mp_policy": MixedPrecisionPolicy(torch.bfloat16)}
+            fsdp_config = {"mesh": dp_mesh}
 
             for idx, layer in enumerate(llm.layers):
                 llm.layers[idx] = fully_shard(layer, **fsdp_config)

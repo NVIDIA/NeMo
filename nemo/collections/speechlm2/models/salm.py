@@ -62,11 +62,7 @@ class SALM(LightningModule, HFHubMixin):
         # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.tokenizer.add_special_tokens({"additional_special_tokens": [self.audio_locator_tag]})
-        self.llm = (
-            load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
-            .to(torch.bfloat16)
-            .train()
-        )
+        self.llm = load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
         # Note: we have to "move out" the token embedding outside of LLM to avoid
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.model.embed_tokens
@@ -74,11 +70,7 @@ class SALM(LightningModule, HFHubMixin):
         maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = (
-            load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr, pretrained_weights=self.cfg.pretrained_weights)
-            .to(torch.bfloat16)
-            .eval()
-        )
+        asr = load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr).eval()
         with open_dict(self.cfg):
             self.cfg.perception.preprocessor = asr.cfg.preprocessor
             self.cfg.perception.encoder = asr.cfg.encoder
