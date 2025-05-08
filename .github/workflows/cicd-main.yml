@@ -64,7 +64,7 @@ jobs:
             echo '["nemo2", "automodel", "export-deploy", "speech"]' | tee -a test_modules.json
           fi
 
-          components_to_run='export-deploy'
+          components_to_run=$(cat test_modules.json)
 
           echo "main=${components_to_run}" | tee -a "$GITHUB_OUTPUT"
 
@@ -254,25 +254,10 @@ jobs:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-export-deploy:
-    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    needs: [pre-flight]
     uses: ./.github/workflows/cicd-main-export-deploy.yml
-    if: |
-      (
-        needs.pre-flight.outputs.test_to_run != '[]'
-        && (
-          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy')
-        )
-      )
-      && (
-        success()
-        || (
-          needs.cicd-wait-in-queue.result == 'skipped'
-          && needs.pre-flight.outputs.is_ci_workload == 'true'
-        )
-      )
-      && !cancelled()
     with:
-      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+      test_to_run: '["all"]'
 
   cicd-main-speech:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
@@ -341,14 +326,7 @@ jobs:
   Nemo_CICD_Test:
     needs:
       - pre-flight
-      - cicd-test-container-build
-      - cicd-import-tests
-      - L0_Setup_Test_Data_And_Models
-      - cicd-main-unit-tests
-      - cicd-main-nemo2
       - cicd-main-export-deploy
-      - cicd-main-automodel
-      - cicd-main-speech
     if: always()
     runs-on: ubuntu-latest
     permissions: write-all
