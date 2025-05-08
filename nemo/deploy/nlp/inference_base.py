@@ -5,12 +5,12 @@ import megatron.core.dist_checkpointing.serialization as dist_ckpt
 import torch
 from megatron.core.dist_checkpointing.core import check_is_distributed_checkpoint
 from megatron.core.dist_checkpointing.serialization import get_default_load_sharded_strategy
-from megatron.core.transformer.module import MegatronModule
-from megatron.core.transformer.enums import AttnBackend
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
+from megatron.core.transformer.enums import AttnBackend
+from megatron.core.transformer.module import MegatronModule
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.inference.base import MCoreTokenizerWrappper
@@ -23,6 +23,7 @@ from nemo.tron.config import DistributedInitConfig, RNGConfig
 from nemo.tron.init import _initialize_distributed, _initialize_tp_communicators, _set_random_seed
 from nemo.tron.model import get_model_from_config
 from nemo.tron.utils.common_utils import print_rank_0
+
 
 def _load_dist_shards_into_model(model: List[MegatronModule], weights_dir: Path):
     """
@@ -231,7 +232,7 @@ def setup_model_and_tokenizer_for_inference(
     # Needed for model creation
     if not model_config.vocab_size:
         model_config.vocab_size = model_context.tokenizer.vocab_size
-    
+
     # Enable flash attention
     model_config.flash_decode = True
     model_config.attention_backend = AttnBackend.flash
@@ -271,7 +272,7 @@ def create_mcore_engine(
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 4096,
     max_batch_size: int = 4,
-    random_seed: Optional[int] = None
+    random_seed: Optional[int] = None,
 ) -> Tuple[MCoreEngine, GPTInferenceWrapper, MCoreTokenizerWrappper]:
     """
     Sets up the model, tokenizer and MCoreEngine for inference.
@@ -304,14 +305,16 @@ def create_mcore_engine(
     else:
         raise ValueError("Unable to find vocab size.")
     inference_wrapper_config = InferenceWrapperConfig(
-            hidden_size=model.config.hidden_size,
-            params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            padded_vocab_size=vocab_size,
-            inference_max_seq_length=inference_max_seq_length,
+        hidden_size=model.config.hidden_size,
+        params_dtype=params_dtype,
+        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        padded_vocab_size=vocab_size,
+        inference_max_seq_length=inference_max_seq_length,
     )
     model_inference_wrapper = GPTInferenceWrapper(model, inference_wrapper_config)
-    text_generation_controller = TextGenerationController(inference_wrapped_model=model_inference_wrapper, tokenizer=tokenizer)
+    text_generation_controller = TextGenerationController(
+        inference_wrapped_model=model_inference_wrapper, tokenizer=tokenizer
+    )
     mcore_engine = MCoreEngine(
         text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
     )

@@ -25,11 +25,12 @@ from jinja2 import Template
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
-from .inference_base import create_mcore_engine
 import nemo.lightning as nl
 from nemo.collections.llm import inference
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import NEMO2, broadcast_list, cast_output, nemo_checkpoint_version, str_ndarray2list
+
+from .inference_base import create_mcore_engine
 
 
 @wrapt.decorator
@@ -139,8 +140,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_max_seq_length: int = 4096,
     ):
         self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = create_mcore_engine(
-            path=Path(nemo_checkpoint_filepath),
-            params_dtype=params_dtype
+            path=Path(nemo_checkpoint_filepath), params_dtype=params_dtype
         )
 
     def generate(
