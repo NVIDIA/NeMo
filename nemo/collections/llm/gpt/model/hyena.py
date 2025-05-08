@@ -101,7 +101,7 @@ class HyenaModel(GPTModel):
         labels: Optional[torch.Tensor] = None,
         decoder_input: Optional[torch.Tensor] = None,
         loss_mask: Optional[torch.Tensor] = None,
-        inference_params=None,
+        inference_context=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
         """
@@ -114,7 +114,7 @@ class HyenaModel(GPTModel):
             labels: Optional labels for loss computation
             decoder_input: Optional decoder input
             loss_mask: Optional loss mask
-            inference_params: Optional inference parameters
+            inference_context: Optional inference parameters
             packed_seq_params: Optional parameters for packed sequences
 
         Returns:
@@ -127,7 +127,7 @@ class HyenaModel(GPTModel):
             attention_mask,
             decoder_input=decoder_input,
             labels=labels,
-            inference_params=inference_params,
+            inference_context=inference_context,
             loss_mask=loss_mask,
             **extra_kwargs,
         )
@@ -257,8 +257,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             rotary_percent=self.rotary_percent,
             rotary_base=self.rotary_base,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=parallel_state.is_pipeline_first_stage(),
-            post_process=parallel_state.is_pipeline_last_stage(),
+            pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False),
+            post_process=parallel_state.is_pipeline_last_stage(ignore_virtual=False),
             share_embeddings_and_output_weights=True,
             hyena_init_method=self.hyena_init_method,
             hyena_output_layer_init_method=self.hyena_output_layer_init_method,

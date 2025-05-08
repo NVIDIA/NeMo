@@ -167,7 +167,7 @@ The following is the list of the important arguments for the evaluation script:
 | decoding_strategy                    | str      | beam             | String argument for type of decoding strategy for the model.            |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | decoding                             | Dict     | BeamCTC          | Subdict of beam search configs. Values found via                        |
-|                                      | Config   | InferConfig      | python eval_beamsearch_ngram_ctc.py --help                                  |
+|                                      | Config   | InferConfig      | python eval_beamsearch_ngram_ctc.py --help                              |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
 | text_processing.do_lowercase         | bool     | ``False``        | Whether to make the training text all lower case.                       |
 +--------------------------------------+----------+------------------+-------------------------------------------------------------------------+
@@ -538,7 +538,7 @@ To run WFST decoding in NeMo, one needs to provide a NeMo ASR model and either a
 
 The script to evaluate an ASR model with WFST decoding and N-gram models can be found at
 `scripts/asr_language_modeling/ngram_lm/eval_wfst_decoding_ctc.py
-<https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/eval_wfst_decoding_ctc.py>`__.
+<https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/eval_wfst_decoding_ctc.py>`__.
 
 This script has a large number of possible argument overrides, therefore it is advised to use ``python eval_wfst_decoding_ctc.py --help`` to see the full list of arguments.
 

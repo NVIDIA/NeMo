@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
+
 import itertools
 import json
 from functools import partial
@@ -714,10 +718,10 @@ class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
         averaged_metric = []
         # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
-            # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end
-            # doesnt take outputs arg loss = super().on_validation_epoch_end([x['loss'] for x in output])
+            # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
+            # loss = super().on_validation_epoch_end([x['loss'] for x in output])
             loss_vals = [x["loss"] for x in output]
-            if parallel_state.is_pipeline_last_stage():
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
                 # only the last pipeline parallel stages return loss with their batch size
                 if self.cfg.data.get("validation_drop_last", True):
                     loss = torch.stack(loss_vals).mean()

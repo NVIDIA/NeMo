@@ -19,8 +19,9 @@ from copy import deepcopy
 from typing import Literal, Optional
 
 import torch
-from megatron.core import InferenceParams, parallel_state, tensor_parallel
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
+from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
@@ -137,7 +138,7 @@ class HyenaModel(LanguageModule):
         # MLP block, so we replicate this behavior in this implementation if remove_activation_post_first_layer.
         self.remove_activation_post_first_layer = remove_activation_post_first_layer
         if self.remove_activation_post_first_layer:
-            if parallel_state.is_pipeline_first_stage():
+            if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
                 # Skip the first layer of the global model for this activation patch.
                 start_idx = 1
             else:
@@ -226,7 +227,8 @@ class HyenaModel(LanguageModule):
         decoder_input: Tensor = None,
         labels: Tensor = None,
         loss_mask: Tensor = None,
-        inference_params: InferenceParams = None,
+        inference_context: Optional[BaseInferenceContext] = None,
+        runtime_gather_output: Optional[bool] = None,
     ) -> Tensor:
         """Forward pass for the HyenaModel."""
         # If decoder_input is provided (not None), then input_ids and position_ids are ignored.
@@ -245,7 +247,7 @@ class HyenaModel(LanguageModule):
         rotary_pos_emb = None
         if self.position_embedding_type == 'rope':
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                inference_params, self.decoder, decoder_input, self.transformer_config, None
+                inference_context, self.decoder, decoder_input, self.transformer_config, None
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
@@ -263,7 +265,7 @@ class HyenaModel(LanguageModule):
         hidden_states = self.decoder(
             hidden_states=decoder_input,
             attention_mask=attention_mask,
-            inference_params=inference_params,
+            inference_context=inference_context,
             rotary_pos_emb=rotary_pos_emb,
         )
 

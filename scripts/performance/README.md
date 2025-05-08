@@ -7,7 +7,7 @@
 
 The following line shows an example of how you can launch a pre-training experiment-
 
-`python -m scripts.performance.llm.llama3_8b --account <your_slurm_account> -partition <your_slurm_partition>`
+`python -m scripts.performance.llm.pretrain_llama3_8b --account <your_slurm_account> -partition <your_slurm_partition>`
 
 ## Configuration Options
 
@@ -19,6 +19,7 @@ The following line shows an example of how you can launch a pre-training experim
   - -t/--time_limit: Maximum time limit for your experiment. Your slurm job will be cancelled after this. Default is 30 minutes.
   - -i/--container_image: The NeMo container you want to use. Defaults to latest dev container- 'nvcr.io/nvidia/nemo:dev'.
   - -c/--compute_dtype: Specifies whether you want to use bf16 or fp8 precision for training. Defaults to 'bf16'. You can choose to use 'fp8'.
+  - --fp8_recipe: FP8 recipe. Options: 'ds' (per-tensor delayed scaling), 'cs '(per-tensor current scaling), 'mxfp8' (block-level scaling -- 32 values). Defaults to 'ds'.
   - -en/--enable_nsys: Enable nsys profiling. It is disabled by default. When enabled, profiling will be enabled for 1 step from step 5 to step 6. You can change the step in the respective recipe script.
   - -tb/--tensorboard: Enable tensorboard logging. It is disabled by default.
     - CAUTION: Tensorboard logging may cause performance overhead.
@@ -42,7 +43,11 @@ The following line shows an example of how you can launch a pre-training experim
   - -ng/--num_gpus: Number of gpus.
   - -gn/--gpus_per_node: Number of gpus per node. Defaults to 8.
   - -ms/--max_steps: Number of train steps. Defaults to 100.
-  - -cg/--cuda_graphs: Enable CUDA graphs. Disabled by default.
+  - -cg/--cuda_graphs: Enable CUDA graphs. Options: 'true', '1', 't', 'yes', 'y' to set it to True, 'false', '0', 'f', 'n', 'no' to set it to False. Defaults to None, in which case the program tries to load default values from recommended model configs, if failed defaults to false.
+  - -fsdp/--use_mcore_fsdp: Enable megatron-core FSDP.  Options: 'true', '1', 't', 'yes', 'y' to set it to True, 'false', '0', 'f', 'n', 'no' to set it to False. Defaults to None, in which case the program tries to load default values from recommended model configs, if failed defaults to false.
+  - -rl/--recompute_layers: Number of transformer layers to recompute activations during training. Defaults to None, in which case the program tries to load default values from recommended model configs, if failed defaults to 0.
+  - -ol/--activation_offload_layers: Number of transformer layers to offload activations to CPU during training. Defaults to None, in which case the program tries to load default values from recommended model configs, if failed defaults to 0.
+  - -rm/--recompute_modules: Comma separated string of modules in a transformer layer to recompute. If set, program will use selective recompute for all layers. Users should provide zero, one or more than one values. Options are "core_attn", "moe_act", "layernorm", "mla_up_proj", "mlp", "moe". Defaults to None, in which case the program tries to load default values from recommended model configs, if failed defaults to None, which mean no selective recompute. 
   - -cm/--custom_mounts: Comma separated string of mounts.
-- You don't need to set any value for `--enable_nsys`, `--tensorboard` and `--dryrun`. See the below example for reference-
+- You don't need to set any value for `--enable_nsys`, `--tensorboard`, `--wandb`, and `--dryrun`. See the below example for reference-
   `python -m scripts.performance.llm.llama3_8b --account <your_slurm_account> -p <your_slurm_partition> -en --tensorboard -d`
