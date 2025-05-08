@@ -19,7 +19,6 @@ from megatron.energon import get_train_dataset
 from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
 from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSampleConfig
 from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
-from nemo.utils import logging
 
 
 class AVLMDataModule(EnergonMultiModalDataModule):

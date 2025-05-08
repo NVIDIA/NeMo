@@ -18,8 +18,6 @@ import re
 import itertools
 import numpy as np
 import numpy.typing as npt
-from PIL import Image
-from dataclasses import dataclass, field
 from typing import Dict, List, Union, Literal, TypedDict, Callable, Optional
 
 import torch
@@ -27,7 +25,6 @@ import torchvision
 from torch.nn.utils.rnn import pad_sequence
 
 from megatron.core import parallel_state
-from megatron.energon import Sample
 from megatron.energon import batch_list, batch_pad_stack
 from megatron.energon.task_encoder.base import stateless
 

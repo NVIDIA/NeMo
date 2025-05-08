@@ -21,15 +21,13 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core import InferenceParams, dist_checkpointing
-from megatron.core import parallel_state as ps
+from megatron.core import parallel_state as psf
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.enums import AttnBackend
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -292,7 +290,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         drop_vision_class_token: bool = True,
     ) -> None:
         # pylint: disable=C0115,C0116
-        super(MCoreLLaVAModel, self).__init__(config=config)
+        super(MCoreAVLMModel, self).__init__(config=config)
 
         language_transformer_config = config.language_transformer_config
         vision_transformer_config = config.vision_transformer_config
@@ -998,5 +996,4 @@ __all__ = [
     "AVLMModel",
     "AVLMConfig",
     "AVLM_data_step",
-    "AVLM_forward_step",
 ]

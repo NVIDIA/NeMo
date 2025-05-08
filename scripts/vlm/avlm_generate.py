@@ -19,12 +19,7 @@ Example:
 
 import argparse
 import io
-
-import requests
 import torch
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-from PIL import Image
-from transformers import AutoProcessor
 
 import nemo.lightning as nl
 from nemo.collections import llm, vlm, avlm
@@ -36,47 +31,6 @@ from nemo.collections.avlm.data.energon import AVLMSampleConfig, AVLMEnergonQASa
 from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMSampleEncoderQA
 from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSample
 import torchvision
-
-def load_image(image_path: str) -> Image.Image:
-    # pylint: disable=C0115,C0116
-    if image_path is None:
-        print("No image path provided.")
-        return None
-    try:
-        # Open the image with PIL
-        pil_image = Image.open(image_path).convert('RGB')
-        
-        # Convert PIL Image to torch tensor
-        image = torchvision.transforms.ToTensor()(pil_image)  # This gives shape [C, H, W]
-
-        return image
-    except FileNotFoundError:
-        print(f"Error: Image file not found at {image_path}")
-        return None
-    except Exception as e:
-        print(f"An error occurred loading image from {image_path}: {e}")
-
-
-def load_audio(audio_path: str):
-    if audio_path is None:
-        print("No audio path provided.")
-        return None
-    try:
-        # Open the file in binary read mode
-        with open(audio_path, 'rb') as f:
-            # Read the content
-            audio_content = f.read()
-        # Create BytesIO from the content
-        audio_data = io.BytesIO(audio_content)
-        # Return the BytesIO object or process further if the encoder needs raw bytes/tensor
-        return audio_data # Or potentially return audio_content directly depending on the processor
-    except FileNotFoundError:
-        print(f"Error: Audio file not found at {audio_path}")
-        return None
-    except Exception as e:
-        print(f"An error occurred loading audio from {audio_path}: {e}")
-        return None
-
 
 def nucleus_sampling(logits, top_p=0.9, temperature=1.0, top_k=None):
     """Nucleus (top-p) sampling with temperature and top-k support."""
@@ -275,23 +229,23 @@ def main(args) -> None:
     # Load model from local path
     model = fabric.load_model(args.local_model_path, model)
 
-    # Print out all model parameters and norms
-    print("\n=== Model Parameters and Norms (after loading checkpoint)===")
-    print("Name | Shape | Norm | Mean | Std")
-    print("-" * 90)
-    # Build up the parameter info string
-    param_info = []
-    total_params = 0
-    for i, (name, param) in enumerate(model.named_parameters(), 1):
-        param_count = param.numel()
-        param_norm = param.data.norm(2).item()
-        param_mean = param.data.mean().item()
-        param_std = param.data.std().item()
-        total_params += param_count
-        param_info.append(f"{name} | shape={tuple(param.shape)} | norm={param_norm:.10f} | mean={param_mean:.10f} | std={param_std:.10f} | nan={torch.isnan(param).any().item()}")
-    # Print all parameter info at once
-    print("\n".join(param_info))
-    print("stop_here")
+    # # Print out all model parameters and norms
+    # print("\n=== Model Parameters and Norms (after loading checkpoint)===")
+    # print("Name | Shape | Norm | Mean | Std")
+    # print("-" * 90)
+    # # Build up the parameter info string
+    # param_info = []
+    # total_params = 0
+    # for i, (name, param) in enumerate(model.named_parameters(), 1):
+    #     param_count = param.numel()
+    #     param_norm = param.data.norm(2).item()
+    #     param_mean = param.data.mean().item()
+    #     param_std = param.data.std().item()
+    #     total_params += param_count
+    #     param_info.append(f"{name} | shape={tuple(param.shape)} | norm={param_norm:.10f} | mean={param_mean:.10f} | std={param_std:.10f} | nan={torch.isnan(param).any().item()}")
+    # # Print all parameter info at once
+    # print("\n".join(param_info))
+    # print("stop_here")
 
 
     # Setup model for inference
@@ -301,10 +255,6 @@ def main(args) -> None:
 
 
     # Load and process the image and audio
-    # images = [load_image(args.image_path)]
-    # audios = [load_audio(args.audio_path)]
-    # images = [load_image(args.image_path)]
-    # audios = [{"media_type": "audio", "media_value": args.audio_path}]
     with open(args.image_path, 'rb') as file:
         image_bytes = file.read()
     with open(args.audio_path, 'rb') as file:
