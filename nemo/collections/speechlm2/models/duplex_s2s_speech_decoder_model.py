@@ -550,7 +550,8 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
                     val = getattr(attn_layer, attr)
                     if val % tp_mesh.size() != 0:
                         logging.warning(
-                            f"attn_layer.{attr}={val} is not divisible by {tp_mesh.size()=}: set a different tensor parallelism size to avoid errors."
+                            f"attn_layer.{attr}={val} is not divisible by {tp_mesh.size()=}: "
+                            f"set a different tensor parallelism size to avoid errors."
                         )
                     setattr(attn_layer, attr, val // tp_mesh.size())
 
