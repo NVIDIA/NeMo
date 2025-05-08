@@ -20,21 +20,36 @@ import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 from transformers import Qwen2VLConfig as HFQwen2VLConfig
 from transformers import Qwen2VLForConditionalGeneration
-from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig as HFQwen2VLVisionConfig
+from transformers.models.qwen2_vl.configuration_qwen2_vl import (
+    Qwen2VLVisionConfig as HFQwen2VLVisionConfig,
+)
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qwen2Config72B
+from nemo.collections.llm import (
+    Qwen2Config,
+    Qwen2Config1P5B,
+    Qwen2Config7B,
+    Qwen2Config72B,
+)
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias
-from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
+from nemo.collections.vlm.qwen2vl.model.base import (
+    Qwen2VLConfig,
+    Qwen2VLModel,
+    Qwen2VLVisionConfig,
+)
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
+    load_distributed_model_weights,
+)
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+        AutoTokenizer,
+    )
 
 
 # Note: these Qwen2VL configs are copied from the corresponding HF model. You may need to modify the parameter for
@@ -46,13 +61,19 @@ class Qwen2VLConfig2B(Qwen2VLConfig):
     from transformers import PretrainedConfig
 
     language_transformer_config: TransformerConfig = field(
-        default_factory=lambda: Qwen2Config1P5B(share_embeddings_and_output_weights=True)
+        default_factory=lambda: Qwen2Config1P5B(
+            share_embeddings_and_output_weights=True
+        )
     )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: Qwen2VLVisionConfig(num_layers=32, num_attention_heads=16)
+        default_factory=lambda: Qwen2VLVisionConfig(
+            num_layers=32, num_attention_heads=16
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=5120, hidden_size=1536, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=5120, hidden_size=1536, ffn_hidden_size=5120
+        )
     )
 
 
@@ -62,12 +83,18 @@ class Qwen2VLConfig7B(Qwen2VLConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Qwen2Config7B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Qwen2Config7B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: Qwen2VLVisionConfig(num_layers=32, num_attention_heads=16)
+        default_factory=lambda: Qwen2VLVisionConfig(
+            num_layers=32, num_attention_heads=16
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=5120, hidden_size=3584, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=5120, hidden_size=3584, ffn_hidden_size=5120
+        )
     )
 
 
@@ -77,17 +104,25 @@ class Qwen2VLConfig72B(Qwen2VLConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Qwen2Config72B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Qwen2Config72B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: Qwen2VLVisionConfig(num_layers=32, num_attention_heads=16)
+        default_factory=lambda: Qwen2VLVisionConfig(
+            num_layers=32, num_attention_heads=16
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=5120, hidden_size=8192, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=5120, hidden_size=8192, ffn_hidden_size=5120
+        )
     )
 
 
 @io.model_importer(Qwen2VLModel, "hf")
-class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwen2VLModel]):
+class HFQwen2VLImporter(
+    io.ModelConnector["Qwen2VLForConditionalGeneration", Qwen2VLModel]
+):
     """Qwen2VL Model HF Importer"""
 
     def init(self) -> Qwen2VLModel:
@@ -142,7 +177,10 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
         if not target.config.language_transformer_config.share_embeddings_and_output_weights:
             mapping.update({"lm_head.weight": "language_model.output_layer.weight"})
 
-        if "vision_projection.encoder.linear_fc1.weight" in target.module.state_dict().keys():
+        if (
+            "vision_projection.encoder.linear_fc1.weight"
+            in target.module.state_dict().keys()
+        ):
             mapping.update(
                 {
                     "visual.merger.mlp.0.weight": "vision_projection.encoder.linear_fc1.weight",
@@ -179,7 +217,9 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
     @property
     def tokenizer(self) -> "AutoTokenizer":
         # pylint: disable=C0115,C0116
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+            AutoTokenizer,
+        )
 
         return AutoTokenizer(str(self))
 
@@ -206,7 +246,9 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
             num_query_groups=hf_config.num_key_value_heads,
             rotary_base=hf_config.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(hf_config.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                hf_config.vocab_size
+            ),
             share_embeddings_and_output_weights=hf_config.tie_word_embeddings,
             vocab_size=hf_config.vocab_size,
             fp16=(dtype_from_hf(hf_config) == torch.float16),
@@ -220,7 +262,9 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
             bf16=(dtype_from_hf(hf_config) == torch.bfloat16),
             params_dtype=dtype_from_hf(hf_config),
         )
-        merge_hidden_size = hf_config.vision_config.embed_dim * (hf_config.vision_config.spatial_merge_size**2)
+        merge_hidden_size = hf_config.vision_config.embed_dim * (
+            hf_config.vision_config.spatial_merge_size**2
+        )
         vision_projection_config = MultimodalProjectorConfig(
             input_size=merge_hidden_size,
             hidden_size=hf_config.vision_config.hidden_size,
@@ -245,7 +289,9 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
 
 
 @io.model_exporter(Qwen2VLModel, "hf")
-class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGeneration"]):
+class HFQwen2VLExporter(
+    io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGeneration"]
+):
     """
     Exporter class for converting NeMo Qwen2VL model to HuggingFace format.
 
@@ -271,8 +317,10 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
         """
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
-            return Qwen2VLForConditionalGeneration._from_config(self.config, torch_dtype=dtype)
+        with no_init_weights():
+            return Qwen2VLForConditionalGeneration._from_config(
+                self.config, torch_dtype=dtype
+            )
 
     def apply(self, output_path: Path) -> Path:
         """
@@ -339,7 +387,9 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
             # "language_model.output_layer.weight": "lm_head.weight",
         }
         if source_config.language_transformer_config.share_embeddings_and_output_weights:
-            mapping.update({"language_model.embedding.word_embeddings.weight": "lm_head.weight"})
+            mapping.update(
+                {"language_model.embedding.word_embeddings.weight": "lm_head.weight"}
+            )
         else:
             mapping.update({"language_model.output_layer.weight": "lm_head.weight"})
 
@@ -406,12 +456,16 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
 
         langauge_layers = config.language_transformer_config.num_layers
         vision_layers = config.vision_transformer_config.num_layers
-        distributed_model_weights = load_distributed_model_weights(dist_ckpt_folder, True).items()
+        distributed_model_weights = load_distributed_model_weights(
+            dist_ckpt_folder, True
+        ).items()
         for k, v in distributed_model_weights:
             if "_extra_state" in k:
                 continue
             new_k = k.replace("module.", "")
-            if "layers" in new_k and (v.size(0) == langauge_layers or v.size(0) == vision_layers):
+            if "layers" in new_k and (
+                v.size(0) == langauge_layers or v.size(0) == vision_layers
+            ):
                 # Only split layers
                 for i in range(v.size(0)):
                     state_dict[new_k.replace("layers", f"layers.{str(i)}")] = v[i]
@@ -440,7 +494,10 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
             embed_dim=vision_model_config.embed_dim,
             hidden_size=vision_projection_config.hidden_size,
             hidden_act="quick_gelu",
-            mlp_ratio=int(vision_projection_config.ffn_hidden_size // vision_model_config.hidden_size),
+            mlp_ratio=int(
+                vision_projection_config.ffn_hidden_size
+                // vision_model_config.hidden_size
+            ),
             num_heads=vision_model_config.num_attention_heads,
             in_channels=3,
             patch_size=vision_model_config.patch_dim,
@@ -471,7 +528,9 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
         )
 
 
-def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def import_qkv(
+    q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -488,11 +547,15 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, (
+        qkv_weights.shape
+    )
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -517,7 +580,8 @@ def _import_vision_qkv(ctx: io.TransformCTX, hf_qkv_weights):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -544,7 +608,8 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, hf_qkv_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
@@ -567,7 +632,8 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -590,7 +656,8 @@ def _import_language_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
