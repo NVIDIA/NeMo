@@ -82,9 +82,9 @@ def get_args():
     )
     parser.add_argument("--use-chat-data", action="store_true", help="Use chat data for fine-tuning.")
     parser.add_argument(
-        "--chat-template",
+        "--chat-template-path",
         type=str,
-        help="Chat template to use for chat data. Only provide if overriding default chat template in HuggingFace tokenizer.",
+        help="Path to Chat template .txt file to use for chat data. Only provide if overriding default chat template in HuggingFace tokenizer.",
     )
     parser.add_argument("--split", type=str, default="99,1,0", help="Train,Val,Test ratios to split data")
     parser.add_argument("--index_mapping_dir", type=str, help="Folder to write cached data indices")
@@ -102,6 +102,21 @@ def get_args():
     parser.add_argument("--log_interval", type=int, default=10, help="Write to log every _ steps")
     parser.add_argument("--legacy_ckpt", action="store_true", help="Load ckpt saved with TE < 1.14")
     return parser.parse_args()
+
+
+def read_chat_template(template_path):
+    """Read chat template from file if provided, otherwise return None.
+
+    Args:
+        template_path (str): Path to chat template file
+
+    Returns:
+        str or None: Chat template string if file exists, None otherwise
+    """
+    if template_path:
+        with open(template_path, 'r') as f:
+            return f.read().strip()
+    return None
 
 
 if __name__ == "__main__":
@@ -144,13 +159,14 @@ if __name__ == "__main__":
     if args.use_chat_data:
         assert len(args.data_paths) == 1, "If using chat data, provide a single path."
         assert args.tokenizer is not None, "Tokenizer is required if using chat data."
-        if args.chat_template and 'generation' not in args.chat_template:
-            raise ValueError(
-                "Please ensure the chat template includes a 'generation' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
-            )
 
-        tokenizer = get_tokenizer(args.tokenizer, chat_template=args.chat_template)
-        # TODO also check if 'generation' is in the tokenizer's chat template ?
+        chat_template = read_chat_template(args.chat_template_path)
+        tokenizer = get_tokenizer(args.tokenizer, chat_template=chat_template)
+        if '{% generation %}' not in tokenizer.tokenizer.chat_template:
+            # raise error or log warning?
+            raise ValueError(
+                "Please ensure the chat template includes a '{% generation %}' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
+            )
         data = ChatDataModule(
             dataset_root=args.data_paths[0],
             seq_length=args.seq_length,

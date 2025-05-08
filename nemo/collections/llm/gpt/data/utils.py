@@ -838,11 +838,20 @@ def _preprocess_hf_chat_template(
         tokenizer: TokenizerSpec, the tokenizer object.
     """
     # Use HuggingFace tokenizer to apply the chat template.
+    template_has_generation_kwd = (
+        '{% generation %}' in tokenizer.tokenizer.chat_template
+    )  # assistant mask only works if chat template has generation keyword
     tokens = tokenizer.tokenizer.apply_chat_template(
-        hf_chat_dict['messages'], return_dict=True, return_assistant_tokens_mask=True, return_tensors='pt'
+        hf_chat_dict['messages'],
+        return_dict=True,
+        return_assistant_tokens_mask=template_has_generation_kwd,
+        return_tensors='pt',
     )
     input_ids = tokens['input_ids'][0]
-    mask = torch.tensor(tokens['assistant_masks']).to(bool)
+    if template_has_generation_kwd:
+        mask = torch.tensor(tokens['assistant_masks']).to(bool)
+    else:
+        mask = torch.ones_like(input_ids)
     return dict(input_ids=input_ids, mask=mask)
 
 

@@ -106,10 +106,9 @@ def train(
         >>> llm.train(model, data, trainer, tokenizer="data")
         PosixPath('/path/to/log_dir')
     """
-    # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
-    if isinstance(model, str):
-        model = io.load_context(ckpt_to_context_subdir(model), subpath="model")
+    model = _load_model_from_path(model)
 
+    # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
     if resume:
         if resume.restore_config and resume.restore_config.path:
             set_modelopt_spec_if_exists_in_ckpt(model, resume.restore_config.path)
@@ -169,6 +168,7 @@ def pretrain(
         >>> llm.pretrain(model, data, trainer)
         PosixPath('/path/to/log_dir')
     """
+    model = _load_model_from_path(model)
     _validate_config(model, data, trainer, log=log, resume=resume, optim=optim)
 
     return train(
@@ -225,6 +225,7 @@ def finetune(
         >>> llm.finetune(model, data, trainer, peft=llm.peft.LoRA()])
         PosixPath('/path/to/log_dir')
     """
+    model = _load_model_from_path(model)
     _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
     return train(
         model=model,
@@ -1353,3 +1354,9 @@ def _build_directory_tree(path, tree=None, root_name=None):
                 tree.add(f"[white]{item.name}[/white]")
 
     return tree
+
+
+def _load_model_from_path(model: Union[pl.LightningModule, AnyPath]):
+    if isinstance(model, AnyPath):
+        model = io.load_context(ckpt_to_context_subdir(model), subpath="model")
+    return model
