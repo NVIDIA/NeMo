@@ -36,7 +36,6 @@
     - FLUX
     - Gemma 3
     - Qwen2-VL
-    - Qwen 2.5
   - ASR
     - NeMo Run support for ASR training
     - N-Gram LM on GPU for AED
