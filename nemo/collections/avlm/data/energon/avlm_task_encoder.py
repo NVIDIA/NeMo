@@ -51,7 +51,6 @@ from nemo.collections.avlm.data.energon.calculate_media_seq_length import (
 )
 
 from nemo.collections.multimodal.data.energon.sample_encoder import (
-    _find_pattern_indices, 
     SampleEncoder, 
     BaseSampleEncoder,
     VQASampleEncoder,

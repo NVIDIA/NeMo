@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Ensure output directory exists
-mkdir -p /tmp/nemo2_llava_next_energon_packed_results/$RUN_ID
-# removed -
-# --use-packed-sequence \
-# --context-parallel-size=2 \
-# Download necessary models - needs to be offline
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/ykarnati/hf_data coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-    tests/collections/vlm/llava_next/test_llava_next_train.py \
+TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
+    scripts/vlm/avlm_pretrain.py \
     --devices=2 \
-    --max-steps=5 \
-    --experiment-dir=/tmp/nemo2_llava_next_energon_packed_results/$RUN_ID \
-    --data-type=energon \
-    --data-path=/home/TestData/ykarnati/llava_finetune_wds \
+    --max_steps=5 \
+    --experiment-dir=/tmp/nemo2_avlm_energon_packed_results/$RUN_ID \
+    --data_type=energon \
+    --data-path=/media/fileshare/TestData/avlm/train/data/sample_data/wds \
     --gbs=1 \
     --mbs=1 \
-    --tensor-model-parallel-size=2
+    --lr=0.001 \
+    --cp_size=2 \
+    --use_packed_sequence=true

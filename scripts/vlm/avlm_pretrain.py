@@ -129,6 +129,8 @@ def main(args):
             image_processor=None,
             audio_processor=None,
             num_workers=num_workers,
+            image_embedding_tokens=576, # e.g. for CLIP-ViT-L-14-336
+            audio_embedding_tokens=1500, # e.g. for Whisper
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")

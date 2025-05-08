@@ -38,13 +38,15 @@ class MockDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        seq_length: int = 2048,
+        seq_length: int = 8192,
         decoder_seq_length: Optional[int] = None,
         tokenizer=None,
         image_processor=None,
         audio_processor=None,
-        micro_batch_size: int = 4,
-        global_batch_size: int = 8,
+        image_embedding_tokens: int = 576,
+        audio_embedding_tokens: int = 1500,
+        micro_batch_size: int = 2,
+        global_batch_size: int = 2,
         rampup_batch_size: Optional[List[int]] = None,
         num_train_samples: int = 10_000_000,
         num_val_samples: int = 10_000_000,
@@ -62,6 +64,8 @@ class MockDataModule(pl.LightningDataModule):
             tokenizer: Tokenizer for text processing.
             image_processor: Processor for image preprocessing.
             audio_processor: Processor for audio preprocessing.
+            image_embedding_tokens: Number of image embedding tokens for one image.
+            audio_embedding_tokens: Number of audio embedding tokens for one audio.
             micro_batch_size (int): Batch size per GPU.
             global_batch_size (int): Total batch size across GPUs.
             rampup_batch_size (Optional[List[int]]): Batch size ramp-up schedule.
@@ -87,6 +91,8 @@ class MockDataModule(pl.LightningDataModule):
         model_name = "llava-hf/llava-1.5-7b-hf"
         self.image_processor = AutoProcessor.from_pretrained(model_name).image_processor
         self.audio_processor = audio_processor
+        self.image_embedding_tokens = image_embedding_tokens
+        self.audio_embedding_tokens = audio_embedding_tokens
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             decoder_seq_len=self.decoder_seq_len,
@@ -103,13 +109,34 @@ class MockDataModule(pl.LightningDataModule):
             stage (str): Stage of the setup ('train', 'valid', 'test').
         """
         self._train_ds = _MockAVLMDataset(
-            self.tokenizer, self.image_processor, self.audio_processor, "train", self.num_train_samples, self.seq_length
+            tokenizer=self.tokenizer, 
+            image_processor=self.image_processor, 
+            audio_processor=self.audio_processor, 
+            image_embedding_tokens=self.image_embedding_tokens, 
+            audio_embedding_tokens=self.audio_embedding_tokens,
+            name="train", 
+            num_samples=self.num_train_samples, 
+            seq_length=self.seq_length, 
         )
         self._validation_ds = _MockAVLMDataset(
-            self.tokenizer, self.image_processor, self.audio_processor, "valid", self.num_val_samples, self.seq_length
+            tokenizer=self.tokenizer, 
+            image_processor=self.image_processor, 
+            audio_processor=self.audio_processor, 
+            image_embedding_tokens=self.image_embedding_tokens, 
+            audio_embedding_tokens=self.audio_embedding_tokens,
+            name="valid", 
+            num_samples=self.num_val_samples, 
+            seq_length=self.seq_length, 
         )
         self._test_ds = _MockAVLMDataset(
-            self.tokenizer, self.image_processor, self.audio_processor, "test", self.num_test_samples, self.seq_length
+            tokenizer=self.tokenizer, 
+            image_processor=self.image_processor, 
+            audio_processor=self.audio_processor, 
+            image_embedding_tokens=self.image_embedding_tokens, 
+            audio_embedding_tokens=self.audio_embedding_tokens,
+            name="test", 
+            num_samples=self.num_test_samples, 
+            seq_length=self.seq_length, 
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -185,6 +212,8 @@ class _MockAVLMDataset(Dataset):
         tokenizer,
         image_processor,
         audio_processor,
+        image_embedding_tokens,
+        audio_embedding_tokens,
         name: str,
         num_samples: int,
         seq_length: int,
@@ -219,6 +248,8 @@ class _MockAVLMDataset(Dataset):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.audio_processor = audio_processor
+        self.image_embedding_tokens = image_embedding_tokens
+        self.audio_embedding_tokens = audio_embedding_tokens
 
     def __len__(self) -> int:
         """
@@ -257,10 +288,12 @@ class _MockAVLMDataset(Dataset):
         num_images = 2
         num_audios = 2
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        tokens[5] = ImageToken.token_id  # ImageToken token index
-        tokens[10] = AudioToken.token_id  # ImageToken token index
-        tokens[15] = ImageToken.token_id  # ImageToken token index
-        tokens[20] = AudioToken.token_id  # ImageToken token index
+        images_tokens_index = [[5, 5+self.image_embedding_tokens], [1000, 1000+self.image_embedding_tokens]]
+        tokens[images_tokens_index[0][0]:images_tokens_index[0][1]] = ImageToken.token_id  # ImageToken token index
+        tokens[images_tokens_index[1][0]:images_tokens_index[1][1]] = ImageToken.token_id  # ImageToken token index
+        audios_tokens_index = [[2000, 2000+self.audio_embedding_tokens], [4000, 4000+self.audio_embedding_tokens]]
+        tokens[audios_tokens_index[0][0]:audios_tokens_index[0][1]] = AudioToken.token_id  # AudioToken token index
+        tokens[audios_tokens_index[1][0]:audios_tokens_index[1][1]] = AudioToken.token_id  # AudioToken token index
         labels = tokens.clone()
         tokens = tokens[:-1]
         labels = labels[1:]
@@ -282,7 +315,7 @@ class _MockAVLMDataset(Dataset):
         image_sizes = torch.tensor(num_images*[[self.image_height, self.image_width]], dtype=torch.long)
 
         # mock audios
-        audio_max_length = 32000
+        audio_max_length = int(29.9999 * 16000)
         audio_feature_dim = 1
         audios = torch.from_numpy(np_gen.uniform(-1.0, 1.0, size=[num_audios, audio_max_length]))
         # audios = torch.zeros([num_audios, audio_max_length])
