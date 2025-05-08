@@ -260,14 +260,14 @@ class vLLMExporter(ITritonDeployable):
         # Initialize the cluster and specify the executor class.
         if parallel_config.distributed_executor_backend == "ray":
             initialize_ray_cluster(parallel_config)
-            from vllm.executor.ray_distributed_executor import RayDistributedExecutor
+            from vllm.v1.executor.ray_distributed_executor import RayDistributedExecutor
 
             executor_class = RayDistributedExecutor
 
         elif parallel_config.distributed_executor_backend == "mp":
-            from vllm.executor.mp_distributed_executor import MultiprocessingDistributedExecutor
+            from vllm.v1.executor.multiproc_executor import MultiprocExecutor
 
-            executor_class = MultiprocessingDistributedExecutor
+            executor_class = MultiprocExecutor
 
         else:
             assert parallel_config.distributed_executor_backend == "uni" or parallel_config.world_size == 1
