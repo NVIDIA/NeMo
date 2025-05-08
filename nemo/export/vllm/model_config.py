@@ -130,21 +130,15 @@ class NemoModelConfig(ModelConfig):
                 del tokenizer_config['additional_special_tokens']
 
             tokenizer_config = self._change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint)
-            tokenizer = instantiate(tokenizer_config)
-
             with (nemo_checkpoint / "context/model.yaml").open('r') as config_file:
                 self.nemo_model_config: dict = yaml.load(config_file, Loader=yaml.SafeLoader)
             hf_args = self._load_hf_arguments(self.nemo_model_config['config'])
 
-            if hasattr(tokenizer, 'bos_id'):
-                tokenizer.tokenizer.bos_token_id = tokenizer.bos_id
-            if hasattr(tokenizer, 'eos_id'):
-                tokenizer.tokenizer.eos_token_id = tokenizer.eos_id
-
+            tokenizer = instantiate(tokenizer_config)
             hf_args['vocab_size'] = tokenizer.original_vocab_size
             self.model_converter.convert_config(self.nemo_model_config['config'], hf_args)
             self.hf_config = AutoConfig.for_model(model_type, **hf_args)
-            self.nemo_model_config['tokenizer'] = tokenizer
+            tokenizer_id = tokenizer_config["pretrained_model_name"]
         else:
             with TarPath(nemo_checkpoint) as archive:
                 with (archive / "model_config.yaml").open("r") as model_config_file:
@@ -152,6 +146,9 @@ class NemoModelConfig(ModelConfig):
                     hf_args = self._load_hf_arguments(self.nemo_model_config)
                     self.model_converter.convert_config(self.nemo_model_config, hf_args)
                 self.hf_config = AutoConfig.for_model(model_type, **hf_args)
+            assert self.nemo_model_config["tokenizer"]["library"] == "huggingface"
+            tokenizer_id = self.nemo_model_config["tokenizer"]["type"]
+        self.tokenizer = tokenizer_id
 
         self.hf_config.architectures = [self.model_converter.get_architecture()]
         if self.rope_scaling is not None:

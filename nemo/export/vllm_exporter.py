@@ -32,6 +32,7 @@ from vllm.config import (
     SchedulerConfig,
     VllmConfig,
 )
+from vllm.engine.llm_engine import LLMEngine
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
 from vllm.v1.core.sched.scheduler import Scheduler as V1Scheduler
@@ -39,7 +40,6 @@ from vllm.v1.core.sched.scheduler import Scheduler as V1Scheduler
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
 from nemo.export.utils import convert_lora_nemo_to_canonical, prepare_directory_for_export
-from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
 
@@ -277,7 +277,7 @@ class vLLMExporter(ITritonDeployable):
             executor_class = UniProcExecutor
 
         # Initialize the engine
-        self.engine = NemoLLMEngine(
+        self.engine = LLMEngine(
             vllm_config=VllmConfig(
                 model_config=model_config,
                 cache_config=cache_config,
