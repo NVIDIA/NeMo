@@ -131,7 +131,10 @@ def test_s2s_speech_decoder_offline_generation(model):
         input_signal_lens=torch.tensor([16000]),
     )
 
-    assert ans.keys() == {"tokens_text", "tokens_audio", "audio", "audio_len", "tokens_len"}
+    assert ans.keys() == {"text", "tokens_text", "tokens_audio", "audio", "audio_len", "tokens_len"}
+
+    assert isinstance(ans["text"], list)
+    assert isinstance(ans["text"][0], str)
 
     gen_text = ans["tokens_text"]
     assert gen_text.shape == (1, 14)

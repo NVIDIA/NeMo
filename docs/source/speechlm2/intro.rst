@@ -24,11 +24,8 @@ After :ref:`installing NeMo<installation>`, you can load and use a pretrained sp
     import nemo.collections.speechlm2 as slm
     
     # Load a pretrained SALM model
-    model = slm.models.SALM.from_pretrained("path/to/pretrained_checkpoint")
-    
-    # Alternatively, loading from HuggingFace Hub (when available)
-    # model = slm.models.SALM.from_pretrained("vendor/model_name")
-    
+    model = slm.models.SALM.from_pretrained("model_name_or_path")
+
     # Set model to evaluation mode
     model = model.eval()
 
@@ -105,14 +102,14 @@ You can run inference using the loaded pretrained DuplexS2SModel:
     audio_len = torch.tensor([audio_signal.shape[1]], device=model.device)
     
     # Run offline inference
-    text_tokens, audio_codes, output_lengths = model.offline_inference(
+    results = model.offline_inference(
         input_signal=audio_signal,
         input_signal_lens=audio_len
     )
 
     # Decode text and audio tokens
-    transcription = model.tokenizer.ids_to_text(text_tokens)
-    response_audio, response_audio_len = model.audio_codec.decode(audio_codes, output_lengths)
+    transcription = results["text"][0]
+    audio = results["audio"][0]
 
 Training a Model
 ----------------

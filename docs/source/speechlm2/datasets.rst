@@ -1,7 +1,8 @@
 Datasets
 =======
 
-The Duplex Speech-to-Speech (S2S) collection uses specialized datasets that contain both audio and text data for training models that can understand speech and generate appropriate responses. This section describes the dataset format, preparation, and usage with the speechlm2 models.
+The speechlm2 collection supports datasets that contain both audio and text data for training models that can understand speech and generate appropriate responses.
+This section describes the dataset format, preparation, and usage with the speechlm2 models.
 
 Dataset Format
 -------------
@@ -9,10 +10,10 @@ Dataset Format
 Duplex S2S models use the Lhotse framework for audio data management. The primary datasets used are:
 
 1. **DuplexS2SDataset**: For general duplex speech-to-speech models
-2. **SALMDataset**: Specifically for the Speech-Augmented Language Model (SALM)
+2. **SALMDataset**: Specifically for the Speech-Augmented Language Model (SALM), which processes speech+text and outputs text.
 
-Dataset Structure
-^^^^^^^^^^^^^^^^
+DuplexS2S Dataset Structure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A typical dataset for speechlm2 models consists of:
 
@@ -21,9 +22,6 @@ A typical dataset for speechlm2 models consists of:
 3. **Role identifiers**: To distinguish between speakers (e.g., "user" vs "agent")
 
 The dataset organization is built around the concept of conversation turns, with each turn containing audio and text from either a user or an agent/assistant.
-
-Lhotse CutSet Format
-^^^^^^^^^^^^^^^^^^^
 
 The datasets are primarily managed using Lhotse's CutSet format, which provides efficient handling of audio data and annotations. A typical Lhotse manifest includes:
 
@@ -74,9 +72,6 @@ Example of a Lhotse cut:
         }
     }
 
-Dataset Processing Details
-------------------------
-
 The DuplexS2SDataset performs several key operations when processing data:
 
 1. **Turn Identification**: Each cut contains a list of `supervisions` with objects of type `lhotse.SupervisionSegment` that represent conversation turns with corresponding text and speaker information.
@@ -98,11 +93,8 @@ The DuplexS2SDataset performs several key operations when processing data:
 
 This process ensures that the model can correctly align audio input with corresponding text, and learn to generate appropriate responses based on the conversation context.
 
-Dataset Classes
---------------
-
 DuplexS2SDataset
-^^^^^^^^^^^^^^
+****************
 
 This dataset class is designed for models that handle both speech understanding and speech generation. It processes audio inputs and prepares them for the model along with corresponding text.
 
@@ -119,8 +111,77 @@ This dataset class is designed for models that handle both speech understanding 
         output_roles=["agent", "Assistant"]         # Roles considered as output
     )
 
+SALMDataset Structure
+^^^^^^^^^^^^^^^^^^^^^
+
+Data used for SALM can be either regular speech-to-text data (in any NeMo or Lhotse format), or a dataset of multi-turn conversions.
+For the most part, please refer to `the Configuring multimodal dataloading section <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/datasets.html#configuring-multimodal-dataloading>`_ in the ASR documentation.
+
+When using speech-to-text data, you'll need read it with a special ``lhotse_as_conversation`` data reader
+that creates a two-turn, query+response, multi-modal conversation data types out of regular Lhotse cuts.
+This approach makes SALM training more flexible, allowing straightforward combination of single-turn and multi-turn data.
+
+Example YAML configuration using existing ASR datasets with ``lhotse_as_conversation``:
+
+.. code-block:: yaml
+
+    data:
+      train_ds:
+        prompt_format: "llama3"  # Choose based on your model
+        token_equivalent_duration: 0.08
+        input_cfg:
+          # Example 1: Using standard ASR Lhotse manifests (JSONL)
+          - type: lhotse_as_conversation
+            cuts_path: /path/to/librispeech_train_clean_100.jsonl.gz
+            audio_locator_tag: "<|audioplaceholder|>"
+            tags:
+              context: "Transcribe the following audio:"
+              # Optional system prompt can be uncommented
+              # system_prompt: "You are a helpful assistant that transcribes audio accurately."
+          
+          # Example 2: Using tarred NeMo manifests
+          - type: lhotse_as_conversation
+            manifest_filepath: /path/to/tedlium_train_manifest.jsonl.gz
+            tarred_audio_filepaths: /path/to/tedlium_shards/shard-{000000..000009}.tar
+            audio_locator_tag: "<|audioplaceholder|>"
+            tags:
+              context: "Write down what is said in this recording:"
+              
+          # Example 3: Using Lhotse SHAR format
+          - type: lhotse_as_conversation
+            shar_path: /path/to/fisher_shar/
+            audio_locator_tag: "<|audioplaceholder|>"
+            tags:
+              context: "Listen to this clip and write a transcript:"
+    
+      # ... other settings
+
+Alternatively, one can provide an existing YAML file with their dataset composition and wrap 
+it in a ``lhotse_as_conversation`` reader as follows:
+
+.. code-block:: yaml
+
+    data:
+      train_ds:
+        input_cfg:
+          - type: lhotse_as_conversation
+            input_cfg: /path/to/dataset_config.yaml
+            audio_locator_tag: "<|audioplaceholder|>"
+            tags:
+              context: "Transcribe the following audio:"
+              # Optional system prompt can be uncommented
+              # system_prompt: "You are a helpful assistant that transcribes audio accurately."
+
+
+The ``lhotse_as_conversation`` reader automatically creates a two-turn conversation from each ASR example:
+1. Optionally, if ``systemp_prompt`` tag is provided, it's added as a special system turn for LLM models that support system prompts.
+2. A user turn containing the audio and a text context (from the ``context`` tag)
+3. An assistant turn containing the transcription (from the cut's supervision text)
+
+If a ``context`` tag is provided in the configuration, it's added as a text turn before the audio.
+
 SALMDataset
-^^^^^^^^^^
+***********
 
 This dataset class is specialized for the SALM model, which focuses on understanding speech input and generating text output.
 
@@ -133,7 +194,7 @@ This dataset class is specialized for the SALM model, which focuses on understan
     )
 
 DataModule
----------
+----------
 
 The DataModule class in the speechlm2 collection manages dataset loading, preparation, and batching for PyTorch Lightning training:
 
@@ -305,7 +366,7 @@ For efficient training, it's recommended to convert your Lhotse manifests to SHA
     
 
 Training with Prepared Datasets
------------------------------
+-------------------------------
 
 Once your datasets are prepared, you can use them to train a model:
 
@@ -332,14 +393,14 @@ Once your datasets are prepared, you can use them to train a model:
     # Train the model
     trainer.fit(model, datamodule)
 
-Example Datasets
---------------
+Example S2S Datasets
+--------------------
 
-While there are no publicly available datasets specifically formatted for the speechlm2 collection yet, you can adapt conversation datasets with audio recordings such as:
+While there are no publicly available datasets specifically formatted for Duplex S2S models yet, you can adapt conversation datasets with audio recordings such as:
 
 1. Fisher Corpus
 2. Switchboard Corpus
 3. CallHome
 4. Synthetic conversation datasets generated using TTS
 
-You would need to format these datasets as Lhotse manifests with appropriate speaker role annotations to use them with the speechlm2 models. 
+You would need to format these datasets as Lhotse manifests with appropriate speaker role annotations to use them with the speechlm2 S2S models. 

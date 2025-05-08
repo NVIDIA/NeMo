@@ -95,7 +95,7 @@ def main(cfg: SalmEvalConfig):
                 + [
                     {
                         "role": "user",
-                        "slots": {"message": f"Repeat after me, typing in lowercase. {model.audio_locator_tag}"},
+                        "content": f"Repeat after me, typing in lowercase. {model.audio_locator_tag}",
                     }
                 ]
             ]

@@ -374,11 +374,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
                     pred_audio_lens=(results["audio_len"] / 22050 * 16000).to(torch.long),
                 )
 
-            self.bleu.update(
-                name=name,
-                refs=dataset_batch["target_texts"],
-                hyps=tokens_to_str(results["tokens_text"], results["tokens_len"], self.tokenizer, self.text_pad_id),
-            )
+            self.bleu.update(name=name, refs=dataset_batch["target_texts"], hyps=results["text"])
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
@@ -414,6 +410,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
 
         Returns:
             A dict with keys:
+                * "text": generated text, de-tokenized to strings, properly skipping text_pad_id; list of length B.
                 * "tokens_text": generated text tokens of shape (B, T2).
                 * "tokens_audio": generated audio codes of shape (B, T2, K) where `K=num_codebooks`.
                 * "tokens_len" output lengths as number of tokens of shape (B,).
@@ -475,6 +472,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
             gen_audio = gen_audio[:, :T_local]
 
         ans = {
+            "text": tokens_to_str(gen_text, lengths, tokenizer=self.tokenizer, pad_id=self.text_pad_id),
             "tokens_text": gen_text,
             "tokens_audio": gen_audio,
             "tokens_len": lengths,

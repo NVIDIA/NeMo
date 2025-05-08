@@ -55,9 +55,7 @@ def fp32_precision():
     default_dtype = torch.get_default_dtype()
     torch.set_default_dtype(torch.float32)
     try:
-        with torch.amp.autocast(
-            device_type="cuda" if torch.cuda.is_available() else torch.get_default_device(), dtype=torch.float32
-        ):
+        with torch.amp.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.float32):
             yield
     finally:
         torch.set_default_dtype(default_dtype)

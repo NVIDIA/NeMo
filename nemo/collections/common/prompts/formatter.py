@@ -263,8 +263,11 @@ class PromptFormatter(ABC):
         return self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
 
     def encode_dialog(self, turns: list[dict]) -> dict[str, torch.Tensor]:
-        assert len(turns) > 0, "Empty dialog is not supported."
         roles = self.get_roles()
+        assert len(turns) > 0, "Empty dialog is not supported."
+        for turn in turns:
+            assert "role" in turn, f"A turn must have have a 'role' key. We received {turn=}"
+            assert turn["role"] in roles, f"Found turn with {turn['role']=}, but available roles are {roles}"
 
         turn_tokens = []
         turn_token_counts = []
@@ -286,16 +289,19 @@ class PromptFormatter(ABC):
 
         is_inference = turns[-1]["role"] != self.OUTPUT_ROLE
         for turn in turns:
-            assert "role" in turn, f"A turn must have have a 'role' key. We received {turn=}"
             role = turn["role"]
-            assert role in roles, f"Found turn with {role=}, but available roles are {roles}"
             expected_slots = self.get_slots(role)
-            slot_values = turn.get("slots", {})
-            if expected_slots:
-                assert (
-                    slot_values
-                ), f"A turn for role {role} must have have a non-empty value under 'slots' key. We received {turn=}"
-                self._validate_slot_values(expected_slots, slot_values)
+            if "content" in turn and len(expected_slots) == 1:
+                # User is leveraging the "standard" API prompting LLM; we'll map "content" value
+                # to whatever is the name of the slot, when there's only one slot.
+                slot_values = {k: turn["content"] for k in expected_slots.keys()}  # 1-item dict
+            else:
+                slot_values = turn.get("slots", {})
+                if expected_slots:
+                    assert (
+                        slot_values
+                    ), f"A turn for role {role} must have have a non-empty value under 'slots' key. We received {turn=}"
+                    self._validate_slot_values(expected_slots, slot_values)
             template = self.get_template(role)
             tokens = self.encode_turn(template, expected_slots, slot_values)
             turn_tokens.extend(tokens)
