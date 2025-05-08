@@ -793,7 +793,15 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+            trust_remote_code = False
+            if hasattr(self.config, 'auto_map'):
+                if self.config.auto_map.get('AutoConfig', None) \
+                    == 'nvidia/Llama-3_3-Nemotron-Super-49B-v1--configuration_decilm.DeciLMConfig' \
+                    and self.config.auto_map.get('AutoModelForCausalLM', None) \
+                    == 'nvidia/Llama-3_3-Nemotron-Super-49B-v1--modeling_decilm.DeciLMForCausalLM':
+                    trust_remote_code = True
+            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype,
+                trust_remote_code=trust_remote_code)
 
     def apply(self, output_path: Path) -> Path:
         """Apply the conversion from NeMo to HF format.
@@ -948,6 +956,29 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             HFLlamaConfig: HF configuration for Llama models
         """
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
+
+        if type(source).__name__ == "Llama33NemotronSuper49BConfig":
+            assert hasattr(source, 'heterogeneous_layers_config_encoded_json')
+            from transformers import AutoConfig
+            config = AutoConfig.from_pretrained('nvidia/Llama-3_3-Nemotron-Super-49B-v1', trust_remote_code=True)
+            config.num_hidden_layers = source.num_layers
+            config.hidden_size = source.hidden_size
+            config.intermediate_size = source.ffn_hidden_size
+            config.max_position_embeddings = source.seq_length
+            config.initializer_range = source.init_method_std
+            config.rms_norm_eps = source.layernorm_epsilon
+            config.num_key_value_heads = source.num_query_groups
+            config.rope_theta = source.rotary_base
+            config.vocab_size = self.tokenizer.vocab_size
+            config.tie_word_embeddings = source.share_embeddings_and_output_weights
+            config.rope_scaling = {
+                'factor': source.scale_factor,
+                'low_freq_factor': source.low_freq_factor,
+                'high_freq_factor': source.high_freq_factor,
+                'original_max_position_embeddings': source.old_context_len,
+                'rope_type': 'llama3',
+            }
+            return config
 
         if isinstance(source, Llama4Config):
             # Separate Llama4 from Llama2/3 for clarity
