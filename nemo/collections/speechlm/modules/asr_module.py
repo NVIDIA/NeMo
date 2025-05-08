@@ -136,7 +136,7 @@ class HFWrappedEncoder(nn.Module):
 class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
     _target_: Optional[str] = None
     pretrained_model: Optional[str] = "nvidia/canary-1b"
-    hidden_size: Optional[int] = None    
+    hidden_size: Optional[int] = None
     config: Optional[dict] = None
     preprocessor_config: Optional[dict] = None
     spec_augment_config: Optional[dict] = None

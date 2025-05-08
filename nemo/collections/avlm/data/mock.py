@@ -107,34 +107,34 @@ class MockDataModule(pl.LightningDataModule):
             stage (str): Stage of the setup ('train', 'valid', 'test').
         """
         self._train_ds = _MockAVLMDataset(
-            tokenizer=self.tokenizer, 
-            image_processor=self.image_processor, 
-            audio_processor=self.audio_processor, 
-            image_embedding_tokens=self.image_embedding_tokens, 
+            tokenizer=self.tokenizer,
+            image_processor=self.image_processor,
+            audio_processor=self.audio_processor,
+            image_embedding_tokens=self.image_embedding_tokens,
             audio_embedding_tokens=self.audio_embedding_tokens,
-            name="train", 
-            num_samples=self.num_train_samples, 
-            seq_length=self.seq_length, 
+            name="train",
+            num_samples=self.num_train_samples,
+            seq_length=self.seq_length,
         )
         self._validation_ds = _MockAVLMDataset(
-            tokenizer=self.tokenizer, 
-            image_processor=self.image_processor, 
-            audio_processor=self.audio_processor, 
-            image_embedding_tokens=self.image_embedding_tokens, 
+            tokenizer=self.tokenizer,
+            image_processor=self.image_processor,
+            audio_processor=self.audio_processor,
+            image_embedding_tokens=self.image_embedding_tokens,
             audio_embedding_tokens=self.audio_embedding_tokens,
-            name="valid", 
-            num_samples=self.num_val_samples, 
-            seq_length=self.seq_length, 
+            name="valid",
+            num_samples=self.num_val_samples,
+            seq_length=self.seq_length,
         )
         self._test_ds = _MockAVLMDataset(
-            tokenizer=self.tokenizer, 
-            image_processor=self.image_processor, 
-            audio_processor=self.audio_processor, 
-            image_embedding_tokens=self.image_embedding_tokens, 
+            tokenizer=self.tokenizer,
+            image_processor=self.image_processor,
+            audio_processor=self.audio_processor,
+            image_embedding_tokens=self.image_embedding_tokens,
             audio_embedding_tokens=self.audio_embedding_tokens,
-            name="test", 
-            num_samples=self.num_test_samples, 
-            seq_length=self.seq_length, 
+            name="test",
+            num_samples=self.num_test_samples,
+            seq_length=self.seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -286,12 +286,12 @@ class _MockAVLMDataset(Dataset):
         num_images = 2
         num_audios = 2
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        images_tokens_index = [[5, 5+self.image_embedding_tokens], [1000, 1000+self.image_embedding_tokens]]
-        tokens[images_tokens_index[0][0]:images_tokens_index[0][1]] = ImageToken.token_id  # ImageToken token index
-        tokens[images_tokens_index[1][0]:images_tokens_index[1][1]] = ImageToken.token_id  # ImageToken token index
-        audios_tokens_index = [[2000, 2000+self.audio_embedding_tokens], [4000, 4000+self.audio_embedding_tokens]]
-        tokens[audios_tokens_index[0][0]:audios_tokens_index[0][1]] = AudioToken.token_id  # AudioToken token index
-        tokens[audios_tokens_index[1][0]:audios_tokens_index[1][1]] = AudioToken.token_id  # AudioToken token index
+        images_tokens_index = [[5, 5 + self.image_embedding_tokens], [1000, 1000 + self.image_embedding_tokens]]
+        tokens[images_tokens_index[0][0] : images_tokens_index[0][1]] = ImageToken.token_id  # ImageToken token index
+        tokens[images_tokens_index[1][0] : images_tokens_index[1][1]] = ImageToken.token_id  # ImageToken token index
+        audios_tokens_index = [[2000, 2000 + self.audio_embedding_tokens], [4000, 4000 + self.audio_embedding_tokens]]
+        tokens[audios_tokens_index[0][0] : audios_tokens_index[0][1]] = AudioToken.token_id  # AudioToken token index
+        tokens[audios_tokens_index[1][0] : audios_tokens_index[1][1]] = AudioToken.token_id  # AudioToken token index
         labels = tokens.clone()
         tokens = tokens[:-1]
         labels = labels[1:]
@@ -299,22 +299,27 @@ class _MockAVLMDataset(Dataset):
         #  attention_mask
         attention_mask = torch.ones(len(tokens), dtype=torch.long)
 
-        # mock images 
-        images = num_images*[torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))]
+        # mock images
+        images = num_images * [
+            torch.from_numpy(
+                np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32)
+            )
+        ]
         processed_images = []
         num_image_tiles = []
         for image in images:
-            processed_image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+            processed_image = self.image_processor.preprocess(
+                image, return_tensors='pt', do_rescale=False
+            )['pixel_values'][0]
             processed_images.append(processed_image)
             num_image_tiles.append(processed_image.shape[0])
         # processed_images = torch.concat(processed_images, dim=0)
         processed_images = torch.stack(processed_images)
         num_image_tiles = torch.tensor(num_image_tiles, dtype=torch.long)
-        image_sizes = torch.tensor(num_images*[[self.image_height, self.image_width]], dtype=torch.long)
+        image_sizes = torch.tensor(num_images * [[self.image_height, self.image_width]], dtype=torch.long)
 
         # mock audios
         audio_max_length = int(29.9999 * 16000)
-        audio_feature_dim = 1
         audios = torch.from_numpy(np_gen.uniform(-1.0, 1.0, size=[num_audios, audio_max_length]))
         # audios = torch.zeros([num_audios, audio_max_length])
         audio_lengths = torch.from_numpy(np_gen.integers(16000, audio_max_length, size=[num_audios]))
@@ -324,7 +329,7 @@ class _MockAVLMDataset(Dataset):
             "labels": labels,
             "loss_mask": self.loss_mask,
             "attention_mask": attention_mask,
-            "position_ids": self.position_ids, # -> remove this
+            "position_ids": self.position_ids,  # -> remove this
             "images": processed_images,
             "image_sizes": image_sizes,
             "num_image_tiles": num_image_tiles,

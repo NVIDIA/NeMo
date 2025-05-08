@@ -24,8 +24,8 @@ from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
 class AVLMDataModule(EnergonMultiModalDataModule):
     """
     Energon Data module for media(audio and/or image and/or video and text)-to-text LLM.
-    
-    It looks for a path leads to path/.nv-meta/dataset.yaml 
+
+    It looks for a path leads to path/.nv-meta/dataset.yaml
     which looks like the follows:
     sample_type:
       __module__: nemo.collections.avlm.data.energon.media_to_text_config
@@ -39,7 +39,7 @@ class AVLMDataModule(EnergonMultiModalDataModule):
     More data preparation details can be found at:
     https://github.com/NVIDIA/Megatron-Energon/blob/24123d4b63a451980eec6ee0ddaa4f007ef562e7/docs/source/basic/data_prep.md?plain=1#L85
     """
-        
+
     def __init__(
         self,
         path: str,
@@ -89,7 +89,7 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         This method retrieves the dataset for the specified split (either 'train' or 'val') and configures
         it according to the worker configuration.
 
-        audio, video and image files wil be passed to the task encoder as raw bytes which will be processed in a 
+        audio, video and image files wil be passed to the task encoder as raw bytes which will be processed in a
         more fine-grained way.
 
         Parameters:

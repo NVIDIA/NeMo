@@ -18,7 +18,6 @@ Example:
 """
 
 import argparse
-import io
 import torch
 
 import nemo.lightning as nl
@@ -30,33 +29,33 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.avlm.data.energon import AVLMSampleConfig, AVLMEnergonQASample
 from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMSampleEncoderQA
 from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSample
-import torchvision
+
 
 def nucleus_sampling(logits, top_p=0.9, temperature=1.0, top_k=None):
     """Nucleus (top-p) sampling with temperature and top-k support."""
     # Apply temperature
     logits = logits / temperature
-    
+
     # Apply top-k filtering if specified
     if top_k is not None:
         v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
         logits[logits < v[:, [-1]]] = float('-inf')
-    
+
     # Sort logits in descending order
     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
     # Calculate cumulative probabilities
     cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-    
+
     # Remove tokens with cumulative probability above the threshold
     sorted_indices_to_remove = cumulative_probs > top_p
     # Shift the indices to the right to keep the first token above the threshold
     sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
     sorted_indices_to_remove[..., 0] = 0
-    
+
     # Create mask for tokens to keep
     indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
     logits[indices_to_remove] = float('-inf')
-    
+
     # Sample from the filtered distribution
     probs = torch.softmax(logits, dim=-1)
     next_token = torch.multinomial(probs, num_samples=1)
@@ -75,17 +74,23 @@ def generate(model, sample_encoder, sample, tokens_to_generate=20, top_p=0.9, te
     encoded_sample.images = torch.tensor(encoded_sample.images).cuda()
     encoded_sample.audios = torch.stack(encoded_sample.audios).cuda()
     position_ids = (
-        torch.arange(encoded_sample.tokens.size(1), dtype=torch.long, device=encoded_sample.tokens.device).unsqueeze(0).expand_as(encoded_sample.tokens)
+        torch.arange(encoded_sample.tokens.size(1), dtype=torch.long, device=encoded_sample.tokens.device)
+        .unsqueeze(0)
+        .expand_as(encoded_sample.tokens)
     ).cuda()
 
     from itertools import groupby, chain
-    def mark_ignore_spans(tokens, values_list):
-        return list(chain.from_iterable(
-            [f"{len(list(g))} x ({k})"] if k in values_list else list(g)
-            for k, g in groupby(tokens)
-        ))
-    print(f"encoded_sample.tokens[0]: {mark_ignore_spans(encoded_sample.tokens[0].tolist(), values_list=[-100, -200, -300, 0])}")
 
+    def mark_ignore_spans(tokens, values_list):
+        return list(
+            chain.from_iterable(
+                [f"{len(list(g))} x ({k})"] if k in values_list else list(g) for k, g in groupby(tokens)
+            )
+        )
+
+    print(
+        f"encoded_sample.tokens[0]: {mark_ignore_spans(encoded_sample.tokens[0].tolist(), values_list=[-100, -200, -300, 0])}"
+    )
 
     # Generate
     input_ids = encoded_sample.tokens
@@ -93,12 +98,12 @@ def generate(model, sample_encoder, sample, tokens_to_generate=20, top_p=0.9, te
     for _ in range(tokens_to_generate):
         with torch.no_grad():
             output = model(
-                input_ids = input_ids,
-                position_ids = position_ids,
-                images = encoded_sample.images,
-                num_image_tiles = encoded_sample.num_image_tiles,
-                audios = encoded_sample.audios,
-                audio_lengths = encoded_sample.audio_lengths,
+                input_ids=input_ids,
+                position_ids=position_ids,
+                images=encoded_sample.images,
+                num_image_tiles=encoded_sample.num_image_tiles,
+                audios=encoded_sample.audios,
+                audio_lengths=encoded_sample.audio_lengths,
             )
             # Use nucleus sampling with temperature and top-k
             next_token_ids = nucleus_sampling(output[:, -1], top_p=top_p, temperature=temperature, top_k=top_k)
@@ -140,13 +145,12 @@ def main(args) -> None:
     )
     fabric = trainer.to_fabric()
 
-
     # set tokenizer
     tokenizer = AutoTokenizer("llava-hf/llava-1.5-7b-hf")
 
     # Configure sample encoder
     avlm_sample_config = AVLMSampleConfig(
-        audio_encoder_config={ # whisper audio encoder
+        audio_encoder_config={  # whisper audio encoder
             "model_type": "whisper",
             "window_stride": 0.01,
             "sample_rate": 16000,
@@ -163,7 +167,7 @@ def main(args) -> None:
             "img_width": 336,
             "img_height": 336,
             "patch_size": 14,
-        }
+        },
     )
     avlm_sample_config.conversation_template_config.system = ''
     sample_encoder = AVLMSampleEncoderQA(
@@ -172,8 +176,6 @@ def main(args) -> None:
         image_processor=None,
         multimodal_sample_config=avlm_sample_config,
     )
-
-
 
     # Configure AVLM model
     language_transformer_config = llm.Llama2Config7B(
@@ -193,7 +195,7 @@ def main(args) -> None:
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
     # whisper audio encoder  # need update NeMo from Steve's branch
-    audio_transformer_config=ASRModuleConfig(
+    audio_transformer_config = ASRModuleConfig(
         _target_="nemo.collections.speechlm.modules.asr_module.ASRModuleConfig",
         use_hf_auto_model=True,
         hf_trust_remote_code=False,
@@ -204,7 +206,7 @@ def main(args) -> None:
     )
     audio_projection_config = vlm.MultimodalProjectorConfig(
         projector_type="mlp2x_gelu",
-        input_size=audio_transformer_config.hidden_size, # need to set somehow?
+        input_size=audio_transformer_config.hidden_size,  # need to set somehow?
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
@@ -215,7 +217,7 @@ def main(args) -> None:
         vision_projection_config=vision_projection_config,
         audio_transformer_config=audio_transformer_config,
         audio_projection_config=audio_projection_config,
-        language_model_from_pretrained=None, ######??? -> need to add this to avlm_pretrain.py???
+        language_model_from_pretrained=None,  ######??? -> need to add this to avlm_pretrain.py???
         vision_model_from_pretrained=vision_model_from_pretrained,
         audio_model_from_pretrained=None,
         freeze_language_model=True,
@@ -247,12 +249,10 @@ def main(args) -> None:
     # print("\n".join(param_info))
     # print("stop_here")
 
-
     # Setup model for inference
     model = model.module.cuda()
     model.eval()
     model = model.to(torch.bfloat16)
-
 
     # Load and process the image and audio
     with open(args.image_path, 'rb') as file:
@@ -262,10 +262,7 @@ def main(args) -> None:
     images = [{"media_type": "image", "media_value": image_bytes}]
     audios = [{"media_type": "audio", "media_value": audio_bytes}]
 
-    conversations = [
-        {"from": "human", "value": "<image><audio>"}, 
-        {"from": "gpt", "value": ""}
-    ]
+    conversations = [{"from": "human", "value": "<image><audio>"}, {"from": "gpt", "value": ""}]
     sample = AVLMEnergonQASample(
         __key__="dummy",
         __restore_key__="dummy",
@@ -278,9 +275,16 @@ def main(args) -> None:
         images=images,
     )
 
-
     # Run generation
-    generate(model, sample_encoder, sample, top_p=args.top_p, temperature=args.temperature, top_k=args.top_k, tokens_to_generate=args.tokens_to_generate)
+    generate(
+        model,
+        sample_encoder,
+        sample,
+        top_p=args.top_p,
+        temperature=args.temperature,
+        top_k=args.top_k,
+        tokens_to_generate=args.tokens_to_generate,
+    )
 
 
 if __name__ == "__main__":
@@ -312,6 +316,6 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=1.0, help="Temperature for sampling")
     parser.add_argument("--top_k", type=int, default=None, help="Top-k sampling parameter")
     parser.add_argument("--tokens_to_generate", type=int, default=20, help="Number of tokens to generate")
-    
+
     args = parser.parse_args()
     main(args)

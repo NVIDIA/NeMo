@@ -82,7 +82,7 @@ def main(args):
             #     "frequency_stride": None,
             #     "max_spectrogram_length": None,
             # },
-            audio_encoder_config={ # whisper audio encoder
+            audio_encoder_config={  # whisper audio encoder
                 "model_type": "whisper",
                 "window_stride": 0.01,
                 "sample_rate": 16000,
@@ -99,7 +99,7 @@ def main(args):
                 "img_width": 336,
                 "img_height": 336,
                 "patch_size": 14,
-            }
+            },
         )
         # Setting system prompt to empty string
         avlm_sample_config.conversation_template_config.system = ''
@@ -129,8 +129,8 @@ def main(args):
             image_processor=None,
             audio_processor=None,
             num_workers=num_workers,
-            image_embedding_tokens=576, # e.g. for CLIP-ViT-L-14-336
-            audio_embedding_tokens=1500, # e.g. for Whisper
+            image_embedding_tokens=576,  # e.g. for CLIP-ViT-L-14-336
+            audio_embedding_tokens=1500,  # e.g. for Whisper
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -168,7 +168,7 @@ def main(args):
     #     }
     # )
     # whisper audio encoder  # need update NeMo from Steve's branch
-    audio_transformer_config=ASRModuleConfig(
+    audio_transformer_config = ASRModuleConfig(
         _target_="nemo.collections.speechlm.modules.asr_module.ASRModuleConfig",
         use_hf_auto_model=True,
         hf_trust_remote_code=False,
@@ -186,7 +186,7 @@ def main(args):
     )
     audio_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
-        input_size=audio_transformer_config.hidden_size, # need to set somehow?
+        input_size=audio_transformer_config.hidden_size,  # need to set somehow?
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
@@ -270,7 +270,6 @@ def main(args):
     #     enable_model_summary=False
     # )
 
-
     # Logger setup
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
@@ -283,7 +282,9 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path, load_optim_state=False) if args.restore_path is not None else None,
+        restore_config=(
+            nl.RestoreConfig(path=args.restore_path, load_optim_state=False) if args.restore_path is not None else None
+        ),
     )
 
     # Optimizer and scheduler setup
@@ -334,18 +335,24 @@ if __name__ == "__main__":
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=2000)
     parser.add_argument("--val_check_interval", type=int, required=False, default=500)
-    parser.add_argument("--tp_size", type=int, required=False, default=1)   
+    parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
-    parser.add_argument("--sequence_parallel", type=str, required=False, default="false", help="Enable sequence parallel")
-    parser.add_argument("--use_packed_sequence", type=str, required=False, default="false", help="Enable sequence packing")
+    parser.add_argument(
+        "--sequence_parallel", type=str, required=False, default="false", help="Enable sequence parallel"
+    )
+    parser.add_argument(
+        "--use_packed_sequence", type=str, required=False, default="false", help="Enable sequence packing"
+    )
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="avlm_pretrain")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
-    parser.add_argument("--num_workers", type=int, required=False, default=32, help="Number of workers for data loading")
+    parser.add_argument(
+        "--num_workers", type=int, required=False, default=32, help="Number of workers for data loading"
+    )
     parser.add_argument("--lr", type=float, required=False, default=0.001, help="Learning rate")
 
     args = parser.parse_args()

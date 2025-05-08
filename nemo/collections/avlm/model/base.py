@@ -21,7 +21,7 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core import InferenceParams, dist_checkpointing
-from megatron.core import parallel_state as psf
+from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
@@ -231,6 +231,7 @@ class AVLMConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreAVLMModel":
         # pylint: disable=C0115,C0116
+        self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         if self.vision_transformer_config is not None:
@@ -290,7 +291,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         drop_vision_class_token: bool = True,
     ) -> None:
         # pylint: disable=C0115,C0116
-        super(MCoreAVLMModel, self).__init__(config=config)
+        super(MCoreLLaVAModel, self).__init__(config=config)
 
         language_transformer_config = config.language_transformer_config
         vision_transformer_config = config.vision_transformer_config
@@ -316,12 +317,10 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         self.context_parallel_lm = language_transformer_config.context_parallel_size
         self.tensor_model_parallel_size_lm = language_transformer_config.tensor_model_parallel_size
 
-
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
         self.share_embeddings_and_output_weights = False
         if self.add_decoder:
-            language_transformer_config.scatter_embedding_sequence_parallel = False
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
@@ -348,8 +347,10 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
             if audio_transformer_config is not None:
                 app_state = AppState()
-                # if checkpoint is in NeMo 1.0, we need to temporarily set model_parallel_size to 1 to load audio encoder, 
-                # because audio encoder does not support model parallel and was saved with model_parallel_size=1
+                # if checkpoint is in NeMo 1.0, we need to temporarily set 
+                # model_parallel_size to 1 to load audio encoder, because
+                # audio encoder does not support model parallel 
+                # and was saved with model_parallel_size=1
                 if config.audio_model_from_pretrained and config.audio_model_from_pretrained.endswith(".nemo"):
                     with temporary_model_parallel_size(app_state, 1):
                         self.audio_model = audio_transformer_config.configure_model()
@@ -379,7 +380,17 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
 
-    def combine_embeddings(self, input_ids, image_embeddings, audio_embeddings, language_embeddings, image_token_index, audio_token_index, use_inference_kv_cache, packed_seq_params):
+    def combine_embeddings(
+        self,
+        input_ids,
+        image_embeddings,
+        audio_embeddings,
+        language_embeddings,
+        image_token_index,
+        audio_token_index,
+        use_inference_kv_cache,
+        packed_seq_params,
+    ):
         """
         Combine image_embeddings, audio_embeddings, and language_embeddings into a single tensor.
         """
@@ -405,16 +416,17 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
     def pad_sequence(self, combined_embeddings, labels, loss_mask, packed_seq_params):
         """
-        Pad the sequence (labels, loss_mask, combined_embeddings, packed_seq_params) to the language model's max sequence length.
-            combined_embeddings's shape is [batch_size, seq_len, attention head, embed_dim]
+        Pad the sequence (labels, loss_mask, combined_embeddings, packed_seq_params) to the  
+        language model's max sequence length.
+        combined_embeddings's shape is [batch_size, seq_len, attention head, embed_dim]
 
         """
 
         # determine max sequence length to pad
         if self._language_is_pipeline_parallel:
             max_seq_len = self._language_max_sequence_length
-        elif (self.context_parallel_lm > 1 or self.sequence_parallel_lm):
-            if (self.sequence_parallel_lm and self.tp_comm_overlap_lm):
+        elif self.context_parallel_lm > 1 or self.sequence_parallel_lm:
+            if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
                 # pad to language_max_sequence_length to use TP Comm overlap.
                 max_seq_len = self._language_max_sequence_length
             else:
@@ -452,7 +464,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     combined_embeddings.contiguous(),  # Ensure contiguous memory layout
                     pad=pad_shape,
                     mode='constant',
-                    value=0
+                    value=0,
                 )
 
         # pad packed_seq_params
@@ -467,7 +479,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
             packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
             packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
-        
+
         return combined_embeddings, labels, loss_mask
 
     def truncate_sequence(self, combined_embeddings, labels, loss_mask, packed_seq_params):
@@ -486,7 +498,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         if combined_embeddings is not None:
             # Truncate if exceeding the language model's max sequence length.
             if combined_embeddings.shape[1] > self._language_max_sequence_length:
-                combined_embeddings = combined_embeddings[:, :self._language_max_sequence_length]
+                combined_embeddings = combined_embeddings[:, : self._language_max_sequence_length]
 
         # packed_seq_params truncation
         packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
@@ -571,7 +583,9 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 if not has_images:
                     vision_param = next(self.vision_model.parameters())
                     # If no images provided, use an empty image embeddings tensor.
-                    image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
+                    image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(
+                        0, 0, 0
+                    )
                 else:
                     # images is in shape of (num_images_in_mbs, c, h, w)
                     # note num_images_in_mbs is not mbs but total images in this mbs.
@@ -585,12 +599,16 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                         ]  # [num_images, img_seq_len, h_vision]
                     else:
                         # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
-                        image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
+                        image_embeddings = self.vision_model(
+                            images, num_unused_layers=-self.config.vision_feature_layer - 1
+                        )
                     if self._drop_vision_class_token:
                         class_token_len = getattr(self.vision_model, "class_token_len", 1)
                         image_embeddings = image_embeddings[:, class_token_len:, :]
                     # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
-                    image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
+                    image_embeddings = image_embeddings.permute(
+                        1, 0, 2
+                    ).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
                     # map vision model output size to language model input size.
                     image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
@@ -600,8 +618,12 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     # In inference, the language model KV cache will be updated for image token positions.
                     # Store the image tokens sequence length to be used as an offset to the KV cache later.
                     if inference_params is not None:
-                        inference_params.key_value_memory_dict["image_tokens_count"] = (input_ids==image_token_index).sum()
-                        inference_params.key_value_memory_dict["media_tokens_count"] = inference_params.key_value_memory_dict["image_tokens_count"]
+                        inference_params.key_value_memory_dict["image_tokens_count"] = (
+                            input_ids == image_token_index
+                        ).sum()
+                        inference_params.key_value_memory_dict["media_tokens_count"] = (
+                            inference_params.key_value_memory_dict["image_tokens_count"]
+                        )
             else:
                 image_embeddings = None
 
@@ -611,35 +633,43 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 if not has_audios:
                     audio_param = next(self.audio_model.parameters())
                     # If no audios provided, use an empty audio embeddings tensor.
-                    audio_embeddings = torch.tensor([], dtype=audio_param.dtype, device=audio_param.device).reshape(0, 0)
+                    audio_embeddings = torch.tensor([], dtype=audio_param.dtype, device=audio_param.device).reshape(
+                        0, 0
+                    )
                 else:
                     # We don't cast input to bfloat16 here, because processor prefer input audios data in float32.
                     # the output of preprocessing and encoding will be the dtype of encoder
                     # audios is in shape of (num_audios_in_mbs, audio_feature_dim)
                     # note num_audios_in_mbs is not mbs but total audios in this mbs.
                     audio_embeddings, audio_embedding_lens = self.audio_model(
-                        input_signal = audios,
-                        input_signal_length = audio_lengths,
-                        processed_signal = None,
-                        processed_signal_length = None, # what difference between input_signal and processed_signal?
-                    ) 
+                        input_signal=audios,
+                        input_signal_length=audio_lengths,
+                        processed_signal=None,
+                        processed_signal_length=None,  # what difference between input_signal and processed_signal?
+                    )
                     # [num_audios, h_audio, audio_seq_len] -> [audio_seq_len, num_audios, h_audio]
                     # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
-                    audio_embeddings = audio_embeddings.permute(2, 0, 1).contiguous() 
+                    audio_embeddings = audio_embeddings.permute(2, 0, 1).contiguous()
 
                     # map audio model output size to language model input size.
-                    audio_embeddings = self.audio_projection(audio_embeddings)  
+                    audio_embeddings = self.audio_projection(audio_embeddings)
 
                     # TODO: => need to update this. This first, is not correct for audio tokens count, second, it might actually already be computed with pre-calculated audio embeddings seq length
                     # TODO: Support batched inference.
                     # In inference, the language model KV cache will be updated for audio token positions.
                     # Store the audio tokens sequence length to be used as an offset to the KV cache later.
                     if inference_params is not None:
-                        inference_params.key_value_memory_dict["audio_tokens_count"] = (input_ids==audio_token_index).sum()
+                        inference_params.key_value_memory_dict["audio_tokens_count"] = (
+                            input_ids == audio_token_index
+                        ).sum()
                         if "media_tokens_count" in inference_params.key_value_memory_dict:
-                            inference_params.key_value_memory_dict["media_tokens_count"] += inference_params.key_value_memory_dict["audio_tokens_count"]
+                            inference_params.key_value_memory_dict[
+                                "media_tokens_count"
+                            ] += inference_params.key_value_memory_dict["audio_tokens_count"]
                         else:
-                            inference_params.key_value_memory_dict["media_tokens_count"] = inference_params.key_value_memory_dict["audio_tokens_count"]
+                            inference_params.key_value_memory_dict["media_tokens_count"] = (
+                                inference_params.key_value_memory_dict["audio_tokens_count"]
+                            )
             else:
                 audio_embeddings = None
         else:
@@ -670,28 +700,33 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             # audio modality
             # (for audio modality, we need to base on audio_embedding_lens to filter out the padded audio embeddings)
             audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
-            nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(audio_embeddings.device) < audio_embedding_lens.unsqueeze(0)
+            nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(
+                audio_embeddings.device
+            ) < audio_embedding_lens.unsqueeze(0)
             nonpadded_audio_embeddings = audio_embeddings[nonpadded_mask]
             audio_embeddings = nonpadded_audio_embeddings
 
             # combine multimodal embeddings to text embeddings
             combined_embeddings = self.combine_embeddings(
-                input_ids, 
-                image_embeddings, 
-                audio_embeddings, 
-                language_embeddings, 
-                image_token_index, 
-                audio_token_index, 
-                use_inference_kv_cache, 
-                packed_seq_params
+                input_ids,
+                image_embeddings,
+                audio_embeddings,
+                language_embeddings,
+                image_token_index,
+                audio_token_index,
+                use_inference_kv_cache,
+                packed_seq_params,
             )
 
-
         # pad combined_embeddings, labels, loss_mask if needed
-        combined_embeddings, labels, loss_mask = self.pad_sequence(combined_embeddings, labels, loss_mask, packed_seq_params)
+        combined_embeddings, labels, loss_mask = self.pad_sequence(
+            combined_embeddings, labels, loss_mask, packed_seq_params
+        )
 
         # truncate combined_embeddings, labels, loss_mask if needed
-        combined_embeddings, labels, loss_mask = self.truncate_sequence(combined_embeddings, labels, loss_mask, packed_seq_params)
+        combined_embeddings, labels, loss_mask = self.truncate_sequence(
+            combined_embeddings, labels, loss_mask, packed_seq_params
+        )
 
         # transpose combined_embeddings [b, s, h] -> [s, b, h]
         if combined_embeddings is not None:
@@ -707,10 +742,8 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 # _process_embedding_token_parallel expects input in shape bshd for cp
                 combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
-            combined_embeddings, labels, loss_mask, packed_seq_params = (
-                self._process_embedding_token_parallel(
-                    combined_embeddings, labels, loss_mask, packed_seq_params
-                )
+            combined_embeddings, labels, loss_mask, packed_seq_params = self._process_embedding_token_parallel(
+                combined_embeddings, labels, loss_mask, packed_seq_params
             )
 
         output = self.language_model(
@@ -729,13 +762,12 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
         return output, loss_mask
 
-
     def freeze(
-        self, 
-        freeze_language_model: bool, 
-        freeze_vision_model: bool, 
+        self,
+        freeze_language_model: bool,
+        freeze_vision_model: bool,
         freeze_vision_projection: bool,
-        freeze_audio_model: bool, 
+        freeze_audio_model: bool,
         freeze_audio_projection: bool,
     ):
         """Freeze model modules.
@@ -849,7 +881,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
                 from megatron.training.utils import get_batch_on_this_cp_rank
 
-                batch = get_batch_on_this_cp_rank(batch) 
+                batch = get_batch_on_this_cp_rank(batch)
             else:
                 try:
                     import transformer_engine_torch as tex
@@ -995,5 +1027,4 @@ def temporary_model_parallel_size(app_state, temp_value):
 __all__ = [
     "AVLMModel",
     "AVLMConfig",
-    "AVLM_data_step",
 ]
