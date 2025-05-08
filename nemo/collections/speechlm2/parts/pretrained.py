@@ -11,16 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 from contextlib import contextmanager
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import torch
 from peft import PeftModel
 from transformers import AutoConfig, AutoModelForCausalLM
-
-from nemo.utils.model_utils import import_class_by_path
 
 
 def load_pretrained_nemo(cls, model_path_or_name: str):
