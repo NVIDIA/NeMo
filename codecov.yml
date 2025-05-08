@@ -8,6 +8,9 @@ coverage:
         base: auto
         if_ci_failed: error
         paths:
-          - "nemo/export"
+          - "!nemo/collections/asr"
+          - "!nemo/collections/audio"
+          - "!nemo/collections/speechlm"
+          - "!nemo/collections/tts"
 fixes:
   - "/workspace/::"
