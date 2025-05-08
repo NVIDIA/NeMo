@@ -3,8 +3,53 @@
 <!-- Next changelog -->
 ## NVIDIA Neural Modules 2.3.0
 
-### Detailed Changelogs:
+### Highlights
 
+- Export & Deploy
+  - NeMo 2.0 export path for NIM
+  - ONNX and TensorRT Export for NIM Embedding Container
+  - In-framework deployment for HF Models
+  - TRT-LLM deployment for HF Models in NeMo Framework
+- Evaluations
+  - Integrate nvidia-lm-eval to NeMo FW for evaluations with OpenAI API compatible in-framework deployment
+- AutoModel
+  - VLM AutoModelForImageForTextToText
+  - FP8 for AutoModel
+  - Support CP with FSDP2
+  - Support TP with FSDP2
+  - Performance Optimization
+    - add support for cut cross entropy
+    - Gradient Checkpointing
+- Fault Tolerance
+  - Integrate NVRx v0.3 Local checkpointing
+- Collections
+  - LLM
+    - Llama4
+    - Llama Nemotron Ultra
+    - Llama Nemotron Super
+    - Llama Nemotron Nano
+    - Nemotron-h/5
+    - Deep Seek V3 Pretraining
+    - Hyena
+  - MultiModal
+    - FLUX
+    - Gemma 3
+    - Qwen2-VL
+    - Qwen 2.5
+  - ASR
+    - NeMo Run support for ASR training
+    - N-Gram LM on GPU for AED
+    - N-Gram LM on GPU + Transducer greedy decoding (RNN-T, TDT)
+    - Timestamps support for AED timestamp supported models
+    - Migrate SpeechLM to NeMo 2.0
+    - Canary-1.1
+    - Replace ClassificationModels class with LabelModels
+- Performance
+  - Functional MXFP8 support for (G)B200
+  - Current scaling recipe with TP communication overlap and FP8 param gathers
+  - Custom FSDP support that fully utilizes GB200 NVL72
+
+### Detailed Changelogs:
 
 #### ASR
 
