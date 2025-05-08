@@ -130,18 +130,18 @@ class MegatronLLMRayDeployable:
         try:
             loop = asyncio.get_event_loop()
             model_name = request.get('model', 'nemo-model')
-
+            if "prompt" in request:
+                request["prompts"] = [request["prompt"]]
             # Prepare inference parameters
             inference_inputs = {
                 "prompts": request.get("prompts", []),
                 "max_length": request.get("max_tokens", 256),
                 "temperature": request.get("temperature", 1.0),
                 "top_k": request.get("top_k", 1),
-                "top_p": request.get("top_p", 0.0),
+                "top_p": 0.0,
                 "compute_logprob": False,
                 "apply_chat_template": False,
             }
-
             # Run model inference in the thread pool
             results = await loop.run_in_executor(None, self.model.ray_infer_fn, inference_inputs)
 
@@ -160,7 +160,7 @@ class MegatronLLMRayDeployable:
                 "model": model_name,
                 "choices": [
                     {
-                        "text": generated_texts,
+                        "text": " ".join(generated_texts),
                         "index": 0,
                         "logprobs": results.get("log_probs"),  # Now we can include logprobs if they were requested
                         "finish_reason": (
@@ -177,6 +177,7 @@ class MegatronLLMRayDeployable:
             return output
         except Exception as e:
             LOGGER.error(f"Error during inference: {str(e)}")
+            LOGGER.error(f"Request: {request}")
             raise HTTPException(status_code=500, detail=f"Error during inference: {str(e)}")
 
     @app.post("/v1/chat/completions/")

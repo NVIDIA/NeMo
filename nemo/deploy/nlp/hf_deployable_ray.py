@@ -63,8 +63,6 @@ class HFRayDeployable:
         hf_model_id_path: str,
         task: str = "text-generation",
         trust_remote_code: bool = True,
-        device_map: str = "auto",
-        tp_plan: str = None,
         model_id: str = "nemo-model",
     ):
         """Initialize the HuggingFace model deployment.
@@ -87,9 +85,7 @@ class HFRayDeployable:
             self.model = HuggingFaceLLMDeploy(
                 hf_model_id_path=hf_model_id_path,
                 task=task,
-                trust_remote_code=trust_remote_code,
-                device_map=device_map,
-                tp_plan=tp_plan,
+                trust_remote_code=trust_remote_code
             )
             self.model_id = model_id
         except Exception as e:
@@ -127,11 +123,12 @@ class HFRayDeployable:
         try:
             loop = asyncio.get_event_loop()
             model_name = request.get('model', 'nemo-model')
+            if "prompt" in request:
+                request["prompts"] = [request["prompt"]]
             # Run tokenization and model inference in the thread pool
             results = await loop.run_in_executor(
                 None, self.model.ray_infer_fn, request  # Use default ThreadPoolExecutor
             )
-
             # Extract generated texts from results
             generated_texts = results.get("sentences", [])
 
@@ -139,7 +136,6 @@ class HFRayDeployable:
             prompt_tokens = sum(len(p.split()) for p in request.get("prompts", []))
             completion_tokens = sum(len(r.split()) for r in generated_texts)
             total_tokens = prompt_tokens + completion_tokens
-
             output = {
                 "id": f"cmpl-{int(time.time())}",
                 "object": "text_completion",
@@ -147,7 +143,7 @@ class HFRayDeployable:
                 "model": model_name,
                 "choices": [
                     {
-                        "text": generated_texts,
+                        "text": " ".join(generated_texts),
                         "index": 0,
                         "logprobs": (
                             {

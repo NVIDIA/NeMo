@@ -16,11 +16,15 @@ import argparse
 import logging
 import signal
 import sys
-
+import multiprocessing
 from nemo.deploy.deploy_ray import DeployRay
 from nemo.deploy.nlp.megatronllm_deployable_ray import MegatronLLMRayDeployable
 
 LOGGER = logging.getLogger("NeMo")
+
+def get_available_cpus():
+    """Get the total number of available CPUs in the system."""
+    return multiprocessing.cpu_count()
 
 
 def parse_args():
@@ -88,8 +92,8 @@ def parse_args():
     parser.add_argument(
         "--num_cpus",
         type=int,
-        default=16,
-        help="Number of CPUs to allocate for the Ray cluster",
+        default=None,
+        help="Number of CPUs to allocate for the Ray cluster. If None, will use all available CPUs.",
     )
     parser.add_argument(
         "--num_gpus",
@@ -142,6 +146,10 @@ def signal_handler(signum, frame, deployer):
 
 def main():
     args = parse_args()
+    # If num_cpus is not specified, use all available CPUs
+    if args.num_cpus is None:
+        args.num_cpus = get_available_cpus()
+        LOGGER.error(f"Using all available CPUs: {args.num_cpus}")
 
     # Initialize Ray deployment
     ray_deployer = DeployRay(

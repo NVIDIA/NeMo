@@ -16,11 +16,17 @@ import argparse
 import logging
 import signal
 import sys
+import multiprocessing
 
 from nemo.deploy.deploy_ray import DeployRay
 from nemo.deploy.nlp.hf_deployable_ray import HFRayDeployable
 
 LOGGER = logging.getLogger("NeMo")
+
+
+def get_available_cpus():
+    """Get the total number of available CPUs in the system."""
+    return multiprocessing.cpu_count()
 
 
 def parse_args():
@@ -75,8 +81,8 @@ def parse_args():
     parser.add_argument(
         "--num_cpus",
         type=int,
-        default=1,
-        help="Number of CPUs to allocate for the Ray cluster",
+        default=None,
+        help="Number of CPUs to allocate for the Ray cluster. If None, will use all available CPUs.",
     )
     parser.add_argument(
         "--num_gpus",
@@ -97,13 +103,13 @@ def parse_args():
     )
     parser.add_argument(
         "--num_gpus_per_replica",
-        type=int,
+        type=float,
         default=1,
         help="Number of GPUs per model replica",
     )
     parser.add_argument(
         "--num_cpus_per_replica",
-        type=int,
+        type=float,
         default=8,
         help="Number of CPUs per model replica",
     )
@@ -124,6 +130,11 @@ def signal_handler(signum, frame, deployer):
 
 def main():
     args = parse_args()
+    
+    # If num_cpus is not specified, use all available CPUs
+    if args.num_cpus is None:
+        args.num_cpus = get_available_cpus()
+        LOGGER.error(f"Using all available CPUs: {args.num_cpus}")
 
     # Initialize Ray deployment
     ray_deployer = DeployRay(
@@ -156,8 +167,6 @@ def main():
             hf_model_id_path=args.model_path,
             task=args.task,
             trust_remote_code=args.trust_remote_code,
-            device_map=args.device_map,
-            tp_plan=args.tp_plan,
             model_id=args.model_id,
         )
 
