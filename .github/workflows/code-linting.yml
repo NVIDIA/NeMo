@@ -28,7 +28,7 @@ jobs:
               "nemo/collections/tts/**/*.py",
               "nemo/collections/audio/**/*.py",
               "nemo/collections/multimodal/speech_llm/**/*.py",
-              "nemo/collections/speechlm/**/*.py"
+              "nemo/collections/speechlm/**/*.py",
               "nemo/collections/speechlm2/**/*.py"
             ] | join(",")')
 
@@ -39,7 +39,7 @@ jobs:
               "!nemo/collections/tts/**/*.py",
               "!nemo/collections/audio/**/*.py",
               "!nemo/collections/multimodal/speech_llm/**/*.py",
-              "!nemo/collections/speechlm/**/*.py"
+              "!nemo/collections/speechlm/**/*.py",
               "!nemo/collections/speechlm2/**/*.py"
             ] | join(",")')
           fi
