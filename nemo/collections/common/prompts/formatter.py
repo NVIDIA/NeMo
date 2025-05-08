@@ -298,9 +298,10 @@ class PromptFormatter(ABC):
             else:
                 slot_values = turn.get("slots", {})
                 if expected_slots:
-                    assert (
-                        slot_values
-                    ), f"A turn for role {role} must have have a non-empty value under 'slots' key. We received {turn=}"
+                    assert slot_values, (
+                        f"A turn for role {role} must have have a non-empty value under 'slots' key. "
+                        f"We received {turn=}"
+                    )
                     self._validate_slot_values(expected_slots, slot_values)
             template = self.get_template(role)
             tokens = self.encode_turn(template, expected_slots, slot_values)
