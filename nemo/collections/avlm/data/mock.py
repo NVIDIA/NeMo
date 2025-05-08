@@ -301,16 +301,14 @@ class _MockAVLMDataset(Dataset):
 
         # mock images
         images = num_images * [
-            torch.from_numpy(
-                np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32)
-            )
+            torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
         ]
         processed_images = []
         num_image_tiles = []
         for image in images:
-            processed_image = self.image_processor.preprocess(
-                image, return_tensors='pt', do_rescale=False
-            )['pixel_values'][0]
+            processed_image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)[
+                'pixel_values'
+            ][0]
             processed_images.append(processed_image)
             num_image_tiles.append(processed_image.shape[0])
         # processed_images = torch.concat(processed_images, dim=0)

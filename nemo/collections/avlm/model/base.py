@@ -347,9 +347,9 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
             if audio_transformer_config is not None:
                 app_state = AppState()
-                # if checkpoint is in NeMo 1.0, we need to temporarily set 
+                # if checkpoint is in NeMo 1.0, we need to temporarily set
                 # model_parallel_size to 1 to load audio encoder, because
-                # audio encoder does not support model parallel 
+                # audio encoder does not support model parallel
                 # and was saved with model_parallel_size=1
                 if config.audio_model_from_pretrained and config.audio_model_from_pretrained.endswith(".nemo"):
                     with temporary_model_parallel_size(app_state, 1):
@@ -416,7 +416,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
     def pad_sequence(self, combined_embeddings, labels, loss_mask, packed_seq_params):
         """
-        Pad the sequence (labels, loss_mask, combined_embeddings, packed_seq_params) to the  
+        Pad the sequence (labels, loss_mask, combined_embeddings, packed_seq_params) to the
         language model's max sequence length.
         combined_embeddings's shape is [batch_size, seq_len, attention head, embed_dim]
 
