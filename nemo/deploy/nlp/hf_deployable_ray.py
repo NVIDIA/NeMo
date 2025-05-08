@@ -83,9 +83,7 @@ class HFRayDeployable:
             raise ImportError("Ray is not installed")
         try:
             self.model = HuggingFaceLLMDeploy(
-                hf_model_id_path=hf_model_id_path,
-                task=task,
-                trust_remote_code=trust_remote_code
+                hf_model_id_path=hf_model_id_path, task=task, trust_remote_code=trust_remote_code
             )
             self.model_id = model_id
         except Exception as e:

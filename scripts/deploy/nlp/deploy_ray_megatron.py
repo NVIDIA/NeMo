@@ -14,13 +14,15 @@
 
 import argparse
 import logging
+import multiprocessing
 import signal
 import sys
-import multiprocessing
+
 from nemo.deploy.deploy_ray import DeployRay
 from nemo.deploy.nlp.megatronllm_deployable_ray import MegatronLLMRayDeployable
 
 LOGGER = logging.getLogger("NeMo")
+
 
 def get_available_cpus():
     """Get the total number of available CPUs in the system."""

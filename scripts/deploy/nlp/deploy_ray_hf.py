@@ -14,9 +14,9 @@
 
 import argparse
 import logging
+import multiprocessing
 import signal
 import sys
-import multiprocessing
 
 from nemo.deploy.deploy_ray import DeployRay
 from nemo.deploy.nlp.hf_deployable_ray import HFRayDeployable
@@ -130,7 +130,7 @@ def signal_handler(signum, frame, deployer):
 
 def main():
     args = parse_args()
-    
+
     # If num_cpus is not specified, use all available CPUs
     if args.num_cpus is None:
         args.num_cpus = get_available_cpus()
