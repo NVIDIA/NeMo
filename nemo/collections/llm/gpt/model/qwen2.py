@@ -92,7 +92,7 @@ class Qwen2Config1P5B(Qwen2Config):
 
 
 @dataclass
-class Qwen25Config1P5B(Qwen2Config):
+class Qwen25Config1P5B(Qwen2Config1P5B):
     """
     Config for Qwen 2.5 1.5B: https://huggingface.co/Qwen/Qwen2.5-1.5B
     """
@@ -298,7 +298,7 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -374,10 +374,16 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
         source: Qwen2Config = io.load_context(str(self)).model.config
 
         return HFQwen2Config(
+            architectures=["Qwen2ForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,

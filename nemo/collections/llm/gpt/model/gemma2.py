@@ -172,10 +172,10 @@ class Gemma2Model(GPTModel):
         from nemo.collections.common.parts.utils import extend_instance
 
         super().configure_model()
-        if parallel_state.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
             # Apply Embedding Scaling: sqrt(hidden_size)
             extend_instance(self.module.embedding, EmbeddingScalingMixin)
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # Prevents final logits from growing excessively by scaling them to a fixed range
             extend_instance(self.module.output_layer, Gemma2OutputLayer)
 
@@ -295,7 +295,7 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -362,10 +362,16 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
         from transformers import Gemma2Config as HFGemmaConfig
 
         return HFGemmaConfig(
+            architectures=["Gemma2ForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
@@ -597,6 +603,7 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
         skip_bias_add: bool,
         is_expert: bool,
         tp_comm_buffer_name: str = None,
+        tp_group: Optional[torch.distributed.ProcessGroup] = None,
     ):
         super().__init__(
             input_size,
@@ -608,6 +615,7 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
             skip_bias_add=skip_bias_add,
             is_expert=is_expert,
             tp_comm_buffer_name=tp_comm_buffer_name,
+            tp_group=tp_group,
         )
         self.post_layernorm = TENorm(config, output_size)
 

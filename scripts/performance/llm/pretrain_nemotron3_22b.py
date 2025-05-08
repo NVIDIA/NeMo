@@ -17,7 +17,6 @@ from os.path import basename, splitext
 import nemo_run as run
 
 from nemo.collections.llm.recipes.nemotron3_22b import pretrain_recipe
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -42,6 +41,9 @@ def override_recipe_configs(
     vp_size: int,
     ep_size: int,
     enable_cuda_graphs: bool,
+    use_mcore_fsdp: bool,
+    recompute_layers: int,
+    activation_offload_layers: int,
 ):
     """
     nemotron3 22b pre-train recipe aimed at achieving best possible performance.
@@ -63,6 +65,12 @@ def override_recipe_configs(
         vp_size,
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        use_mcore_fsdp=use_mcore_fsdp,
+        recompute_layers=recompute_layers,
+        activation_offload_layers=activation_offload_layers,
+        compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -74,11 +82,6 @@ def override_recipe_configs(
     )
     recipe.model.tokenizer = recipe.data.tokenizer
 
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
     return recipe
 
 
@@ -87,10 +90,36 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "nemotron3", "22b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        _,
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+    ) = kwargs[:13]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
@@ -111,7 +140,13 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None)]
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 

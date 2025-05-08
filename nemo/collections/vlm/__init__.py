@@ -20,6 +20,12 @@ from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPMo
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
 from nemo.collections.vlm.hf.model.hf_auto_model_for_image_text_to_text import HFAutoModelForImageTextToText
 
+# LLAMA4
+from nemo.collections.vlm.llama4.data import Llama4MockDataModule
+from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.llama4_omni import Llama4MaverickExperts128Config, Llama4ScoutExperts16Config
+from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig, Llama4ViTModel
+
 # LLAVA_NEXT
 from nemo.collections.vlm.llava_next.data import LlavaNextMockDataModule, LlavaNextTaskEncoder
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
@@ -65,8 +71,10 @@ from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
+    BaseCLIPViTModel,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
+    CLIPViTModel,
     HFCLIPVisionConfig,
     InternViT_6B_448px_Config,
     InternViT_300M_448px_Config,
@@ -77,6 +85,8 @@ from nemo.collections.vlm.vision import (
 )
 
 __all__ = [
+    "CLIPViTModel",
+    "BaseCLIPViTModel",
     "HFDatasetDataModule",
     "HFAutoModelForImageTextToText",
     "NevaMockDataModule",
@@ -134,4 +144,11 @@ __all__ = [
     "CLIPConfigL14",
     "CLIPConfigB32",
     "ClipMockDataModule",
+    "Llama4MockDataModule",
+    "Llama4OmniConfig",
+    "Llama4OmniModel",
+    "Llama4VisionConfig",
+    "Llama4ViTModel",
+    "Llama4ScoutExperts16Config",
+    "Llama4MaverickExperts128Config",
 ]

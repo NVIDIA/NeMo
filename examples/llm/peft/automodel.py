@@ -16,13 +16,12 @@ import tempfile
 
 import fiddle as fdl
 import lightning.pytorch as pl
-from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
@@ -35,6 +34,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
+@FirstRankPerNode()
 def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -58,7 +58,6 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         split="train",
         micro_batch_size=batch_size,
         pad_token_id=tokenizer.eos_id or 0,
-        global_batch_size=batch_size,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
@@ -70,7 +69,7 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     return datamodule
 
 
-def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
+def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enable_cpu_offload=False):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
             device='cuda:0',
@@ -81,10 +80,18 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'fsdp2':
+        offload_policy = None
+        if enable_cpu_offload:
+            from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
+
+            assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
+            offload_policy = CPUOffloadPolicy()
+
         return nl.FSDP2Strategy(
             data_parallel_size=devices * num_nodes,
             tensor_parallel_size=1,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            offload_policy=offload_policy,
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -129,11 +136,14 @@ def main():
     parser.add_argument(
         '--accumulate_grad_batches', type=int, default=10, help='Number of batches to accumulate gradient over'
     )
+    parser.add_argument('--load-in-4bit', action='store_true', help='Use 4-bit quantization for e.g. for qlora')
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
+    parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
     parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
+    parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
     parser.add_argument(
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
@@ -147,8 +157,14 @@ def main():
     parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate')
     args = parser.parse_args()
 
+    # CPUOffload WA for known issue
+    if args.enable_cpu_offload and args.use_te_optimizer:
+        args.use_te_optimizer = False
+
     wandb = None
     if args.wandb_project is not None:
+        from lightning.pytorch.loggers import WandbLogger
+
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
@@ -178,8 +194,10 @@ def main():
         model_accelerator=model_accelerator,
         trust_remote_code=args.trust_remote_code,
         use_liger_kernel=args.liger,
+        load_in_4bit=args.load_in_4bit,
+        enable_grad_ckpt=args.enable_grad_ckpt,
     )
-    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True)
+    strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True, args.enable_cpu_offload)
 
     resume = (
         nl.AutoResume(

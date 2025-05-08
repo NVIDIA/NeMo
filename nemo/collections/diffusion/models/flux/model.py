@@ -94,6 +94,9 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     attention_dropout: float = 0
     use_cpu_initialization: bool = True
     gradient_accumulation_fusion: bool = True
+    enable_cuda_graph: bool = False
+    use_te_rng_tracker: bool = False
+    cuda_graph_warmup_steps: int = 2
 
     guidance_scale: float = 3.5
     data_step_fn: Callable = flux_data_step
@@ -115,6 +118,7 @@ class T5Config:
 
     version: Optional[str] = field(default_factory=lambda: "google/t5-v1_1-xxl")
     max_length: Optional[int] = field(default_factory=lambda: 512)
+    load_config_only: bool = False
 
 
 @dataclass
@@ -301,7 +305,7 @@ class Flux(VisionModule):
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 
         for id_block, block in enumerate(self.single_blocks):
-            hidden_states = block(
+            hidden_states, _ = block(
                 hidden_states=hidden_states,
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,
@@ -483,7 +487,10 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             self.t5 = t5
         elif isinstance(t5, T5Config):
             self.t5 = FrozenT5Embedder(
-                self.t5_params.version, max_length=self.t5_params.max_length, device=torch.cuda.current_device()
+                self.t5_params.version,
+                max_length=self.t5_params.max_length,
+                device=torch.cuda.current_device(),
+                load_config_only=self.t5_params.load_config_only,
             )
         else:
             logging.info("T5 encoder not provided, assuming the text embeddings is precached...")
