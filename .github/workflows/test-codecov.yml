@@ -16,7 +16,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: coverage-${{ matrix.flag }}-*
-          run_id: 14872165367
+          run-id: 14872165367
           token: ${{ secrets.PAT }}
 
       - name: Get total coverage of current branch
