@@ -8,6 +8,6 @@ coverage:
         base: auto
         if_ci_failed: error
         paths:
-          - "!nemo/collections/*"
+          - "nemo/export"
 fixes:
   - "/workspace/::"
