@@ -27,13 +27,14 @@ import torch.distributed as dist
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+from torch.distributed.nn.functional import all_gather as functional_all_gather
+from torch.nn.parallel import DistributedDataParallel as DDP
+
 from nemo.collections.llm.gpt.model.hyena import HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer
 from nemo.utils import logging
-from torch.distributed.nn.functional import all_gather as functional_all_gather
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_size=1, context_parallel_size=1):
@@ -254,9 +255,9 @@ if __name__ == "__main__":
         batch_size = 2
         seq_len = 512
         b2b_conv1d = B2BConv1d(
-            hyena_config, 
-            hyena_test_config, 
-            seq_len=512, 
+            hyena_config,
+            hyena_test_config,
+            seq_len=512,
             use_b2b_causal_conv1d=args.use_b2b_causal_conv1d,
         )
 
