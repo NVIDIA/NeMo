@@ -136,7 +136,9 @@ class TranscriptionConfig:
     stateful_decoding: bool = False  # Whether to perform stateful decoding
 
     # Merge algorithm for transducers
-    merge_algo: Optional[str] = 'middle'  # choices=['middle', 'lcs', 'tdt'], choice of algorithm to apply during inference.
+    merge_algo: Optional[str] = (
+        'middle'  # choices=['middle', 'lcs', 'tdt'], choice of algorithm to apply during inference.
+    )
     lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
 
     # Config for word / character error rate calculation
@@ -222,7 +224,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         cfg.decoding.preserve_alignments = True  # required to compute the middle token for transducers.
         cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
         cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
-
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):

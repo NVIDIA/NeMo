@@ -1263,6 +1263,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
 
+
 class BatchedFrameASRTDT(BatchedFrameASRRNNT):
     """
     Batched implementation of FrameBatchASR for TDT models, where the batch dimension is independent audio samples.
@@ -1317,14 +1318,22 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
                     offset = 1
 
                 longer_alignment = alignment[
-                    len(alignment) - offset - delay - self.tdt_search_boundary : len(alignment) - offset - delay + tokens_per_chunk
+                    len(alignment)
+                    - offset
+                    - delay
+                    - self.tdt_search_boundary : len(alignment)
+                    - offset
+                    - delay
+                    + tokens_per_chunk
                 ]
 
                 alignment = alignment[
                     len(alignment) - offset - delay : len(alignment) - offset - delay + tokens_per_chunk
                 ]
 
-                longer_ids, longer_toks = self._alignment_decoder(longer_alignment, self.asr_model.tokenizer, self.blank_id)
+                longer_ids, longer_toks = self._alignment_decoder(
+                    longer_alignment, self.asr_model.tokenizer, self.blank_id
+                )
                 ids, _ = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                 if len(longer_ids) > 0 and a_idx < signal_end_idx:
@@ -1355,6 +1364,7 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
         for idx in range(self.batch_size):
             output.append(self.greedy_merge(self.unmerged[idx]))
         return output
+
 
 class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
     """
