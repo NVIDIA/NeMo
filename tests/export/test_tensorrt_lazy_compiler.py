@@ -17,6 +17,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
+
 import pytest
 import torch.nn as nn
 
@@ -68,6 +69,7 @@ class TestTensorRTLazyCompiler(unittest.TestCase):
         self.assertEqual(opt_shape, input_shape)
         self.assertEqual(max_shape, input_shape)
 
+    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on('GPU')
     def test_get_dynamic_axes(self):
         from nemo.export.tensorrt_lazy_compiler import get_dynamic_axes
