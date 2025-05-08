@@ -83,6 +83,7 @@ def override_recipe_configs(
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
+    recipe.model.tokenizer = recipe.data.tokenizer
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."

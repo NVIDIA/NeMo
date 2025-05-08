@@ -110,6 +110,7 @@ def override_recipe_configs(
         recipe.data.tokenizer = run.Config(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
         )
+        recipe.model.tokenizer = recipe.data.tokenizer
     if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True

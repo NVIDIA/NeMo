@@ -77,6 +77,7 @@ def override_recipe_configs(
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
+    recipe.model.tokenizer = recipe.data.tokenizer
 
     return recipe
 

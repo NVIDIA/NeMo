@@ -87,6 +87,7 @@ def override_recipe_configs(
         recipe.data.tokenizer = run.Config(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=32000
         )
+        recipe.model.tokenizer = recipe.data.tokenizer
 
     # to mitigate the incorrect gradient_scaling_factor calculation in megatron.core
     # under scenario average_in_collective=True and tp_size != etp_size, disabling average_in_collective.
