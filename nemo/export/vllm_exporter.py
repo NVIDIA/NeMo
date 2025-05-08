@@ -93,7 +93,7 @@ class vLLMExporter(ITritonDeployable):
 
     def __init__(self):
         self.request_id = 0
-        assert envs.VLLM_USE_V1, "Ony vLLM V1 is supported"
+        assert envs.VLLM_USE_V1, "Only vLLM V1 is supported"
 
     def export(
         self,
