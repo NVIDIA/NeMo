@@ -550,7 +550,7 @@ class GPTSFTDataset(Dataset):
             "metadata": metadata,
             "token_count": len(input_ids),
         }
-        processed_example["mask"] = self._build_loss_mask(processed_example)
+        processed_example["loss_mask"] = self._build_loss_mask(processed_example)
 
         return processed_example
 
@@ -972,12 +972,12 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
     context_ids = input_ids[:context_end_idx]
     answer_ids = input_ids[context_end_idx:]
 
-    return dict(
-        input_ids=input_ids,
-        mask=mask,
-        context_ids=context_ids,
-        answer_ids=answer_ids,
-    )
+    return {
+        "input_ids": input_ids,
+        "loss_mask": mask,
+        "context_ids": context_ids,
+        "answer_ids": answer_ids,
+    }
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
@@ -1036,7 +1036,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         # ensuring that loss is only computed for valid, predictable tokens. This
         # prevents the model from incurring loss on tokens that were never meant to
         # be predicted, such as user-provided context or padding.
-        loss_mask = [item["mask"][1:] for item in batch]
+        loss_mask = [item["loss_mask"][1:] for item in batch]
         # Metadata remains unchanged, carrying any additional non-token-related
         # information that might be useful for evaluation, debugging, or tracking
         # purposes.

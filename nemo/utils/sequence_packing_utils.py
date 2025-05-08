@@ -222,28 +222,25 @@ def fill_packing_strategy(
             perm = np.random.permutation(len(per_seq_data))
             input_ids = np.array([x["input_ids"] for x in per_seq_data])[perm].tolist()
             try:
-                loss_mask = np.array([x["mask"] for x in per_seq_data])[perm].tolist()
+                loss_mask = np.array([x["loss_mask"] for x in per_seq_data])[perm].tolist()
             except KeyError:
                 try:
-                    loss_mask = np.array([x["loss_mask"] for x in per_seq_data])[perm].tolist()
-                except KeyError:
-                    try:
-                        loss_mask = np.array(
+                    loss_mask = np.array(
+                        [
                             [
-                                [
-                                    # (x['answer_start_idx'] - 1) because we want to train on the output
-                                    # after the last context token
-                                    idx >= (x["answer_start_idx"] - 1) and x["input_ids"][idx] != pad_id
-                                    for idx in range(len(x["input_ids"]))
-                                ]
-                                for x in per_seq_data
+                                # (x['answer_start_idx'] - 1) because we want to train on the output
+                                # after the last context token
+                                idx >= (x["answer_start_idx"] - 1) and x["input_ids"][idx] != pad_id
+                                for idx in range(len(x["input_ids"]))
                             ]
-                        )[perm].tolist()
-                    except KeyError as err:
-                        err_msg = "Key errors mask, loss_mask and answer_start_idx missing in example - "
-                        err_msg += f"{err} {per_seq_data[0]}"
-                        logging.error(err_msg)
-                        raise ValueError(err_msg)
+                            for x in per_seq_data
+                        ]
+                    )[perm].tolist()
+                except KeyError as err:
+                    err_msg = "Key errors loss_mask and answer_start_idx missing in example - "
+                    err_msg += f"{err} {per_seq_data[0]}"
+                    logging.error(err_msg)
+                    raise ValueError(err_msg)
 
             ifile_handles[seq_len] = (input_ids, loss_mask)
 
