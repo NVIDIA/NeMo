@@ -5,7 +5,6 @@
 #  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8
 #  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8  --generation_method mcore_engine
 
-from scripts.vlm.llama4.debugger import register_hooks
 import argparse
 import os
 import time
@@ -17,12 +16,13 @@ import torch.distributed as dist
 
 # Megatron-Core Inference Imports
 from megatron.core import parallel_state  # Needed for distributed checks
+from megatron.core.inference.contexts import StaticInferenceContext
 from megatron.core.inference.engines import StaticInferenceEngine
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.inference.text_generation.mcore_engine_server import ModelInferenceWrapperServer, run_mcore_engine
+from scripts.vlm.llama4.debugger import register_hooks
 from transformers import AutoTokenizer  # Keep for initial check/loading if needed, but primarily use build_tokenizer
-from megatron.core.inference.contexts import StaticInferenceContext
 
 from nemo.collections.llm import GPTConfig
 from nemo.collections.llm import GPTModel as ModelConfig
@@ -51,7 +51,9 @@ from nemo.utils.get_rank import get_last_rank  # Import for greedy gen broadcast
 
 
 # --- Initialization Function ---
-def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_size: int, dtype: torch.dtype, attn_backend_str: str):
+def minimal_megatron_setup(
+    hf_model_name: str, tp_size: int, pp_size: int, cp_size: int, dtype: torch.dtype, attn_backend_str: str
+):
     """
     Sets up a minimal Megatron environment for generation.
     Needs to be run within an initialized distributed context.
@@ -113,11 +115,12 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         model_cfg = cfg_container.model_config
         # Set attention backend based on argument
         from megatron.core.transformer.enums import AttnBackend
+
         if attn_backend_str == "fused":
             model_cfg.attention_backend = AttnBackend.fused
         elif attn_backend_str == "flash":
             model_cfg.attention_backend = AttnBackend.flash
-        else: # unfused
+        else:  # unfused
             model_cfg.attention_backend = AttnBackend.unfused
         print(f"INFO: Set model_cfg.attention_backend to {model_cfg.attention_backend}")
 
@@ -662,11 +665,10 @@ if __name__ == "__main__":
         os.environ["NVTE_FLASH_ATTN"] = "1"
         os.environ["NVTE_FUSED_ATTN"] = "0"
         print("INFO: Using Flash Attention Backend (NVTE_FLASH_ATTN=1, NVTE_FUSED_ATTN=0)")
-    else: # unfused
+    else:  # unfused
         os.environ["NVTE_FLASH_ATTN"] = "0"
         os.environ["NVTE_FUSED_ATTN"] = "0"
         print("INFO: Using Unfused Attention Backend (NVTE_FLASH_ATTN=0, NVTE_FUSED_ATTN=0)")
-
 
     # --- Distributed Setup ---
     # This script expects to be launched using torchrun or equivalent,
@@ -715,7 +717,7 @@ if __name__ == "__main__":
         pp_size=args.pp,
         cp_size=args.cp,
         dtype=dtype,
-        attn_backend_str=args.attn_backend, # Pass the chosen backend string
+        attn_backend_str=args.attn_backend,  # Pass the chosen backend string
         # Pass checkpoint override here if modified: checkpoint_override=args.checkpoint_path
     )
 
