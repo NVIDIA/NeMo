@@ -1,7 +1,11 @@
 comment: false
 coverage:
   status:
-    patch: false
-    project: false
+    project:
+      default:
+        target: 80%
+        threshold: 0%
+        base: auto
+        if_ci_failed: error
 fixes:
   - "/workspace/::"

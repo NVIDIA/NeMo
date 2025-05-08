@@ -6,6 +6,7 @@ omit =
     /workspace/Megatron-LM/*
     nemo/collections/nlp/*
     nemo/collections/multimodal/*
+    nemo/collections/multimodal_autoregressive/*
     nemo/collections/vision/*
 
 [paths]
