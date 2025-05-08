@@ -95,6 +95,7 @@ def override_recipe_configs(
         recipe.data.tokenizer = run.Config(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
         )
+        recipe.model.tokenizer = recipe.data.tokenizer
 
     ub_cfg = {
         "h100": {
