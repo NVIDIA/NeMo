@@ -14,6 +14,7 @@
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -27,11 +28,100 @@ from nemo.collections.llm.gpt.data.core import (
 )
 
 
+def mock_llama_apply_chat_template(
+    messages,
+    tools=None,
+    tokenize=False,
+    return_dict=False,
+    return_assistant_tokens_mask=False,
+    add_generation_prompt=False,
+):
+    """
+    Mock version of transformers.ChatTemplate.apply_chat_template for LLaMA-style chat.
+
+    Parameters:
+        messages (list): List of dicts with 'role' and 'content'.
+        tokenize (bool): Ignored here — included for API compatibility.
+        add_generation_prompt (bool): If True, leaves the last assistant message blank for generation.
+        return_dict (bool):
+            If True, return a dictionary with keys like 'input_ids', 'labels', etc.
+            If False, return a list of values in the order: [input_ids, attention_mask, labels, (assistant_masks)].
+        return_assistant_tokens_mask (bool):
+            If True, include 'assistant_masks' in the output. This is a list where positions corresponding
+            to assistant response tokens are marked as 1 (used to identify loss-relevant tokens).
+    Returns:
+        str || Dict: Chat string formatted for LLaMA models or dictionary of response
+    """
+    # === Step 1: Build prompt string ===
+    prompt = ""
+    segments = []  # Track which tokens belong to which role
+    for i, msg in enumerate(messages):
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "system":
+            prompt += "<|system|>\n" + content + "\n"
+            segments.append(("system", content))
+        elif role == "user":
+            prompt += "<|user|>\n" + content + "\n"
+            segments.append(("user", content))
+        elif role == "assistant":
+            is_last = i == len(messages) - 1
+            if is_last and add_generation_prompt:
+                prompt += "<|assistant|>\n"
+                segments.append(("assistant", ""))
+            else:
+                prompt += "<|assistant|>\n" + content + "\n"
+                segments.append(("assistant", content))
+
+    if not tokenize:
+        return prompt
+
+    # === Step 2: Fake tokenization ===
+    tokens = []
+    roles = []
+    for role, content in segments:
+        for word in content.strip().split():
+            tokens.append(f"<{word}>")  # simulate a token
+            roles.append(role)
+
+    input_ids = [100 + i for i in range(len(tokens))]
+    attention_mask = [1] * len(input_ids)
+
+    # === Step 3: Compute loss mask via labels
+    labels = []
+    assistant_token_mask = []
+    for role in roles:
+        if role == "assistant":
+            labels.append(1)  # placeholder value, will map to input_ids later
+            assistant_token_mask.append(1)
+        else:
+            labels.append(-100)
+            assistant_token_mask.append(0)
+
+    # Replace placeholder `1` in labels with correct token IDs
+    labels = [token_id if mask == 1 else -100 for token_id, mask in zip(input_ids, assistant_token_mask)]
+
+    # === Step 4: Build return dict ===
+    result = {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+        "labels": labels,
+    }
+
+    if return_assistant_tokens_mask:
+        result["assistant_masks"] = assistant_token_mask
+
+    return result if return_dict else list(result.values())
+
+
 class MockTokenizer:
     def __init__(self):
         self.eos_id = 2
         self.bos_id = 1
         self.space_sensitive = False
+        self.tokenizer = MagicMock()
+        self.tokenizer.apply_chat_template = mock_llama_apply_chat_template
 
     def text_to_ids(self, text):
         # Simple mock implementation - converts each character to its ASCII value
@@ -280,7 +370,7 @@ def test_chat_dataset(temp_chat_jsonl_file, tokenizer):
     assert isinstance(dataset, GPTSFTChatDataset)
     item = dataset[0]
     assert 'input_ids' in item
-    assert 'mask' in item
+    assert 'loss_mask' in item
 
     # Test collate_fn for chat dataset
     batch = [dataset[0], dataset[0]]

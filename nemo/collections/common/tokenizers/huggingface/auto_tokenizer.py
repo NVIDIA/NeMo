@@ -181,7 +181,6 @@ class AutoTokenizer(TokenizerSpec):
                 pretrained_model_name_or_path=pretrained_model_name,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
-                chat_template=chat_template,
             )
         elif merges_file is None:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
@@ -189,7 +188,6 @@ class AutoTokenizer(TokenizerSpec):
                 vocab_file=vocab_file,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
-                chat_template=chat_template,
             )
         else:
             self.tokenizer = AUTOTOKENIZER.from_pretrained(
@@ -198,8 +196,13 @@ class AutoTokenizer(TokenizerSpec):
                 merges_file=merges_file,
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
-                chat_template=chat_template,
             )
+
+        if chat_template is not None:
+            if getattr(self.tokenizer, 'chat_template', None) is not None:
+                logging.info("You are overwriting tokenizer's chat template, confirm this is intended.")
+            self.tokenizer.chat_template = chat_template
+            self.tokenizer.chat_template_format = "jinja"
 
     @property
     def vocab_size(self):
