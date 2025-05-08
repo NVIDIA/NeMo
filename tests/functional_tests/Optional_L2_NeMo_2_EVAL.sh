@@ -15,4 +15,5 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/
     --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
     --max_batch_size=4 \
     --eval_type='gsm8k' \
-    --limit=1
+    --limit=1 \
+    --legacy_ckpt
