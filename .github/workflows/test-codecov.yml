@@ -1,0 +1,48 @@
+name: Test Codecov
+on:
+  pull_request:
+
+jobs:
+  Coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        flag: [unit-test, e2e]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports of current branch
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-${{ matrix.flag }}-*
+          run_id: 14872165367
+          token: ${{ secrets.PAT }}
+
+      - name: Get total coverage of current branch
+        shell: bash -x -e -u -o pipefail {0}
+        if: always()
+        run: |
+          pip install coverage
+
+          ls -al .
+          ls -al coverage-*/
+          coverage combine --keep $(ls coverage-*/.coverage)
+          coverage report -i
+          rm -rf coverage-*
+          ls -al
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          flags: ${{ matrix.flag }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.flag }}-aggregated
+          path: |
+            .coverage
+          include-hidden-files: true
