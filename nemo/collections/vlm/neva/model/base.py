@@ -68,6 +68,8 @@ MODEL_CONFIG_ATTR = [
     'calculate_per_token_loss',
     'seq_length',
     'share_embeddings_and_output_weights',
+    'moe_token_dispatcher_type',
+    'moe_router_load_balancing_type',
 ]
 
 
@@ -114,9 +116,9 @@ def neva_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "num_media_tiles",
         )
     )
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.update(("position_ids",))
-    if parallel_state.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
         required_keys.update(
             (
                 "labels",
@@ -225,10 +227,10 @@ class NevaConfig(TransformerConfig, io.IOMixin):
         model = MCoreNevaModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage(),
-            post_process=ps.is_pipeline_last_stage(),
-            add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage()
+            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False),
+            post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
+            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
+            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
