@@ -397,12 +397,23 @@ def find_framework(eval_task: str) -> str:
         name: importlib.import_module('.input', package=name) for finder, name, ispkg in _iter_namespace(core_evals)
     }
 
+    frameworks = []
     for framework_name, input_module in discovered_modules.items():
         _, task_name_mapping, *_ = input_module.get_available_evaluations()
         if eval_task in task_name_mapping.keys():
-            return framework_name
+            # sanity check - it shouldn't be possible to find framework that is not a submodule of core_evals
+            if not framework_name.startswith("core_evals."):
+                raise RuntimeError(f"Framework {framework_name} is not a submodule of core_evals")
+            frameworks.append(framework_name)
 
-    raise ValueError(f"Framework for task {eval_task} not found!")
+    if len(frameworks) == 0:
+        raise ValueError(f"Framework for task {eval_task} not found!")
+    elif len(frameworks) > 1:
+        raise ValueError(
+            f"Multiple frameworks found for task {eval_task}: {[f[len('core_evals.'):] for f in frameworks]}. "
+            "Please indicate which version should be used by passing <framework>.<task>"
+        )
+    return frameworks[0]
 
 
 def _legacy_evaluate(
