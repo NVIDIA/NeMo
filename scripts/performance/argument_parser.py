@@ -333,6 +333,13 @@ def parse_cli_args():
         "-pso", "--profiling_stop_step", type=int, help="Defines start step for profiling", required=False, default=50
     )
 
+    parser.add_argument(
+        "-cps", "--checkpoint_save", type=bool_arg, help="When enabled will trigger checkpoint save operation at the end of training", required=False, default=None
+    )
+    parser.add_argument(
+        "-cpl", "--checkpoint_load_path", type=str, help="Path to checkpoint to load prior to training start", required=False, default=None
+    )
+
     def list_of_strings(arg):
         return arg.split(',')
 

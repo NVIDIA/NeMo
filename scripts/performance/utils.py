@@ -265,6 +265,8 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    save_checkpoint: Optional[bool] = False,
+    load_checkpoint_path: Optional[str] = None
 ):
     """Set experiment configs we usually tune for performance of all models."""
 
@@ -404,9 +406,8 @@ def set_primary_perf_configs(
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
-    recipe.trainer.enable_checkpointing = os.getenv('ENABLE_CHECKPOINT', 'false') == 'true'
+    recipe.trainer.enable_checkpointing = save_checkpoint
     recipe.trainer.val_check_interval = max_steps
-    load_checkpoint_path = os.getenv('LOAD_CHECKPOINT_PATH')
 
     if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
