@@ -33,8 +33,6 @@ apt-get clean
 EOF
 
 WORKDIR /tmp/NeMo
-ENV INSTALL_DIR="/workspace"
-
 ARG TRTLLM_REPO
 ARG TRTLLM_TAG
 RUN --mount=type=bind,source=docker/common/install_dep.sh,target=/tmp/NeMo/install_dep.sh <<"EOF" bash -ex
