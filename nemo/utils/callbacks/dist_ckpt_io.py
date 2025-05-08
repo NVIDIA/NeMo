@@ -27,6 +27,7 @@ from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 
 from nemo.utils import logging
+from multistorageclient.types import MSC_PROTOCOL
 
 try:
     from megatron.core import dist_checkpointing
@@ -276,8 +277,10 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             path (_PATH): checkpoint directory
             storage_options (Any, optional): Optional parameters when saving the checkpoint
         """
-        fs = get_filesystem(path)
-        fs.makedirs(path, exist_ok=True)
+
+        if MSC_PROTOCOL not in path:
+            fs = get_filesystem(path)
+            fs.makedirs(path, exist_ok=True)
 
         validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
         self.validated_consistency = True

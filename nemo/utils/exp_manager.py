@@ -57,6 +57,14 @@ get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
 )
 
+try:
+    import multistorageclient
+    from multistorageclient.types import MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
+
+    MUTLISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MUTLISTORAGECLIENT_AVAILABLE = False
+
 
 try:
     # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
@@ -146,7 +154,7 @@ class CallbackParams:
     async_save: Optional[bool] = False  # save the checkpoint asynchronously
     # a number of last checkpoints to be saved with optimizer states
     save_last_n_optim_states: Optional[int] = -1
-
+    multistorageclient_enabled: Optional[bool] = False
 
 @dataclass
 class StepTimingParams:
@@ -909,7 +917,7 @@ def check_resume(
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
-        if is_global_rank_zero() or not is_s3_url(dirpath):
+        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_multistorageclient_url(dirpath)):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
@@ -921,6 +929,16 @@ def check_resume(
                     all_keys = S3Utils.find_files_with_suffix(checkpoint_dir, suffix=None, return_key_only=False)
                     end_checkpoints = [k for k in all_keys if k.endswith('end.ckpt')]
                     last_checkpoints = [k for k in all_keys if k.endswith('last.ckpt')]
+                else:
+                    end_checkpoints = []
+                    last_checkpoints = []
+            elif is_multistorageclient_url(dirpath):
+                checkpoint_dir = dirpath
+                all_keys = multistorageclient.glob(f"{dirpath}**/*.ckpt")
+                checkpoint_dir_exists = True if all_keys else False
+                if all_keys:
+                    end_checkpoints = sorted([k for k in all_keys if k.endswith('end.ckpt')], reverse=True)
+                    last_checkpoints = sorted([k for k in all_keys if k.endswith('last.ckpt')], reverse=True)
                 else:
                     end_checkpoints = []
                     last_checkpoints = []
@@ -1489,3 +1507,8 @@ def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remo
         for filepath in nemo_files:
             os.remove(filepath)
             logging.info(f"Deleted file : {filepath}")
+
+
+
+def is_multistorageclient_url(dirpath):
+    return MUTLISTORAGECLIENT_AVAILABLE and dirpath and dirpath.startswith(MUTLISTORAGECLIENT_PROTOCOL)
