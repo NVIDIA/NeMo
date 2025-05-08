@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
@@ -153,8 +154,8 @@ class DistillationGPTModel(llm.GPTModel):
 
     def __init__(
         self,
-        config: llm.GPTConfig,
-        teacher_config: llm.GPTConfig,
+        config: TransformerConfig,
+        teacher_config: TransformerConfig,
         teacher_ckpt_path: str,
         distillation_config_path: Optional[str] = None,
         optim: Optional["OptimizerModule"] = None,
@@ -190,8 +191,6 @@ class DistillationGPTModel(llm.GPTModel):
         self._distillation_config_path = distillation_config_path
         self._train_called = False
 
-        if not isinstance(config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
-            raise ValueError("Student and Teacher must both be subclasses of `llm.GPTModel`")
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
 
