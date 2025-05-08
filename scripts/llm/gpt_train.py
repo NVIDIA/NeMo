@@ -14,9 +14,9 @@
 """
 Script for training GPT models. Supports 4 modes, with different required arguments:
 1. Pretrain: --model_config required
-2. SFT: --model_config and --use-chat-data required
+2. SFT: --model_config --tokenizer and --use-chat-data required
 3. Distillation: --teacher_path required
-4. SFT Distillation: --use-chat-data and --teacher_path required
+4. SFT Distillation: --tokenizer --use-chat-data --teacher_path required
 """
 
 import os
