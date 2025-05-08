@@ -202,11 +202,11 @@ def main():
         choices=['auto', 'ddp', 'fsdp2'],
         help='Training strategy e.g. ddp/fsdp2/single-gpu',
     )
-    parser.add_argument('--devices', type=int, default=8, help='Number of GPUs to use')
+    parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
-    parser.add_argument('--dp-size', type=int, default=2, help='Data Parallel size; to be used with fsdp2')
+    parser.add_argument('--dp-size', type=int, default=1, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
-    parser.add_argument('--cp-size', type=int, default=4, help='Context Parallel size; to be used with fsdp2')
+    parser.add_argument('--cp-size', type=int, default=1, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
         '--sequence-parallel',
         action='store_true',
@@ -235,7 +235,6 @@ def main():
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
         '--accumulate-grad-batches',
-        '--accumulate_grad_batches',
         type=int,
         default=1,
         help='Number of batches to accumulate gradient over.',

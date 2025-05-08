@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import datetime
 from contextlib import ContextDecorator
 import torch.distributed as dist
 
@@ -83,6 +84,7 @@ class FirstRankPerNode(ContextDecorator):
                 backend="gloo",
                 world_size=int(env.get("WORLD_SIZE")),
                 rank=int(env.get("RANK")),
+                timeout=datetime.timedelta(seconds=5400),
             )
             return True
         return False

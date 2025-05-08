@@ -31,8 +31,8 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.distributed.custom_fsdp import FSDP
+from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
 from typing_extensions import override
 
@@ -314,7 +314,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 base_on_before_optimizer_step(optimizer)
 
             # Replace the hook with a modified version that waits for all sharded gradients to be reduced and unsharded.
-            self.lightning_module.on_before_optimizer_step = types.MethodType(_on_before_optimizer_step_with_async_grad_reduce, self.lightning_module)
+            self.lightning_module.on_before_optimizer_step = types.MethodType(
+                _on_before_optimizer_step_with_async_grad_reduce, self.lightning_module
+            )
 
             # Save a reference to the original optimizer step.
             base_optimizer_step = self.lightning_module.optimizer_step
@@ -339,7 +341,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                     lightning_module.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
 
             # Replace the hook with a modified version that updates the model weights after taking an optimizer step.
-            self.lightning_module.optimizer_step = types.MethodType(_on_after_optimizer_step_with_model_weight_update, self.lightning_module)
+            self.lightning_module.optimizer_step = types.MethodType(
+                _on_after_optimizer_step_with_model_weight_update, self.lightning_module
+            )
 
     def parallelize(self):
         """Applies fully_shard on model"""
