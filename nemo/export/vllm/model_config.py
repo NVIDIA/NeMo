@@ -140,6 +140,7 @@ class NemoModelConfig(ModelConfig):
             hf_args['vocab_size'] = tokenizer.original_vocab_size
             self.model_converter.convert_config(self.nemo_model_config['config'], hf_args)
             self.hf_config = AutoConfig.for_model(model_type, **hf_args)
+            assert "huggingface" in tokenizer_config["_target_"]
             tokenizer_id = tokenizer_config["pretrained_model_name"]
         else:
             with TarPath(nemo_checkpoint) as archive:
