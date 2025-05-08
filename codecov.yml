@@ -12,5 +12,7 @@ coverage:
           - "!nemo/collections/audio"
           - "!nemo/collections/speechlm"
           - "!nemo/collections/tts"
+          - "!nemo/core"
+          - "!nemo/collections/common"
 fixes:
   - "/workspace/::"
