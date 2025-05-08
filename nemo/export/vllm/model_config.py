@@ -56,6 +56,7 @@ class NemoModelConfig(ModelConfig):
         max_seq_len_to_capture: Optional[int] = 8192,
         max_logprobs: int = 5,
         disable_sliding_window: bool = False,
+        disable_cascade_attn: bool = False,
         use_async_output_proc: bool = False,
         disable_mm_preprocessor_cache: bool = False,
         logits_processor_pattern: Optional[str] = None,
@@ -91,6 +92,7 @@ class NemoModelConfig(ModelConfig):
         self.max_seq_len_to_capture = max_seq_len_to_capture
         self.max_logprobs = max_logprobs
         self.disable_sliding_window = disable_sliding_window
+        self.disable_cascade_attn = disable_cascade_attn
         self.served_model_name = nemo_checkpoint
         self.multimodal_config = None
         self.mm_processor_kwargs = {}
@@ -109,7 +111,7 @@ class NemoModelConfig(ModelConfig):
             self.truncation_side = "right"
 
         self.encoder_config = self._get_encoder_config()
-        self.pooler_config = self._init_pooler_config()
+        self.pooler_config = self._init_pooler_config(override_pooler_config)
         self.enable_sleep_mode = enable_sleep_mode
 
         from vllm.platforms import current_platform  # vLLM uses local import for current_platform
