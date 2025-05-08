@@ -280,6 +280,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
 
+        # init ngram language model
         if ngram_lm_model is not None:
             expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             if self._blank_index != expected_blank_index:
@@ -299,6 +300,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         self.ngram_lm_alpha = ngram_lm_alpha
 
         ################################################################################################################
+        # init boosting tree model as n-gram LM 
         if btree_model is not None:
             expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
             if self._blank_index != expected_blank_index:
@@ -319,12 +321,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             logging.warning(f"self.ngram_lm_alpha: {self.ngram_lm_alpha}")
         else:
             self.BOS = True
-            self.btree_model_batch = None
-            # self.blank_lm_score_mode = None
+            self.ngram_lm_batch = None
         ################################################################################################################
-        # logging.warning("******"*10)
-        # logging.warning(f"btree_model: {btree_model}")
-        # logging.warning(f"ngram_lm_model: {ngram_lm_model}")
 
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
@@ -443,14 +441,14 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         ######################################################################################
 
-        # if self.btree_model_batch is not None:
-        #     self.btree_model_batch.to(device)
+        # if self.btree_model is not None:
+        #     self.btree_model.to(device)
 
-        #     batch_lm_states = self.btree_model_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=self.BOS)
-        #     lm_scores, batch_lm_states_candidates = self.btree_model_batch.advance(
-        #         states=batch_lm_states
+        #     batch_btree_states = self.btree_model.get_init_states(batch_size=batch_size * self.beam_size, bos=self.BOS)
+        #     btree_scores, batch_btree_states_candidates = self.btree_model.advance(
+        #         states=batch_btree_states
         #     )
-        #     lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+        #     btree_scores = btree_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.btree_alpha
         
         ######################################################################################
 
