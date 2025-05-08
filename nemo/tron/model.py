@@ -124,7 +124,7 @@ def get_model_from_config(
                     fp8_meta.amax_history[0][fp8_meta_index].copy_(param.get_high_precision_init_val().abs().max())
                 else:
                     fp8_meta.amax_history[0][fp8_meta_index] = 0
-
+    # wrap_with_ddp = False
     if wrap_with_ddp:
         if use_torch_fsdp2:
             DP = TorchFullyShardedDataParallel

@@ -3,7 +3,9 @@
 #  ln -s /lustre/fsw/coreai_dlalgo_genai/yuya/checkpoints /root/checkpoints
 #
 #  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8
+#  torchrun --nproc_per_node=8 scripts/vlm/llama4/llama4_tron_generate.py --model_name meta-llama/Llama-4-Scout-17B-16E-Instruct --tp 8  --generation_method mcore_engine
 
+from scripts.vlm.llama4.debugger import register_hooks
 import argparse
 import os
 import time
@@ -15,13 +17,12 @@ import torch.distributed as dist
 
 # Megatron-Core Inference Imports
 from megatron.core import parallel_state  # Needed for distributed checks
-from megatron.core.inference.contexts import StaticInferenceContext
 from megatron.core.inference.engines import StaticInferenceEngine
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
 from megatron.inference.text_generation.mcore_engine_server import ModelInferenceWrapperServer, run_mcore_engine
-from scripts.vlm.llama4.debugger import register_hooks
 from transformers import AutoTokenizer  # Keep for initial check/loading if needed, but primarily use build_tokenizer
+from megatron.core.inference.contexts import StaticInferenceContext
 
 from nemo.collections.llm import GPTConfig
 from nemo.collections.llm import GPTModel as ModelConfig
@@ -50,7 +51,7 @@ from nemo.utils.get_rank import get_last_rank  # Import for greedy gen broadcast
 
 
 # --- Initialization Function ---
-def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_size: int, dtype: torch.dtype):
+def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_size: int, dtype: torch.dtype, attn_backend_str: str):
     """
     Sets up a minimal Megatron environment for generation.
     Needs to be run within an initialized distributed context.
@@ -110,6 +111,16 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         print(f"Loading base config from: {base_config_path}")
         cfg_container = ConfigContainer.from_yaml(base_config_path)
         model_cfg = cfg_container.model_config
+        # Set attention backend based on argument
+        from megatron.core.transformer.enums import AttnBackend
+        if attn_backend_str == "fused":
+            model_cfg.attention_backend = AttnBackend.fused
+        elif attn_backend_str == "flash":
+            model_cfg.attention_backend = AttnBackend.flash
+        else: # unfused
+            model_cfg.attention_backend = AttnBackend.unfused
+        print(f"INFO: Set model_cfg.attention_backend to {model_cfg.attention_backend}")
+
     else:
         print(f"WARNING: Base config not found at {base_config_path}. Creating a minimal default ModelConfig.")
         # Attempt to load minimal config from HF model if possible, otherwise use defaults
@@ -172,7 +183,7 @@ def minimal_megatron_setup(hf_model_name: str, tp_size: int, pp_size: int, cp_si
         model_cfg.params_dtype = torch.float32
 
     model_cfg.parallel_output = True  # Important for logprobs/generation across TP ranks
-    model_cfg.flash_decode = True
+    model_cfg.flash_decode = False
 
     checkpoint_config = CheckpointConfig(
         # load=pretrained_ckpt, # Use pretrained_checkpoint instead for NeMo Tron convention
@@ -308,7 +319,7 @@ def megatron_generate(
     """Generates text using the initialized Megatron model and inference engine."""
 
     model.eval()  # Ensure model is in eval mode
-    register_hooks(model)
+    # register_hooks(model)
 
     model_cfg = mtron_cfg.model_config
     model_cfg.seq_length = 1024
@@ -389,7 +400,7 @@ def megatron_generate(
                     # Use long dtype as token IDs are integers
                     batch_dim = current_input_ids.size(0)
                     next_token_ids = torch.zeros((batch_dim, 1), device=current_input_ids.device, dtype=torch.long)
-                exit(0)
+                # exit(0)
                 # Broadcast the next token ID from the last pipeline stage to all ranks
                 # Use get_last_rank which handles PP correctly
                 # Source rank needs to be the *global* rank of the last PP stage
@@ -622,18 +633,40 @@ if __name__ == "__main__":
     )
     messages = "The following are multiple choice questions (with answers) about world religions.\n\nWhen was the first Buddhist temple constructed in Japan?\nA. 325 CE\nB. 119 CE\nC. 451 CE\nD. 596 CE\nAnswer:"
     parser.add_argument("--prompt", type=str, default=messages, help="Input prompt for generation")
-    parser.add_argument("--max_new_tokens", type=int, default=10, help="Maximum number of new tokens to generate")
+    parser.add_argument("--max_new_tokens", type=int, default=32, help="Maximum number of new tokens to generate")
     parser.add_argument("--gen_batch_size", type=int, default=1, help="Micro batch size for the generation engine")
-    parser.add_argument("--max_prompt_len", type=int, default=64, help="Maximum length for input prompt tokenization")
+    parser.add_argument("--max_prompt_len", type=int, default=128, help="Maximum length for input prompt tokenization")
     parser.add_argument(
         "--generation_method",
         type=str,
-        default="mcore_engine",
+        default="manual_greedy",
         choices=["mcore_engine", "manual_greedy"],
         help="Method to use for generation ('mcore_engine' or 'manual_greedy')",
     )
+    parser.add_argument(
+        "--attn_backend",
+        type=str,
+        default="flash",
+        choices=["fused", "flash", "unfused"],
+        help="Attention backend to use ('fused', 'flash', or 'unfused'). Sets NVTE_* env vars.",
+    )
 
     args = parser.parse_args()
+
+    # --- Set Attention Backend Environment Variables ---
+    if args.attn_backend == "fused":
+        os.environ["NVTE_FLASH_ATTN"] = "0"
+        os.environ["NVTE_FUSED_ATTN"] = "1"
+        print("INFO: Using Fused Attention Backend (NVTE_FLASH_ATTN=1, NVTE_FUSED_ATTN=1)")
+    elif args.attn_backend == "flash":
+        os.environ["NVTE_FLASH_ATTN"] = "1"
+        os.environ["NVTE_FUSED_ATTN"] = "0"
+        print("INFO: Using Flash Attention Backend (NVTE_FLASH_ATTN=1, NVTE_FUSED_ATTN=0)")
+    else: # unfused
+        os.environ["NVTE_FLASH_ATTN"] = "0"
+        os.environ["NVTE_FUSED_ATTN"] = "0"
+        print("INFO: Using Unfused Attention Backend (NVTE_FLASH_ATTN=0, NVTE_FUSED_ATTN=0)")
+
 
     # --- Distributed Setup ---
     # This script expects to be launched using torchrun or equivalent,
@@ -682,6 +715,7 @@ if __name__ == "__main__":
         pp_size=args.pp,
         cp_size=args.cp,
         dtype=dtype,
+        attn_backend_str=args.attn_backend, # Pass the chosen backend string
         # Pass checkpoint override here if modified: checkpoint_override=args.checkpoint_path
     )
 
