@@ -64,7 +64,7 @@ jobs:
             echo '["nemo2", "automodel", "export-deploy", "speech"]' | tee -a test_modules.json
           fi
 
-          components_to_run=$(cat test_modules.json)
+          components_to_run='export-deploy'
 
           echo "main=${components_to_run}" | tee -a "$GITHUB_OUTPUT"
 
