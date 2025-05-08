@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Any, Optional
 
 import torch
 
@@ -38,6 +38,7 @@ class SeparateGraphsLoopLabels:
 @dataclass
 class BatchedGreedyDecodingState:
     """Decoding state to pass between invocations"""
+
     predictor_state: Any
     labels: torch.Tensor
     decoded_length: torch.Tensor

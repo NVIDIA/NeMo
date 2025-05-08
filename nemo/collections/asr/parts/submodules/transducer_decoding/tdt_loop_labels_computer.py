@@ -24,9 +24,9 @@ from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
+    BatchedGreedyDecodingState,
     GreedyBatchedLoopLabelsComputerBase,
     SeparateGraphsLoopLabels,
-    BatchedGreedyDecodingState,
 )
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin

@@ -22,8 +22,8 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    GreedyBatchedLoopLabelsComputerBase,
     BatchedGreedyDecodingState,
+    GreedyBatchedLoopLabelsComputerBase,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses

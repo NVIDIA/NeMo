@@ -59,8 +59,8 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    GreedyBatchedLoopLabelsComputerBase,
     BatchedGreedyDecodingState,
+    GreedyBatchedLoopLabelsComputerBase,
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
