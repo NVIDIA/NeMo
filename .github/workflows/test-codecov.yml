@@ -8,11 +8,10 @@ jobs:
     strategy:
       matrix:
         flag: [unit-test, e2e]
+    environment: main
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PAT }}
 
       - name: Download coverage reports of current branch
         uses: actions/download-artifact@v4
