@@ -65,7 +65,7 @@ AnyPath = Union[Path, str]
 
 @run.cli.entrypoint(namespace="llm")
 def train(
-    model: Union[pl.LightningModule, str],
+    model: Union[pl.LightningModule, AnyPath],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
@@ -79,7 +79,7 @@ def train(
     Trains a model using the specified data and trainer, with optional tokenizer, source, and export.
 
     Args:
-        model (Union[pl.LightningModule, str]): The model to be trained or a path to the NeMo 2 checkpoint.
+        model (Union[pl.LightningModule, AnyPath]): The model to be trained or a path to the NeMo 2 checkpoint.
         data (pl.LightningDataModule): The data module containing training data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
@@ -134,7 +134,7 @@ def train(
 
 @run.cli.entrypoint(namespace="llm")
 def pretrain(
-    model: Union[pl.LightningModule, str],
+    model: Union[pl.LightningModule, AnyPath],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
@@ -148,7 +148,7 @@ def pretrain(
     Note, by default it will use the tokenizer from the model.
 
     Args:
-        model (Union[pl.LightningModule, str]): The model to be pretrained or a path to the NeMo 2 checkpoint.
+        model (Union[pl.LightningModule, AnyPath]): The model to be pretrained or a path to the NeMo 2 checkpoint.
         data (pl.LightningDataModule): The data module containing pretraining data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
@@ -184,7 +184,7 @@ def pretrain(
 
 @run.cli.entrypoint(namespace="llm")
 def finetune(
-    model: Union[pl.LightningModule, str],
+    model: Union[pl.LightningModule, AnyPath],
     data: pl.LightningDataModule,
     trainer: Trainer,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
@@ -199,7 +199,7 @@ def finetune(
     Note, by default it will use the tokenizer from the model.
 
     Args:
-        model (Union[pl.LightningModule, str]): The model to be finetuned.
+        model (Union[pl.LightningModule, AnyPath]): The model to be finetuned.
         data (pl.LightningDataModule): The data module containing finetuning data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
         log (NeMoLogger): A nemologger instance.
