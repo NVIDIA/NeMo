@@ -95,94 +95,79 @@ def mock_input_4d():
 
 
 def test_ncsnpp_forward(ncsnpp, mock_input_4d):
-    with torch.random.fork_rng():
-        torch.random.manual_seed(0)
+    input_, input_length, condition = mock_input_4d
+    batch_size, _, input_dim, time_steps = input_.shape
 
-        input_, input_length, condition = mock_input_4d
-        batch_size, _, input_dim, time_steps = input_.shape
-
-        output, output_length = ncsnpp(
-            input=input_, input_length=input_length, condition=condition if ncsnpp.conditioned_on_time else None
-        )
-        assert output.shape[0] == batch_size
-        assert output.shape[1] == ncsnpp.out_channels
-        assert output.shape[2] == input_dim
-        assert output.shape[3] == time_steps
-        assert torch.all(output_length == input_length)
+    output, output_length = ncsnpp(
+        input=input_, input_length=input_length, condition=condition if ncsnpp.conditioned_on_time else None
+    )
+    assert output.shape[0] == batch_size
+    assert output.shape[1] == ncsnpp.out_channels
+    assert output.shape[2] == input_dim
+    assert output.shape[3] == time_steps
+    assert torch.all(output_length == input_length)
 
 
 def test_transformerunet_forward(transformerunet, mock_input_3d):
-    with torch.random.fork_rng():
-        torch.random.manual_seed(0)
+    input_, _, _ = mock_input_3d
+    input_ = einops.rearrange(input_, "B D T -> B T D")
 
-        input_, _, _ = mock_input_3d
-        input_ = einops.rearrange(input_, "B D T -> B T D")
+    batch_size, *_ = input_.shape
 
-        batch_size, *_ = input_.shape
+    if transformerunet.adaptive_rmsnorm:
+        adaptive_rmsnorm_cond = torch.ones((batch_size, transformerunet.adaptive_rmsnorm_cond_dim_in)).float()
+    else:
+        adaptive_rmsnorm_cond = None
 
-        if transformerunet.adaptive_rmsnorm:
-            adaptive_rmsnorm_cond = torch.ones((batch_size, transformerunet.adaptive_rmsnorm_cond_dim_in)).float()
-        else:
-            adaptive_rmsnorm_cond = None
-
-        output = transformerunet(x=input_, adaptive_rmsnorm_cond=adaptive_rmsnorm_cond)
-        assert output.shape == input_.shape
+    output = transformerunet(x=input_, adaptive_rmsnorm_cond=adaptive_rmsnorm_cond)
+    assert output.shape == input_.shape
 
 
 def test_spectrogram_ncsnpp_forward(spectrogram_ncsnpp, mock_input_4d):
-    with torch.random.fork_rng():
-        torch.random.manual_seed(0)
+    input_, input_length, condition = mock_input_4d
+    input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
 
-        input_, input_length, condition = mock_input_4d
-        input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
+    batch_size, _, input_dim, time_steps = input_.shape
 
-        batch_size, _, input_dim, time_steps = input_.shape
-
-        output, output_length = spectrogram_ncsnpp(
-            input=input_,
-            input_length=input_length,
-            condition=condition if spectrogram_ncsnpp.ncsnpp.conditioned_on_time else None,
-        )
-        assert output.shape[0] == batch_size
-        assert output.shape[1] == spectrogram_ncsnpp.out_channels
-        assert output.shape[2] == input_dim
-        assert output.shape[3] == time_steps
-        assert torch.all(output_length == input_length)
+    output, output_length = spectrogram_ncsnpp(
+        input=input_,
+        input_length=input_length,
+        condition=condition if spectrogram_ncsnpp.ncsnpp.conditioned_on_time else None,
+    )
+    assert output.shape[0] == batch_size
+    assert output.shape[1] == spectrogram_ncsnpp.out_channels
+    assert output.shape[2] == input_dim
+    assert output.shape[3] == time_steps
+    assert torch.all(output_length == input_length)
 
 
 def test_spectrogram_transformerunet_forward(spectrogram_transformerunet, mock_input_4d):
-    with torch.random.fork_rng():
-        torch.random.manual_seed(0)
+    input_, input_length, condition = mock_input_4d
+    input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
 
-        input_, input_length, condition = mock_input_4d
-        input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
+    batch_size, _, input_dim, time_steps = input_.shape
 
-        batch_size, _, input_dim, time_steps = input_.shape
-
-        output, output_length = spectrogram_transformerunet(
-            input=input_,
-            input_length=input_length,
-            condition=condition if hasattr(spectrogram_transformerunet, 'sinu_pos_emb') else None,
-        )
-        assert output.shape[0] == batch_size
-        assert output.shape[1] == spectrogram_transformerunet.out_channels
-        assert output.shape[2] == input_dim
-        assert output.shape[3] == time_steps
-        assert torch.all(output_length == input_length)
+    output, output_length = spectrogram_transformerunet(
+        input=input_,
+        input_length=input_length,
+        condition=condition if hasattr(spectrogram_transformerunet, 'sinu_pos_emb') else None,
+    )
+    assert output.shape[0] == batch_size
+    assert output.shape[1] == spectrogram_transformerunet.out_channels
+    assert output.shape[2] == input_dim
+    assert output.shape[3] == time_steps
+    assert torch.all(output_length == input_length)
 
 
 def test_spectrogram_conformer_forward(spectrogram_conformer, mock_input_4d):
-    with torch.random.fork_rng():
-        torch.random.manual_seed(0)
+    input_, input_length, condition = mock_input_4d
+    input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
 
-        input_, input_length, condition = mock_input_4d
-        input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
+    batch_size, _, input_dim, time_steps = input_.shape
 
-        batch_size, _, input_dim, time_steps = input_.shape
-
-        output, output_length = spectrogram_conformer(input=input_, input_length=input_length)
-        assert output.shape[0] == batch_size
-        assert output.shape[1] == spectrogram_conformer.out_channels
-        assert output.shape[2] == input_dim
-        assert output.shape[3] == time_steps
-        assert torch.all(output_length == input_length)
+    output, output_length = spectrogram_conformer(input=input_, input_length=input_length)
+    assert output.shape[0] == batch_size
+    assert output.shape[1] == spectrogram_conformer.out_channels
+    assert output.shape[2] == input_dim
+    assert output.shape[3] == time_steps
+    assert torch.all(output_length == input_length)
