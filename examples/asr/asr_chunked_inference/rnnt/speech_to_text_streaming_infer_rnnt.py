@@ -264,8 +264,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
-        cfg.decoding.strategy = "greedy_batch"
-        cfg.decoding.greedy.use_cuda_graph_decoder = False  # TODO: fix CUDA graph decoding
+        if cfg.decoding.strategy != "greedy_batch" or cfg.decoding.greedy.loop_labels is not True:
+            raise NotImplementedError(
+                "This script currently supports only `greedy_batch` strategy with Label-Looping algorithm"
+            )
         cfg.decoding.preserve_alignments = False
         cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
         cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only

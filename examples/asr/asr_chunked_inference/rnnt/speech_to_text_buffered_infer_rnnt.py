@@ -223,8 +223,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
-        cfg.decoding.strategy = "greedy_batch"
-        cfg.decoding.greedy.use_cuda_graph_decoder = False  # TODO: fix CUDA graph decoding
         cfg.decoding.preserve_alignments = True  # required to compute the middle token for transducers.
         cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
         cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
