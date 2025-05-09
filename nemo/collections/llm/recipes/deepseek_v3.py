@@ -172,6 +172,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
+    performance_mode: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for DeepSeek-V3 (671B) model.
@@ -251,5 +252,49 @@ def finetune_recipe(
     recipe.data.seq_length = seq_length
     if packed_sequence:
         raise ValueError("Packed sequence for DeepSeek is not yet supported. Please set packed_sequence=False.")
+
+    if performance_mode:
+        recipe = finetune_performance_optimizations(recipe)
+
+    return recipe
+
+def finetune_performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Modify the given recipe to optimize settings for performance.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    Intended to build upon the standard fine-tuning recipe.
+
+    Args:
+        recipe (run.Partial): Base fine-tuning recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized fine-tuning.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=60,
+        gc_interval_val=60,
+    )
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            comm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
