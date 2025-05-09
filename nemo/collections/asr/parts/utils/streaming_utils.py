@@ -1350,7 +1350,7 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
                         end = -1
                         for i in range(start, end, -1):
                             if longer_ids[i] == id_to_match:
-                                ids = longer_ids[i+1:]
+                                ids = longer_ids[i + 1 :]
                                 break
 
                         self.unmerged[idx] = inplace_buffer_merge(
