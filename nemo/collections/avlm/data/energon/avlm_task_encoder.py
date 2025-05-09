@@ -495,7 +495,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         logging.debug(f"Multimodal dataloader encode interleaved sample tokenized chunks {tokenized_chunks}")
 
         if audios:
-            audio_tensor = torch.concatenate(audios)
+            audio_tensor = audios
             audio_lengths_tensor = torch.tensor(audio_lengths)
         if images:
             image_tensor = torch.concatenate(images)  # T c h w
@@ -703,7 +703,6 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
 
         if processed_audios:
             processed_audio_tensor = processed_audios
-
             processed_audio_lengths_tensor = torch.tensor(processed_audio_lengths)
         if processed_images:
             processed_image_tensor = torch.concatenate(processed_images)  # T c h w

@@ -409,8 +409,10 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         image_token_mask = input_ids == image_token_index
         audio_token_mask = input_ids == audio_token_index
         combined_embeddings = language_embeddings
-        combined_embeddings = torch.index_put(combined_embeddings, (image_token_mask,), image_embeddings)
-        combined_embeddings = torch.index_put(combined_embeddings, (audio_token_mask,), audio_embeddings)
+        if image_embeddings is not None:
+            combined_embeddings = torch.index_put(combined_embeddings, (image_token_mask,), image_embeddings)
+        if audio_embeddings is not None:
+            combined_embeddings = torch.index_put(combined_embeddings, (audio_token_mask,), audio_embeddings)
 
         return combined_embeddings
 
@@ -695,16 +697,18 @@ class MCoreAVLMModel(MCoreLLaVAModel):
 
             # processing image and audio embeddings, reshape them to [number_image_tokens or number_audio_tokens, embed_dim]
             # image modality
-            embed_dim = language_embeddings.shape[-1]
-            image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            if image_embeddings is not None:
+                embed_dim = language_embeddings.shape[-1]
+                image_embeddings = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
             # audio modality
             # (for audio modality, we need to base on audio_embedding_lens to filter out the padded audio embeddings)
-            audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
-            nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(
-                audio_embeddings.device
-            ) < audio_embedding_lens.unsqueeze(0)
-            nonpadded_audio_embeddings = audio_embeddings[nonpadded_mask]
-            audio_embeddings = nonpadded_audio_embeddings
+            if audio_embeddings is not None:
+                audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
+                nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(
+                    audio_embeddings.device
+                ) < audio_embedding_lens.unsqueeze(0)
+                nonpadded_audio_embeddings = audio_embeddings[nonpadded_mask]
+                audio_embeddings = nonpadded_audio_embeddings
 
             # combine multimodal embeddings to text embeddings
             combined_embeddings = self.combine_embeddings(

@@ -152,6 +152,7 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     video_token: VideoToken = field(default_factory=VideoToken)
     """
     For a single video with multiple video and audio streams
+    sequential: the ordering of the stream tokens follows the stream index from the video container's muxer
     video_audio: video streams tokens are before the audio streams tokens 
     audio_video: audio streams tokens are before the video streams tokens
     interleaved_optimal: space the video tokens and the audio tokens as evenly as possible

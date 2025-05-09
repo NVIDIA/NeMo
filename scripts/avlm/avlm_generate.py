@@ -231,24 +231,6 @@ def main(args) -> None:
     # Load model from local path
     model = fabric.load_model(args.local_model_path, model)
 
-    # # Print out all model parameters and norms
-    # print("\n=== Model Parameters and Norms (after loading checkpoint)===")
-    # print("Name | Shape | Norm | Mean | Std")
-    # print("-" * 90)
-    # # Build up the parameter info string
-    # param_info = []
-    # total_params = 0
-    # for i, (name, param) in enumerate(model.named_parameters(), 1):
-    #     param_count = param.numel()
-    #     param_norm = param.data.norm(2).item()
-    #     param_mean = param.data.mean().item()
-    #     param_std = param.data.std().item()
-    #     total_params += param_count
-    #     param_info.append(f"{name} | shape={tuple(param.shape)} | norm={param_norm:.10f} | mean={param_mean:.10f} | std={param_std:.10f} | nan={torch.isnan(param).any().item()}")
-    # # Print all parameter info at once
-    # print("\n".join(param_info))
-    # print("stop_here")
-
     # Setup model for inference
     model = model.module.cuda()
     model.eval()
