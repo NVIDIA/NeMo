@@ -38,7 +38,6 @@ def test_load_single_split():
         split='train',
         seq_length=512,
         micro_batch_size=2,
-        global_batch_size=2,
     )
     from datasets.arrow_dataset import Dataset
 
@@ -62,7 +61,6 @@ def test_load_single_split_with_subset():
         split='train[:10]',
         seq_length=512,
         micro_batch_size=2,
-        global_batch_size=2,
     )
     from datasets.arrow_dataset import Dataset
 
@@ -89,7 +87,6 @@ def test_load_nonexistent_split():
             split='this_split_name_should_not_exist',
             seq_length=512,
             micro_batch_size=2,
-            global_batch_size=2,
         )
     except ValueError as e:
         exception_msg = str(e)
@@ -102,7 +99,6 @@ def test_load_multiple_split():
         split=['train', 'validation'],
         seq_length=512,
         micro_batch_size=2,
-        global_batch_size=2,
     )
     from datasets.arrow_dataset import Dataset
 
@@ -129,7 +125,6 @@ def test_load_multiple_split_with_subset():
         split=['train[:100]', 'validation'],
         seq_length=512,
         micro_batch_size=2,
-        global_batch_size=2,
     )
     from datasets.arrow_dataset import Dataset
 
@@ -157,7 +152,6 @@ def test_validate_dataset_asset_accessibility_file_does_not_exist():
             path_or_dataset="/this/path/should/not/exist/",
             seq_length=512,
             micro_batch_size=2,
-            global_batch_size=2,
         )
     except FileNotFoundError:
         raised_exception = True
@@ -173,7 +167,6 @@ def test_validate_dataset_asset_accessibility_file_is_none():
             path_or_dataset=None,
             seq_length=512,
             micro_batch_size=2,
-            global_batch_size=2,
         )
     except ValueError as e:
         exception_msg = str(e)
@@ -303,8 +296,13 @@ def test_make_dataset_splits_with_list():
 
 
 def test_collate_fn():
+    # Create a minimal HFDatasetDataModule instance with required parameters
+    dm = llm.HFDatasetDataModule(
+        path_or_dataset=Dataset.from_dict({"dummy": [0]}),  # Minimal dummy dataset
+        split="train",
+    )
     batch = [{"id": [1], "token_ids": [1, 2, 3]}, {"id": [2], "token_ids": [123]}]
-    result = llm.HFDatasetDataModule.collate_fn(batch)
+    result = dm.collate_fn(batch)
     assert isinstance(result, dict)
     assert "id" in result
     assert "token_ids" in result
@@ -401,7 +399,6 @@ def test_squad_data_module_with_pth_dataloader_init(mock_tokenizer, mock_trainer
         tokenizer=mock_tokenizer,
         seq_length=512,
         micro_batch_size=4,
-        global_batch_size=128,
         num_workers=0,
         force_redownload=False,
         delete_raw=False,
@@ -463,12 +460,16 @@ def sample_hf_dataset():
     }
     return Dataset.from_dict(data)
 
+
 @pytest.fixture
 def sample_hf_dataset_dict(sample_hf_dataset):
-    return DatasetDict({
-        "train": sample_hf_dataset,
-        "validation": sample_hf_dataset,  # alias -> val in our clean_split
-    })
+    return DatasetDict(
+        {
+            "train": sample_hf_dataset,
+            "validation": sample_hf_dataset,  # alias -> val in our clean_split
+        }
+    )
+
 
 @pytest.fixture
 def split_aliases():
@@ -478,84 +479,63 @@ def split_aliases():
         "test": ["test"],
     }
 
+
 def test_single_dataset_str_split(sample_hf_dataset, split_aliases):
     """Covers the branch: dataset is Dataset, split is str."""
-    splits = make_dataset_splits(
-        dataset=sample_hf_dataset,
-        split="train",
-        split_aliases=split_aliases
-    )
+    splits = make_dataset_splits(dataset=sample_hf_dataset, split="train", split_aliases=split_aliases)
     assert splits["train"] is not None
     assert splits["val"] is None
     assert splits["test"] is None
 
+
 def test_dataset_dict_splits(sample_hf_dataset_dict, split_aliases):
     """Covers the branch: dataset is DatasetDict."""
     splits = make_dataset_splits(
-        dataset=sample_hf_dataset_dict,
-        split=None,  # Not used in this branch
-        split_aliases=split_aliases
+        dataset=sample_hf_dataset_dict, split=None, split_aliases=split_aliases  # Not used in this branch
     )
     assert splits["train"] is not None
     assert splits["val"] is not None
     assert splits["test"] is None
+
 
 def test_list_dataset_splits(sample_hf_dataset, split_aliases):
     """Covers the branch: dataset is list, split is list."""
     # Suppose we have two splits in a list
     dataset_list = [sample_hf_dataset, sample_hf_dataset]
     splits_list = ["train", "validation"]  # alias will map validation -> val
-    splits = make_dataset_splits(
-        dataset=dataset_list,
-        split=splits_list,
-        split_aliases=split_aliases
-    )
+    splits = make_dataset_splits(dataset=dataset_list, split=splits_list, split_aliases=split_aliases)
     assert splits["train"] is not None
     assert splits["val"] is not None
     assert splits["test"] is None
 
+
 def test_single_dataset_with_plus_sign(sample_hf_dataset, split_aliases):
     """Covers the branch that raises ValueError if '+' in split string."""
-    splits = make_dataset_splits(
-        dataset=sample_hf_dataset,
-        split="train+val",
-        split_aliases=split_aliases
-    )
+    splits = make_dataset_splits(dataset=sample_hf_dataset, split="train+val", split_aliases=split_aliases)
     assert splits["train"] is not None
     assert splits["val"] is None
     assert splits["test"] is None
 
+
 def test_single_dataset_with_bracket(sample_hf_dataset, split_aliases):
     """
-    Covers the branch that strips bracket notation 
+    Covers the branch that strips bracket notation
     and uses the cleaned alias (e.g. 'validation[10:20]' -> 'validation').
     """
-    splits = make_dataset_splits(
-        dataset=sample_hf_dataset,
-        split="validation[10:20]",
-        split_aliases=split_aliases
-    )
+    splits = make_dataset_splits(dataset=sample_hf_dataset, split="validation[10:20]", split_aliases=split_aliases)
     assert splits["val"] is not None
     assert splits["train"] is None
     assert splits["test"] is None
 
+
 def test_invalid_split_type_raises(sample_hf_dataset, split_aliases):
     with pytest.raises(AssertionError, match="Expected split to be a string, but got <class 'int'>"):
-        make_dataset_splits(
-            dataset=sample_hf_dataset,
-            split=123,  # Invalid type
-            split_aliases=split_aliases
-        )
+        make_dataset_splits(dataset=sample_hf_dataset, split=123, split_aliases=split_aliases)  # Invalid type
+
 
 def test_no_alias_match_raises(sample_hf_dataset_dict, split_aliases):
     """If alias in the dataset dict isn't in split_aliases, we get a KeyError."""
     # Make a dataset dict with a split name not in our alias map
-    wrong_dataset_dict = DatasetDict({
-        "custom_split": sample_hf_dataset_dict["train"]
-    })
+    wrong_dataset_dict = DatasetDict({"custom_split": sample_hf_dataset_dict["train"]})
     with pytest.raises(KeyError):
-        make_dataset_splits(
-            dataset=wrong_dataset_dict,
-            split=None,
-            split_aliases=split_aliases
-        )
+        make_dataset_splits(dataset=wrong_dataset_dict, split=None, split_aliases=split_aliases)

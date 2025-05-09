@@ -20,7 +20,6 @@ import re
 import tarfile
 from typing import Any, Dict, List, Optional, Sequence
 
-import decord
 import lightning.pytorch as pl
 import numpy as np
 import torch
@@ -36,6 +35,12 @@ from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
+
+
+try:
+    import decord
+except Exception:
+    logging.warning("The package `decord` was not installed in this environment.")
 
 
 class TarOrFolderImageLoader:
@@ -546,7 +551,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
+            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf", use_fast=False)
             self.image_processor = image_processor or processor.image_processor
 
         if self.packed_sequence:

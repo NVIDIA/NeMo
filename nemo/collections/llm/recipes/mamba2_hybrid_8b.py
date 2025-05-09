@@ -36,7 +36,9 @@ NAME = "mamba2_hybrid_8b"
 
 @run.cli.factory(name=NAME)
 def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
-
+    """
+    Factory function to create a tokenizer configuration.
+    """
     return run.Config(
         get_nmt_tokenizer,
         library='megatron',
@@ -63,7 +65,7 @@ def model(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(
-        llm.GPTModel,
+        llm.MambaModel,
         config=run.Config(llm.NVIDIAMambaHybridConfig8B),
         tokenizer=tokenizer(tokenizer_model=tokenizer_model),
     )
@@ -201,10 +203,6 @@ def pretrain_recipe(
         Python API usage:
             >>> recipe = pretrain_recipe(name="mamba2_hybrid_8b_pretrain", num_nodes=1)
             >>> print(recipe)
-
-    Note:
-        For more details on pre-training LLMs with NeMo, see the pre-training
-        guide in the `examples/llm/pretrain/` directory.
     """
     return run.Partial(
         fn,
@@ -280,12 +278,11 @@ def finetune_recipe(
             >>> print(recipe)
 
     Note:
-        This recipe uses the SQuAD dataset for fine-tuning. For more information
-        on fine-tuning LLMs with NeMo, see the fine-tuning guide in the
-        `examples/llm/finetune/` directory.
+        This recipe uses the SQuAD dataset for fine-tuning.
         For converting an SSM pytorch checkpoint, use the following line of python code:
 
-        llm.GPTModel(llm.NVIDIAMambaHybridConfig8B(), tokenizer=tokenizer(tokenizer_model=tokenizer_model)).import_ckpt(
+        llm.MambaModel(llm.NVIDIAMambaHybridConfig8B(),
+            tokenizer=tokenizer(tokenizer_model=tokenizer_model)).import_ckpt(
             path="pytorch://ABSOLUTE_PATH_TO_CKPT/your_pytorch_state_dict_file",
             model_config=llm.NVIDIAMambaHybridConfig8B())
         This line will cache the nemo checkpoint to following directory:
