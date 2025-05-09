@@ -23,6 +23,9 @@ The difference between streaming and buffered inference is the chunk size (or th
 Buffered inference will use large chunk sizes (5-10 seconds) + some additional buffer for context.
 Streaming inference will use small chunk sizes (0.1 to 0.25 seconds) + some additional buffer for context.
 
+Note, currently greedy_batched inferece for TDT is not supported. Decoding strategy will be set to greedy for
+TDT automatically.
+
 # Middle Token merge algorithm
 
 python speech_to_text_buffered_infer_rnnt.py \
@@ -153,6 +156,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
     Transcribes the input audio and can be used to infer long audio files by chunking
     them into smaller segments.
+    Currently, greedy_batched inferece for TDT is not supported. Decoding strategy
+    will be set to greedy for TDT automatically.
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
@@ -214,6 +219,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
+
+    model_is_tdt = hasattr(asr_model, '_loss') and type(asr_model.loss._loss).__name__ == 'TDTLossNumba'
+    if cfg.merge_algo is None:
+        cfg.merge_algo = "tdt" if model_is_tdt else "middle"
+
+    if model_is_tdt and cfg.merge_algo != "tdt":
+        raise ValueError("merge_algo must be 'tdt' for TDT models")
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
