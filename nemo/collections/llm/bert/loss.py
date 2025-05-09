@@ -23,6 +23,10 @@ from torch.distributed.nn.functional import all_gather as all_gather_with_backpr
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
 
 
+def hello_world():
+    print("Hello, World!")
+
+
 class BERTLossReduction(MegatronLossReduction):
     """Bert Loss Function.
     when add_sop_loss = False, only calculate Masked token loss.
