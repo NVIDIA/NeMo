@@ -17,9 +17,10 @@ import logging as _logging
 import os
 import re
 import shutil
+import types
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
@@ -30,6 +31,8 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from megatron.core.distributed.custom_fsdp import FSDP
+from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
 from typing_extensions import override
 
@@ -38,6 +41,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
+    custom_fsdp2_strategy_parallelize,
     fsdp2_strategy_parallelize,
 )
 from nemo.utils import logging
@@ -76,8 +80,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
         checkpoint_io=None,
+        cfsdp2: bool = False,
+        cfsdp2_unit_modules: Optional[List[str]] = None,
+        init_cfsdp2_model_with_meta_device: bool = False,
+        ddp_config: Optional[DistributedDataParallelConfig] = None,
         mp_policy=None,
-        parallelize_fn=fsdp2_strategy_parallelize,
         use_hf_tp_plan: bool = True,
         custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
         **kwargs,
@@ -116,6 +123,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.context_parallel_size = context_parallel_size
         self.data_sampler = data_sampler
         self.checkpoint = None
+        self.parallelized = False
+        self.cfsdp2 = cfsdp2
+        self.cfsdp2_unit_modules = cfsdp2_unit_modules if cfsdp2_unit_modules is not None else []
+        self.init_cfsdp2_model_with_meta_device = init_cfsdp2_model_with_meta_device
+        self.ddp_config = ddp_config
         self.mp_policy = mp_policy
         if self.mp_policy is None:
             assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
@@ -126,7 +138,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 cast_forward_inputs=True,
             )
         self.store: Optional[torch.distributed.Store] = None
-        self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
         self.sequence_parallel = sequence_parallel
         self.use_hf_tp_plan = use_hf_tp_plan
@@ -276,29 +287,93 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
         # Corner case, as FSDP2 expected to be used multi-device.
-        if self._data_parallel_size == 1:
+        # However, we are not allowed to use `.to` once the model is wrapped by Megatron custom FSDP2.
+        # This is so cFSDP2 can micromanage the location of model and gradient shards.
+        if self._data_parallel_size == 1 and not self.cfsdp2:
             self._lightning_module = self._lightning_module.to(self.root_device)
         # setup optim
         if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)
 
+        # Add custom FSDP hooks to the LightningModule.
+        if self.cfsdp2:
+            # Save a reference to the original hook.
+            base_on_before_optimizer_step = self.lightning_module.on_before_optimizer_step
+
+            def _on_before_optimizer_step_with_async_grad_reduce(lightning_module, optimizer):
+                """
+                Modified optimizer pre-step hook to wait for all sharded gradients to be reduced and unsharded.
+                """
+                if isinstance(lightning_module.model, FSDP):
+                    # If the model uses custom FSDP2, wait for all sharded gradients to be reduced and unsharded.
+                    # Necessary because the post-backward reduce-scatter is asynchronous, so gradients and backward
+                    # computations are concurrent, but the gradients of the final layer may not be available yet.
+                    lightning_module.model.finish_grad_sync()
+
+                # Call the pre-optimizer hook.
+                base_on_before_optimizer_step(optimizer)
+
+            # Replace the hook with a modified version that waits for all sharded gradients to be reduced and unsharded.
+            self.lightning_module.on_before_optimizer_step = types.MethodType(
+                _on_before_optimizer_step_with_async_grad_reduce, self.lightning_module
+            )
+
+            # Save a reference to the original optimizer step.
+            base_optimizer_step = self.lightning_module.optimizer_step
+
+            def _on_after_optimizer_step_with_model_weight_update(
+                lightning_module,
+                epoch,
+                batch_idx,
+                optimizer,
+                optimizer_closure,
+            ):
+                """
+                Modified optimizer post-step hook to update the model weights.
+                """
+                # Apply the optimizer step to the model weights.
+                base_optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
+
+                if isinstance(lightning_module.model, FSDP):
+                    # If custom FSDP2 is configured with "optim" (optimizer state / high-precision model weight sharding),
+                    # then the optimizer step will be applied to the main high-precision model weights. Update the model
+                    # weights after the optimizer step.
+                    lightning_module.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
+
+            # Replace the hook with a modified version that updates the model weights after taking an optimizer step.
+            self.lightning_module.optimizer_step = types.MethodType(
+                _on_after_optimizer_step_with_model_weight_update, self.lightning_module
+            )
+
     def parallelize(self):
         """Applies fully_shard on model"""
-        if self.parallelize_fn is not None:
-            # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
-            # Apply FSDP2 and TP to the model
-            self.parallelize_fn(
-                self.lightning_module.model,
-                device_mesh=self._device_mesh,
-                mp_policy=self.mp_policy,
-                use_hf_tp_plan=self.use_hf_tp_plan,
-                tp_shard_plan=self.tp_shard_plan,
-                offload_policy=self.offload_policy,
-            )
-            # Apply this only once
-            self.parallelize_fn = None
+        if not self.parallelized:
+            # Mark model parallelized.
+            self.parallelized = True
+            if self.cfsdp2:
+                # Use custom FSDP2.
+                self.lightning_module.model = custom_fsdp2_strategy_parallelize(
+                    self.lightning_module.model,
+                    device_mesh=self._device_mesh,
+                    ddp_config=self.ddp_config,
+                    cfsdp2_unit_modules=self.cfsdp2_unit_modules,
+                    init_cfsdp2_model_with_meta_device=self.init_cfsdp2_model_with_meta_device,
+                    use_hf_tp_plan=False,
+                    tp_shard_plan=self.tp_shard_plan,
+                )
+            else:
+                # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
+                # Apply FSDP2 and TP to the model.
+                fsdp2_strategy_parallelize(
+                    self.lightning_module.model,
+                    device_mesh=self._device_mesh,
+                    mp_policy=self.mp_policy,
+                    use_hf_tp_plan=self.use_hf_tp_plan,
+                    tp_shard_plan=self.tp_shard_plan,
+                    offload_policy=self.offload_policy,
+                )
         else:
-            logging.warning("Called parallelize more than once.")
+            logging.warning("Called FSDP2Strategy.parallelize() more than once.")
 
     @override
     def _setup_distributed(self) -> None:
@@ -398,6 +473,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         assert self.lightning_module is not None
         assert self.model is not None
+
+        if self.cfsdp2:
+            # If custom FSDP2 is enabled, zero out the gradient buffer before the next forward-backward step.
+            self.lightning_module.model.zero_grad_buffer()
 
         if self.context_parallel_size > 1:
             # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.

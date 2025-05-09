@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import os
 from contextlib import ContextDecorator
+
 import torch.distributed as dist
 
 
@@ -83,6 +85,7 @@ class FirstRankPerNode(ContextDecorator):
                 backend="gloo",
                 world_size=int(env.get("WORLD_SIZE")),
                 rank=int(env.get("RANK")),
+                timeout=datetime.timedelta(seconds=5400),
             )
             return True
         return False

@@ -19,6 +19,7 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
+from torch.distributed.device_mesh import _mesh_resources
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from nemo.automodel.dist_utils import FirstRankPerNode
@@ -241,7 +242,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         try:
             self.model = self._configure_model(attn_implementation=self.attn_implementation)
-            logging.info("Configuring model with attn_implementation:", self.attn_implementation)
+            logging.info(f"Configuring model with attn_implementation: {self.attn_implementation}")
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
             if 'does not support an attention' in str(e):
@@ -410,6 +411,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     num_items_in_batch=num_items_in_batch,
                     logit_softcapping=logit_softcapping,
                 )
+
+        # In the case where all labels are masked, the loss should be 0.
+        if loss_mask is not None and loss_mask.bool().sum() == 0:
+            loss.detach().copy_(torch.zeros_like(loss))
+
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel() - count_tail_padding(labels.view_as(batch['input_ids']))
 
@@ -442,13 +448,9 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = dist.group.WORLD  # Default DDP process group
             else:
                 # Use the flattened DP / CP device mesh for loss reduction
-                # if it exists (CP > 1), else default to the data parallel mesh.
+                # if it exists, else default to the data parallel mesh.
                 group = device_mesh[
-                    (
-                        "dp_cp"
-                        if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names
-                        else "data_parallel"
-                    )
+                    ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping[device_mesh] else "data_parallel")
                 ].get_group()
 
             def reduce_item(val, op, device, group, dtype):
