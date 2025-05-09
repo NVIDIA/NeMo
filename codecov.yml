@@ -1,8 +1,8 @@
 comment: false
 coverage:
   status:
-    project: false
-    patch:
+    patch: false
+    project:
       default:
         target: 80%
         threshold: 0%
