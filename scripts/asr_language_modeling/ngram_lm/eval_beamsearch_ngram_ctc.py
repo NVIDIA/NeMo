@@ -176,7 +176,7 @@ def beam_search_eval(
         model.change_decoding_strategy(model.cfg.decoding)
     logging.setLevel(level)
 
-    all_hyps = model.transcribe(audio_filepaths, cfg.acoustic_batch_size)
+    all_hyps = model.transcribe(audio_filepaths, cfg.batch_size)
 
     wer_dist_first = cer_dist_first = 0
     wer_dist_best = cer_dist_best = 0
@@ -294,7 +294,7 @@ def main(cfg: EvalBeamSearchNGramConfig):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
-                all_hyps = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size)
+                all_hyps = asr_model.transcribe(audio_file_paths, batch_size=cfg.batch_size)
 
         if cfg.hyps_cache_file:
             os.makedirs(os.path.split(cfg.hyps_cache_file)[0], exist_ok=True)
