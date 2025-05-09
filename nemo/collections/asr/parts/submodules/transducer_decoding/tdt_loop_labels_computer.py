@@ -913,6 +913,12 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 dst_states=self.state.decoder_state,
                 batch_size=current_batch_size,
             )
+            # sample state, will be replaced further when the decoding for hypothesis is done
+            self.decoder.batch_replace_states_all(
+                src_states=prev_batched_state.predictor_state,
+                dst_states=self.state.last_decoder_state,
+                batch_size=current_batch_size,
+            )
             # initial state - lm
             # TODO: is lm correct?
             if self.ngram_lm_batch is not None:
@@ -1108,8 +1114,14 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # this seems to be redundant, but used in the `loop_frames` output
         torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
         labels_mask = torch.logical_and(self.state.active_mask_prev, self.state.labels != self._blank_index)
+        # TODO: why is this working?
         self.decoder.batch_replace_states_mask(
             src_states=self.state.prev_decoder_state,
+            dst_states=self.state.last_decoder_state,
+            mask=self.state.became_inactive_mask,
+        )
+        self.decoder.batch_replace_states_mask(
+            src_states=self.state.decoder_state,
             dst_states=self.state.last_decoder_state,
             mask=self.state.became_inactive_mask & labels_mask,
         )
