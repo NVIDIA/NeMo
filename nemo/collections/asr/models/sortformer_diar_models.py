@@ -557,7 +557,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
     @property
     def output_names(self):
-        return ["preds"]
+        return ["spkcache_fifo_chunk_preds", "chunk_pre_encode_embs", "chunk_pre_encode_lengths"]
 
     def streaming_input_examples(self):
         """Input tensor examples for exporting streaming version of model
@@ -678,8 +678,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
 
         att_mod = False
         if self.training:
-            r = random.random()
-            if r < self.sortformer_modules.causal_attn_rate:
+            rand_num = random.random()
+            if rand_num < self.sortformer_modules.causal_attn_rate:
                 self.encoder.att_context_size=[-1, self.sortformer_modules.causal_attn_rc]
                 self.transformer_encoder.diag = self.sortformer_modules.causal_attn_rc
                 att_mod = True

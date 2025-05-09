@@ -108,11 +108,9 @@ class DiarizationConfig:
     diar_model_path: Optional[str] = None  # Path to a .nemo file
     diar_pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
-    # dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
     
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
-    # eval_mode: bool = True
     no_der: bool = False
     out_rttm_dir: Optional[str] = None
     opt_style: Optional[str] = None
@@ -138,14 +136,6 @@ class DiarizationConfig:
     chunk_left_context: int = 0
     chunk_right_context: int = 0
 
-    # streaming_mode: bool = True # If True, streaming diarization will be used. 
-    # mem_len: int = 188
-    # # mem_refresh_rate: int = 0
-    # fifo_len: int = 188
-    # step_len: int = 0
-    # step_left_context: int = 0
-    # step_right_context: int = 0
- 
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
@@ -218,32 +208,6 @@ def add_seglst_dicts(spk_tagger):
             duration = f"{sentence_dict['end_time'] - sentence_dict['start_time']:.2f}"
             seglst_dict["duration"] = duration
             spk_tagger.seglst_dict_list.append(seglst_dict)
-        # seglst_dict_spks = [{}] * word_ts_and_seq['speaker_count']
-        # for spk_idx in range(word_ts_and_seq['speaker_count']):
-        #     seglst_dict_spks[spk_idx]["session_id"] = word_ts_and_seq['uniq_id']
-        #     seglst_dict_spks[spk_idx]["words"] = ""
-        #     seglst_dict_spks[spk_idx]["speaker"] = f"speaker_{spk_idx}"
-        #     seglst_dict_spks[spk_idx]["start_time"] = None 
-        #     seglst_dict_spks[spk_idx]["end_time"] = None 
-        # import ipdb; ipdb.set_trace() 
-        # for spk_idx in range(word_ts_and_seq['speaker_count']):
-        #     seglist_temp_dict = deepcopy(seglst_dict_spks[spk_idx])
-        #     for sent_idx, sentence in enumerate(word_ts_and_seq['sentences']):
-                
-        #         if sent_idx == 0:
-        #             seglist_temp_dict["start_time"] = sentence['start_time']
-        #         # if seglst_dict_spks[spk_idx]["speaker"] == sentence['speaker']: 
-        #         if f"speaker_{spk_idx}" == sentence['speaker']: 
-        #             seglist_temp_dict["words"] += sentence['text'] + " "
-        #     # seglist_temp_dict["words"] = 
-        #     concat_text = seglist_temp_dict["words"].strip() 
-        #     seglist_temp_dict["words"] = normalize_text(concat_text)
-        #     if len(word_ts_and_seq['sentences']) > 0:
-        #         seglist_temp_dict["end_time"] = sentence['end_time']
-        #     spk_tagger.seglst_dict_list.append(seglist_temp_dict)
-    
-    # return spk_tagger 
-
 
 def write_seglst_file(seglst_dict_list, output_path):
     with open(output_path, 'w') as f:
@@ -276,7 +240,7 @@ def perform_streaming(
             async_streaming = True,
             device = diar_model.device
         )
-    # write_txt(path="/home/taejinp/projects/mimsasr_sortformer_pr01_fifo_memory/start_flag.txt", the_list=["start"])
+    
     session_start_time = time.time()
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         loop_start_time = time.time()
@@ -292,8 +256,6 @@ def perform_streaming(
                     cache_last_channel_len,
                     previous_hypotheses,
                     streaming_state,
-                    # mem_last_time,
-                    # fifo_last_time,
                     diar_pred_out_stream) = multispk_asr_streamer.perform_streaming_stt_spk(
                         step_num=step_num,
                         chunk_audio=chunk_audio,
@@ -306,8 +268,6 @@ def perform_streaming(
                         asr_pred_out_stream=asr_pred_out_stream,
                         diar_pred_out_stream=diar_pred_out_stream,
                         streaming_state=streaming_state,
-                        # mem_last_time=mem_last_time,
-                        # fifo_last_time=fifo_last_time,
                         left_offset=left_offset,
                         right_offset=right_offset,
                         pad_and_drop_preencoded=False,
@@ -317,8 +277,6 @@ def perform_streaming(
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
         loop_end_time = time.time()
         feat_frame_count += (chunk_audio.shape[-1] - cfg.discarded_frames)
-        # if step_num > 20:
-            # break 
         if cfg.real_time_mode:
             time_diff = max(0, (time.time() - session_start_time) - feat_frame_count * cfg.feat_len_sec)
             eta_min_sec = format_time(time.time() - session_start_time)
@@ -377,11 +335,8 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
                                                           map_location=map_location)
     else:
         raise ValueError("cfg.diar_model_path must end with.ckpt or.nemo!")
-    
-    # diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     diar_model.set_trainer(trainer)
-    
     diar_model = diar_model.eval()
     diar_model._cfg.test_ds.manifest_filepath = cfg.manifest_file
     diar_model._cfg.test_ds.batch_size = cfg.batch_size
@@ -425,7 +380,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(args.att_context_size))
         else:
             raise ValueError("Model does not support multiple lookaheads.")
-
     global autocast
     autocast = torch.amp.autocast(asr_model.device.type, enabled=args.use_amp)
 
@@ -441,7 +395,6 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     asr_model = asr_model.to(args.device)
     asr_model.eval()
-
     # chunk_size is set automatically for models trained for streaming. 
     # For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
     if args.chunk_size > 0:
@@ -475,7 +428,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         online_normalization=online_normalization,
         pad_and_drop_preencoded=args.pad_and_drop_preencoded,
     )
-    
+
     if args.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(

@@ -429,10 +429,7 @@ class ConvSubsampling(torch.nn.Module):
         # Flatten Channel and Frequency Axes
         if self.conv2d_subsampling:
             b, c, t, f = x.size()
-            try:
-                x = self.out(x.transpose(1, 2).reshape(b, t, -1))
-            except:
-                import ipdb; ipdb.set_trace()
+            x = self.out(x.transpose(1, 2).reshape(b, t, -1))
         # Transpose to Channel Last mode
         else:
             x = x.transpose(1, 2)

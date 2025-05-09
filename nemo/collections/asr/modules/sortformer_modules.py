@@ -36,10 +36,10 @@ class StreamingSortformerState():
     Attributes:
         spkcache (torch.Tensor): Speaker cache to store embeddings from start
         spkcache_lengths (torch.Tensor): Lengths of the speaker cache
-        spkcache_preds (torch.Tensor): The predictions for the speaker cache parts
+        spkcache_preds (torch.Tensor): The speaker predictions for the speaker cache parts
         fifo (torch.Tensor): FIFO queue to save the embedding from the latest chunks
         fifo_lengths (torch.Tensor): Lengths of the FIFO queue
-        fifo_preds (torch.Tensor): The predictions for the FIFO queue parts
+        fifo_preds (torch.Tensor): The speaker predictions for the FIFO queue parts
         spk_perm (torch.Tensor): Speaker permutation information for the speaker cache
     """
     spkcache = None  # Speaker cache to store embeddings from start
@@ -477,6 +477,7 @@ class SortformerModules(NeuralModule, Exportable):
             streaming_state.spkcache = torch.cat([streaming_state.spkcache, pop_out_embs], dim=1)
             if streaming_state.spkcache_preds is not None:  # if speaker cache has been already updated at least once
                 streaming_state.spkcache_preds = torch.cat([streaming_state.spkcache_preds, pop_out_preds], dim=1)
+
             if streaming_state.spkcache.shape[1] > self.spkcache_len:
                 if streaming_state.spkcache_preds is None:  # if this is a first update of speaker cache
                     streaming_state.spkcache_preds = torch.cat([preds[:, :spkcache_len], pop_out_preds], dim=1)

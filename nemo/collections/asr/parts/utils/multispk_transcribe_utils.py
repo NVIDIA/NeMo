@@ -594,8 +594,7 @@ class SpeakerTaggedASR:
         for idx, (uniq_id, data_dict) in enumerate(test_manifest_dict.items()):
             if not len( asr_hypotheses[idx].text) == 0:
                 # Get the word-level dictionaries for each word in the chunk
-                #  diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
-                                                                            
+                # diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
                 self._word_and_ts_seq[idx] = self.get_frame_and_words_offline(uniq_id=uniq_id,
                                                                             diar_pred_out=diar_pred_out[idx].squeeze(0),
                                                                             asr_hypothesis=asr_hypotheses[idx],
@@ -698,23 +697,6 @@ class SpeakerTaggedASR:
                                                                 sentence_render_length=self._sentence_render_length)
         return word_and_ts_seq
     
-    def _save_seglst_dicts(self, word_and_ts_seq):
-        """ 
-        Save the word_and_ts_seq dictionary to a seglst file.
-        
-        Args:
-            word_and_ts_seq: Dictionary containing word and time-related information.
-        """
-        # import ipdb; ipdb.set_trace()
-        # seglst_list = []
-        # for word_dict in word_and_ts_seq['words']:
-        #     seglst_list.append({
-        #                         'start_time': word_dict['start_time'], 
-        #                         'end_time': word_dict['end_time'], 
-        #                         'speaker': word_dict['speaker'], 
-        #                         'word': word_dict['word']})
-        # write_seglst(f'{self.cfg.print_path}'.replace(".sh", f"_seglst.sh"), seg
-    
     @measure_eta 
     def perform_streaming_stt_spk(
         self,
@@ -728,8 +710,6 @@ class SpeakerTaggedASR:
         asr_pred_out_stream,
         diar_pred_out_stream,
         streaming_state,
-        # mem_last_time,
-        # fifo_last_time,
         left_offset,
         right_offset,
         is_buffer_empty,
@@ -803,8 +783,6 @@ class SpeakerTaggedASR:
                 cache_last_channel_len,
                 previous_hypotheses,
                 streaming_state,
-                # mem_last_time,
-                # fifo_last_time,
                 diar_pred_out_stream)
 
     def _add_speaker_transcriptions(self, transcriptions: list, speaker_transcriptions: List[str], word_and_ts_seq: List[Dict[str, Any]]) -> Tuple[List[Hypothesis], List[Hypothesis]]:
