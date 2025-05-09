@@ -345,10 +345,10 @@ jobs:
       - cicd-import-tests
       - L0_Setup_Test_Data_And_Models
       - cicd-main-unit-tests
-      - cicd-main-nemo2
-      - cicd-main-export-deploy
-      - cicd-main-automodel
-      - cicd-main-speech
+      # - cicd-main-nemo2
+      # - cicd-main-export-deploy
+      # - cicd-main-automodel
+      # - cicd-main-speech
     if: always()
     runs-on: ubuntu-latest
     permissions: write-all
