@@ -594,7 +594,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
                 if prev_batched_state is None
                 else encoder_output_length + prev_batched_state.decoded_length
             ),
-            lm_state=self.state.batch_lm_states,
+            lm_state=self.state.batch_lm_states.clone(),
             time_jumps=None,
         )
 
