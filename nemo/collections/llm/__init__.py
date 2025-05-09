@@ -46,7 +46,6 @@ from nemo.collections.llm.gpt.data import (  # noqa: F401
     PreTrainingDataModule,
     SquadDataModule,
 )
-from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (  # noqa: F401
     Baichuan2Config,
     Baichuan2Config7B,
@@ -333,11 +332,7 @@ __all__ = [
     "SpecterDataModule",
     "DollyDataModule",
     "tokenizer",
-    "mock",
-    "squad",
-    "dolly",
     "peft",
-    "hf_dataset",
     "HFAutoModelForCausalLM",
     "HFMockDataModule",
 ]
@@ -378,6 +373,13 @@ try:
     )
 except ImportError as error:
     logging.warning(f"Failed to import nemo.collections.llm.[api,recipes]: {error}")
+
+try:
+    from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad  # noqa: F401
+
+    __all__.extend(["dolly", "hf_dataset", "mock", "squad"])
+except ImportError as error:
+    logging.warning(f"Failed to import nemo.collections.llm.gpt.data.api: {error}")
 
 try:
     from nemo.collections.llm.api import deploy  # noqa: F401

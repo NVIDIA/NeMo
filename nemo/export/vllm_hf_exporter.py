@@ -13,7 +13,9 @@
 # limitations under the License.
 
 
-from typing import List
+import tempfile
+from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
 from pytriton.decorators import batch, first_value
@@ -24,10 +26,43 @@ from vllm.lora.request import LoRARequest
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output, str_ndarray2list
 
+AnyPath = Union[Path, str]
+
+
+def _load_connector_from_trainer_ckpt(path: AnyPath, target: str):
+    # pylint: disable=C0116
+
+    from nemo.lightning import io
+
+    if not isinstance(path, Path):
+        path = Path(path)
+    return io.load_context(path, subpath="model").exporter(target, path)
+
+
+def _export_ckpt(
+    path: AnyPath,
+    target: str,
+    output_path: Optional[AnyPath] = None,
+    overwrite: bool = False,
+    load_connector=_load_connector_from_trainer_ckpt,
+    **kwargs,
+) -> Path:
+    """A local copy of nemo.collections.llm.api.export_ckpt.
+    Temporary solution, until the HF exporter is moved to the nemo-export package.
+    """
+    from nemo.lightning import io
+
+    if not isinstance(path, Path):
+        path = Path(path)
+    if output_path and not isinstance(output_path, Path):
+        output_path = Path(output_path)
+
+    return io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+
 
 class vLLMHFExporter(ITritonDeployable):
     """
-    The Exporter class uses vLLM APIs to convert a HF model to vLLM and makes the class,
+    The Exporter class uses vLLM APIs to convert a NeMo or HF model to vLLM and makes the class,
     deployable with Triton server.
 
     Example:
@@ -51,15 +86,33 @@ class vLLMHFExporter(ITritonDeployable):
         self.model = None
         self.lora_models = None
 
-    def export(self, model, enable_lora: bool = False):
+    def export(self, model, enable_lora: bool = False, **kwargs):
         """
         Exports the HF checkpoint to vLLM and initializes the engine.
         Args:
             model (str): model name or the path
+            enable_lora (bool): whether to enable lora
+            **kwargs: additional arguments for the LLM constructor
         """
-        self.model = LLM(model=model, enable_lora=enable_lora)
+
+        model_path = Path(model)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Convert the NeMo 2 model to HF format
+            if (model_path / 'context').exists():
+                _export_ckpt(
+                    path=model_path,
+                    target='hf',
+                    output_path=tmp_dir,
+                    overwrite=True,
+                )
+                model = str(tmp_dir)
+
+            self.model = LLM(model=model, enable_lora=enable_lora, **kwargs)
 
     def add_lora_models(self, lora_model_name, lora_model):
+        """
+        Add a lora model to the exporter.
+        """
         if self.lora_models is None:
             self.lora_models = {}
         self.lora_models[lora_model_name] = lora_model
@@ -111,6 +164,9 @@ class vLLMHFExporter(ITritonDeployable):
         temperature: float = 1.0,
         lora_model_name: str = None,
     ):
+        """
+        Forward pass for the model.
+        """
         assert self.model is not None, "Model is not initialized."
 
         lora_request = None

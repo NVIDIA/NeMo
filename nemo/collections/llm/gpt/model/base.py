@@ -362,6 +362,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             kwargs = {"mtp_block_spec": mtp_block_spec(self)}
         else:
             kwargs = {}
+
+        if not _grad_accum_fusion_available:
+            logging.warning("Gradient accumulation fusion is not available, setting to False")
+            self.gradient_accumulation_fusion = False
+
         with model_init_device_context():
             model = MCoreGPTModel(
                 self,
