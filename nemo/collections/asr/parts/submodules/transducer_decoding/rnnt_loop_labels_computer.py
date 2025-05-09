@@ -499,6 +499,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
             # TODO: alignments
+        # NB: last labels can not exist (nothing decoded on this step).
+        # return the last labels from the previous state in this case
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
@@ -581,9 +583,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             self._fix_timestamps_for_iterative_decoding(
                 current_batch_size=current_batch_size, prev_batched_state=prev_batched_state
             )
+        # NB: last labels can not exist (nothing decoded on this step).
+        # return the last labels from the previous state in this case
+        last_labels = self.state.batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=copy.deepcopy(self.state.last_decoder_state),
-            labels=self.state.batched_hyps.get_last_labels(pad_id=self._blank_index),
+            labels=(
+                torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
+                if prev_batched_state is not None
+                else last_labels
+            ),
             decoded_length=(
                 encoder_output_length
                 if prev_batched_state is None
@@ -842,7 +851,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(
     def _fix_timestamps_for_iterative_decoding(
         self, current_batch_size: int, prev_batched_state: BatchedGreedyDecodingState
     ):
-        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length.unsqueeze(1)
+        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
+            :current_batch_size
+        ].unsqueeze(1)
         # TODO: alignments
 
     def _before_outer_loop(self):
