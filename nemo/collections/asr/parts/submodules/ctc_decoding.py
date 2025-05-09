@@ -225,7 +225,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         self.segment_seperators = self.cfg.get('segment_seperators', ['.', '?', '!'])
         self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight', 'wfst']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'pyctcdecode', 'flashlight', 'wfst', 'beam_batch']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
 
@@ -344,6 +344,22 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 wfst_lm_path=self.cfg.wfst.get('wfst_lm_path', None),
                 riva_decoding_cfg=self.cfg.wfst.get('riva_decoding_cfg', None),
                 k2_decoding_cfg=self.cfg.wfst.get('k2_decoding_cfg', None),
+            )
+
+            self.decoding.override_fold_consecutive_value = False
+
+        elif self.cfg.strategy == 'beam_batch':
+            self.decoding = ctc_beam_decoding.BeamBatchedCTCInfer(
+                blank_index=blank_id,
+                beam_size=self.cfg.beam.get('beam_size', 1),
+                return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                preserve_alignments=self.preserve_alignments,
+                compute_timestamps=self.compute_timestamps,
+                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                beam_beta=self.cfg.beam.get('beam_beta', 0.0),
+                beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
+                ngram_lm_model=self.cfg.beam.get('kenlm_path', None),
+                allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
             )
 
             self.decoding.override_fold_consecutive_value = False
