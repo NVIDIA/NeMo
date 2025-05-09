@@ -515,7 +515,6 @@ class GreedyBatchedTDTLoopLabelsComputer(
             )
 
             # store hypotheses
-            # TODO: fix cuda graphs version?
             if self.max_symbols is not None:
                 # pre-allocated memory, no need for checks
                 batched_hyps.add_results_masked_no_checks_(
@@ -914,6 +913,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 batch_size=current_batch_size,
             )
             # initial state - lm
+            # TODO: is lm correct?
             if self.ngram_lm_batch is not None:
                 self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
             # labels
@@ -949,7 +949,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
 
         # masks for utterances in batch
         # same as: active_mask = self.encoder_output_length > 0
-        torch.greater(self.state.encoder_output_length, 0, out=self.state.active_mask)
+        torch.greater(self.state.encoder_output_length, self.state.time_indices, out=self.state.active_mask)
 
         # for storing the last state we need to know what elements became "inactive" on this step
         # same as: self.active_mask_any = active_mask.any()
@@ -958,6 +958,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
     def _before_inner_loop_get_decoder_output(self):
         """Get decoder output"""
         # stage 1: get decoder (prediction network) output
+        # TODO: avoid prev_decoder_state + check lm states
         self.decoder.batch_replace_states_all(
             src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state
         )
@@ -1106,14 +1107,15 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # select states for hyps that became inactive (is it necessary?)
         # this seems to be redundant, but used in the `loop_frames` output
         torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
+        labels_mask = torch.logical_and(self.state.active_mask_prev, self.state.labels != self._blank_index)
         self.decoder.batch_replace_states_mask(
             src_states=self.state.prev_decoder_state,
             dst_states=self.state.last_decoder_state,
-            mask=self.state.became_inactive_mask,
+            mask=self.state.became_inactive_mask & labels_mask,
         )
 
         self.state.batched_hyps.add_results_masked_no_checks_(
-            self.state.active_mask,
+            labels_mask,
             self.state.labels,
             self.state.time_indices_current_labels,
             self.state.scores,
