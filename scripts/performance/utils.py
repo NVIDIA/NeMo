@@ -359,8 +359,6 @@ def set_primary_perf_configs(
     # User buffers configs
     if use_user_buffer_registration:
         recipe.trainer.strategy.ddp.nccl_ub = True
-        if use_mcore_fsdp:
-            recipe.trainer.strategy.ddp.fsdp_double_buffer = True
 
     # Sharp configs
     if use_sharp:
