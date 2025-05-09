@@ -20,7 +20,14 @@ from torch import Tensor, nn
 from torch.distributed import all_gather as all_gather_no_backprop
 from torch.distributed.nn.functional import all_gather as all_gather_with_backprop
 
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
+from nemo.lightning.megatron_parallel import (
+    MaskedTokenLossReduction,
+    MegatronLossReduction,
+)
+
+
+def hello_world():
+    print("Hello, World!")
 
 
 class BERTLossReduction(MegatronLossReduction):
