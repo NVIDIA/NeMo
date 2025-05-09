@@ -429,11 +429,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
                 if current_hyps is not None:
                     for hyp, new_hyp in zip(current_hyps, new_hyps):
-                        hyp.y_sequence.extend(new_hyp.y_sequence.tolist())
+                        hyp.merge(new_hyp)
                 else:
                     current_hyps = new_hyps
-                    for hyp in current_hyps:
-                        hyp.y_sequence = hyp.y_sequence.tolist()
 
                 # move to next sample
                 rest_audio_lengths -= added_samples_batch
@@ -443,7 +441,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             all_hyps.extend(current_hyps)
 
     for hyp in all_hyps:
-        text = asr_model.tokenizer.ids_to_text(hyp.y_sequence)
+        text = asr_model.tokenizer.ids_to_text(hyp.y_sequence.tolist())
         hyp.text = text
     # print([hyp.text for hyp in all_hyps])
 

@@ -133,14 +133,12 @@ def test_loop_labels_decoding_streaming(
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
                 if hyps is not None:
                     for hyp, new_hyp in zip(hyps, new_hyps):
-                        hyp.y_sequence.extend(new_hyp.y_sequence.tolist())
+                        hyp.merge(new_hyp)
                 else:
                     hyps = new_hyps
-                    for hyp in hyps:
-                        hyp.y_sequence = hyp.y_sequence.tolist()
 
             for hyp in hyps:
-                streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence))
+                streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
     assert ref_transcripts == streaming_transcripts
 
     model.to(device="cpu")
