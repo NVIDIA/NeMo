@@ -11,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/asr/transcribe_speech.py \
-    dataset_manifest=/home/TestData/asr/canary/dev-other-wav-10.json \
-    output_filename=preds.json \
-    batch_size=10 \
-    model_path=/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo \
-    num_workers=0 \
-    amp=false \
-    compute_dtype=bfloat16 \
-    matmul_precision=medium \
-    +prompt.source_lang="en" \
-    +prompt.target_lang="en" \
-    +prompt.pnc="no"
+TRANSFORMERS_OFFLINE=1 \
+    coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/qwen2vl_finetune.py \
+    --num_nodes=1 --devices=2 \
+    --data_type="energon"  \
+    --data_path="/home/TestData/tiny_datasets/qwen2vl/energon-wds" \
+    --tp_size=2 --pp_size=1 \
+    --gbs=2 --mbs=2 \
+    --max_steps=4 \
+    --max_sequence_length=38400 \
+    --projector_type="mcore_mlp" \
+    --log_dir=/tmp/nemo2_qwen2vl_results/$RUN_ID
