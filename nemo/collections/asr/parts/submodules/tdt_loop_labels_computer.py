@@ -272,6 +272,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
+        self.decoder_state_size_is_fixed = self.decoder.state_size_is_fixed()
 
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
@@ -556,11 +557,12 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
             # select states for hyps that became inactive (is it necessary?)
             # this seems to be redundant, but used in the `loop_frames` output
             torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
-            self.decoder.batch_replace_states_mask(
-                src_states=state,
-                dst_states=last_decoder_state,
-                mask=became_inactive_mask,
-            )
+            if self.decoder_state_size_is_fixed:
+                self.decoder.batch_replace_states_mask(
+                    src_states=state,
+                    dst_states=last_decoder_state,
+                    mask=became_inactive_mask,
+                )
 
             # store hypotheses
             if self.max_symbols is not None:
