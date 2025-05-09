@@ -273,8 +273,8 @@ vllm() {
       $INSTALL_DIR/venv/bin/pip install --no-cache-dir setuptools coverage
       $INSTALL_DIR/venv/bin/pip wheel --no-cache-dir --no-build-isolation \
         --wheel-dir $WHEELS_DIR/ \
-        -r $NEMO_DIR/requirements/requirements_vllm.txt \
-        -r $NEMO_DIR/requirements/requirements_deploy.txt
+        -r $CURR/requirements/requirements_vllm.txt \
+        -r $CURR/requirements/requirements_deploy.txt
     fi
   }
 
