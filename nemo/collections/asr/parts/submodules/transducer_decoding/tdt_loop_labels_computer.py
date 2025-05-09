@@ -566,7 +566,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
 
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
-            # TODO: alignments
+            if use_alignments:
+                alignments.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
         # NB: last labels can not exist (nothing decoded on this step).
         # return the last labels from the previous state in this case
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
@@ -623,47 +624,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
 
-        if prev_batched_state is None:
-            # initial state
-            self.decoder.batch_replace_states_all(
-                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-                dst_states=self.state.decoder_state,
-            )
-        else:
-            self.decoder.batch_replace_states_all(
-                src_states=prev_batched_state.predictor_state,
-                dst_states=self.state.decoder_state,
-                batch_size=current_batch_size,
-            )
-
-        if prev_batched_state is None:
-            # initial state
-            self.decoder.batch_replace_states_all(
-                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-                dst_states=self.state.decoder_state,
-            )
-            # initial state - lm
-            if self.ngram_lm_batch is not None:
-                self.state.batch_lm_states.copy_(
-                    self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
-                )
-
-            # last found labels - initially <SOS> (<blank>) symbol
-            self.state.labels.fill_(self._SOS)
-        else:
-            # initial state
-            self.decoder.batch_replace_states_all(
-                src_states=prev_batched_state.predictor_state,
-                dst_states=self.state.decoder_state,
-                batch_size=current_batch_size,
-            )
-            # initial state - lm
-            if self.ngram_lm_batch is not None:
-                self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
-            # labels
-            self.state.labels[:current_batch_size].copy_(
-                prev_batched_state.labels[:current_batch_size], non_blocking=True
-            )
+        self._init_decoding_state(current_batch_size=current_batch_size, prev_batched_state=prev_batched_state)
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.full_graph.replay()
@@ -688,11 +649,19 @@ class GreedyBatchedTDTLoopLabelsComputer(
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
         if prev_batched_state is not None:
-            self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length.unsqueeze(1)
-            # TODO: alignments
+            self._fix_timestamps_for_iterative_decoding(
+                current_batch_size=current_batch_size, prev_batched_state=prev_batched_state
+            )
+        # NB: last labels can not exist (nothing decoded on this step).
+        # return the last labels from the previous state in this case
+        last_labels = self.state.batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=copy.deepcopy(self.state.last_decoder_state),
-            labels=self.state.batched_hyps.get_last_labels(pad_id=self._blank_index),
+            labels=(
+                torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
+                if prev_batched_state is not None
+                else last_labels
+            ),
             decoded_length=(
                 encoder_output_length
                 if prev_batched_state is None
@@ -936,6 +905,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
 
             # last found labels - initially <SOS> (<blank>) symbol
             self.state.labels.fill_(self._SOS)
+            self.state.time_indices.fill_(0)
         else:
             # initial state
             self.decoder.batch_replace_states_all(
@@ -950,6 +920,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
             self.state.labels[:current_batch_size].copy_(
                 prev_batched_state.labels[:current_batch_size], non_blocking=True
             )
+            self.state.time_indices[:current_batch_size].copy_(prev_batched_state.time_jumps[:current_batch_size])
 
     def _fix_timestamps_for_iterative_decoding(
         self, current_batch_size: int, prev_batched_state: BatchedGreedyDecodingState
@@ -957,7 +928,10 @@ class GreedyBatchedTDTLoopLabelsComputer(
         self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
             :current_batch_size
         ].unsqueeze(1)
-        # TODO: alignments
+        if self.state.alignments is not None:
+            self.state.alignments.timestamps[:current_batch_size] -= prev_batched_state.decoded_length[
+                :current_batch_size
+            ].unsqueeze(1)
 
     def _before_outer_loop(self):
         """Clear state and compute initial active mask"""
@@ -968,10 +942,10 @@ class GreedyBatchedTDTLoopLabelsComputer(
         self.state.scores.fill_(0.0)
 
         # time indices
-        self.state.time_indices.fill_(0)
-        self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
         self.state.time_indices_current_labels.fill_(0)
+        # safe time indices: guaranteed to be < encoder_output_length
         torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
+        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
 
         # masks for utterances in batch
         # same as: active_mask = self.encoder_output_length > 0
@@ -1040,7 +1014,6 @@ class GreedyBatchedTDTLoopLabelsComputer(
             self.state.durations.copy_(durations, non_blocking=True)
 
         if self.state.alignments is not None:
-            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.active_mask,
                 time_indices=self.state.time_indices_current_labels,
@@ -1099,7 +1072,6 @@ class GreedyBatchedTDTLoopLabelsComputer(
         torch.where(self.state.advance_mask, more_scores, self.state.scores, out=self.state.scores)
 
         if self.state.alignments is not None:
-            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.advance_mask,
                 time_indices=self.state.time_indices_current_labels,
