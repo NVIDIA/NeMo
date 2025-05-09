@@ -12,3 +12,4 @@ The common collection contains things that could be used across all collections.
    tokenizers
    data
    s3_checkpointing
+   msc_checkpointing
