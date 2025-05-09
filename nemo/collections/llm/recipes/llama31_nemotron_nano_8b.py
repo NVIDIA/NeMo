@@ -247,7 +247,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
-    resume_path: str = "deepseek-ai/DeepSeek-V2",
+    resume_path: str = "nvidia/Llama-3.1-Nemotron-Nano-8B-v1",
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
