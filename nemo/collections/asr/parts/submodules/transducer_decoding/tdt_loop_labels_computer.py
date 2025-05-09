@@ -759,7 +759,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
         # warmup before graph compilation
-        self._warmup_for_cuda_graphs()
+        if self.cuda_graphs_mode is not self.CudaGraphsMode.NO_GRAPHS:
+            self._warmup_for_cuda_graphs()
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
@@ -948,8 +949,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
 
         # masks for utterances in batch
-        # same as: active_mask = self.encoder_output_length > 0
-        torch.greater(self.state.encoder_output_length, self.state.time_indices, out=self.state.active_mask)
+        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
 
         # for storing the last state we need to know what elements became "inactive" on this step
         # same as: self.active_mask_any = active_mask.any()
@@ -1025,7 +1025,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
 
         # advance_mask is a mask for current batch for searching non-blank labels;
         # each element is True if non-blank symbol is not yet found AND we can increase the time index
-        self.state.time_indices.add_(durations)
+        self.state.time_indices.add_(durations * self.state.active_mask)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)

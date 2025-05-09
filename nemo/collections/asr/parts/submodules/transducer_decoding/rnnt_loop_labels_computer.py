@@ -689,8 +689,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
-        # warmup before graph compilation
-        self._warmup_for_cuda_graphs()
+        if self.cuda_graphs_mode is not self.CudaGraphsMode.NO_GRAPHS:
+            self._warmup_for_cuda_graphs()
 
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
