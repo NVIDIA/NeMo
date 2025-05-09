@@ -26,7 +26,6 @@ from nemo.lightning.base import get_vocab_size, teardown
 from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.fabric.plugins import FabricMegatronMixedPrecision
 from nemo.lightning.fabric.strategies import FabricMegatronStrategy
-from nemo.lightning.nemo_logger import NeMoLogger
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo.lightning.pytorch.optim import (
     LRSchedulerModule,
@@ -70,7 +69,6 @@ __all__ = [
     "FSDP2Strategy",
     "RestoreConfig",
     "lr_scheduler",
-    "NeMoLogger",
     "ModelCheckpoint",
     "OptimizerModule",
     "Trainer",
@@ -78,3 +76,11 @@ __all__ = [
     "get_vocab_size",
     "teardown",
 ]
+
+
+try:
+    from nemo.lightning.nemo_logger import NeMoLogger
+    __all__.append("NeMoLogger")
+except ImportError:
+    from nemo.utils import logging
+    logging.warning("NeMoLogger is not available")
