@@ -264,7 +264,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         elif callable(getattr(self.model, 'load_pretrained', None)):
             try:
                 trainer_state['state_dict'] = self.model.load_pretrained(path / HF_WEIGHTS_PATH)
-            except (EnvironmentError, HFValidationError) as e:
+            except (EnvironmentError, HFValidationError):
                 raise EnvironmentError(
                     f"Failed to load weights from {path}. If this is a local checkpoint, please make sure the path exists and has the correct format. "
                     f"If this is a model from the HuggingFace Hub, please provide a valid repo_id of a model on the Hub."
