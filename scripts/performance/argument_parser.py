@@ -366,4 +366,93 @@ def parse_cli_args():
         default=[],
     )
 
+    # Begin UCB custom args
+    parser.add_argument(
+        "-ns",
+        "--enable_profiling",
+        help="Enable Nsys profiling. Disabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-nt",
+        "--enable_nccltrace",
+        help="Enable NCCL tracing. Disabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-ev",
+        "--custom_env_vars",
+        type=str,
+        required=False,
+        default={},
+    )
+    parser.add_argument(
+        "-on",
+        "--optimization_name",
+        type=str,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-oc",
+        "--optimization_code",
+        type=str,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-fw",
+        "--framework_version",
+        type=str,
+        help="Version of NeMo framework",
+        required=True,
+    )
+    parser.add_argument(
+        "-gsw",
+        "--gsw_version",
+        type=str,
+        help="GSW version",
+        required=True,
+    )
+    parser.add_argument(
+        "-dp",
+        "--disable_perfrun",
+        help="Skips performance run for profiling/nccltrace only runs",
+        required=False,
+        action="store_true",
+    )
+    parser.add_argument(
+        "-cpin",
+        "--cpu_pinning",
+        type=int,
+        help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
+        required=False,
+        default=0,
+    )
+    parser.add_argument(
+        "-pss",
+        "--profiling_start_step",
+        type=int,
+        help="Defines start step for profiling",
+        required=False,
+        default=20
+    )
+    parser.add_argument(
+        "-pso",
+        "--profiling_stop_step",
+        type=int,
+        help="Defines start step for profiling",
+        required=False,
+        default=30
+    )
+    parser.add_argument(
+        "-pgm",
+        "--profiling_gpu_metrics",
+        help="Enables collection of GPU metrics during profiling",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+
+
     return parser
