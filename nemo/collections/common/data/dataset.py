@@ -155,6 +155,9 @@ class ConcatDataset(IterableDataset):
     def __len__(self):
         return self.length
 
+    def hello_world(self):
+        print("Hello, world!")
+
     @staticmethod
     def temperature_generator(datasets, **kwargs):
         temp = kwargs.get('temperature')
