@@ -1164,6 +1164,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             dst_states[1][:, :batch_size].copy_(src_states[1][:, :batch_size])
 
     @classmethod
+    def clone_states(cls, states: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return copy of the states"""
+        return (states[0].clone(), states[1].clone())
+
+    @classmethod
     def batch_split_states(
         cls, batch_states: Tuple[torch.Tensor, torch.Tensor]
     ) -> list[Tuple[torch.Tensor, torch.Tensor]]:

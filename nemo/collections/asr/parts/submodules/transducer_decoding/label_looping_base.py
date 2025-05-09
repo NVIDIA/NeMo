@@ -40,6 +40,7 @@ class BatchedGreedyDecodingState:
     """Decoding state to pass between invocations"""
 
     predictor_state: Any
+    predictor_output: torch.Tensor
     labels: torch.Tensor
     decoded_length: torch.Tensor
     lm_state: Optional[torch.Tensor] = None

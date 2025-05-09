@@ -572,6 +572,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
+            predictor_output=None,
             labels=(
                 torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
                 if prev_batched_state is not None
@@ -656,6 +657,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         last_labels = self.state.batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=copy.deepcopy(self.state.last_decoder_state),
+            predictor_output=None,
             labels=(
                 torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
                 if prev_batched_state is not None
