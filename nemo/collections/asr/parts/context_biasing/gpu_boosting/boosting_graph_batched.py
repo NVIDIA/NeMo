@@ -78,6 +78,7 @@ class SuffixTreeStorage:
     _node_cache: dict[int, int] = field(default_factory=dict)
 
     unk_score: float = 0.0
+    eos_id: Optional[int] = None
 
     num_states: int = 0
     num_arcs: int = 0
@@ -155,7 +156,11 @@ class SuffixTreeStorage:
 
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
-                self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_score)
+                if self.eos_id is not None and ilabel == self.eos_id:
+                    # TODO: add separate score for EOS token
+                    self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_score)
+                else:
+                    self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_score)
                 self.num_arcs += 1
 
 
@@ -388,6 +393,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         cb_tree: ContextGraph,
         vocab_size: int,
         unk_score: float = True,
+        eos_id: Optional[int] = None,
         use_triton: bool | None = None,
     ) -> "GPUBoostingTreeModel":
         """
@@ -416,6 +422,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             num_arcs=0,
             num_arcs_max=max_states * 2 + vocab_size * 2 + 1,
             unk_score=unk_score,
+            eos_id=eos_id,
             vocab_size=vocab_size,
             max_order=max(order2cnt)+1,
         )
@@ -598,9 +605,9 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             scores, next_states = self._advance_pytorch(states=states)
 
         # replace weight corresponding to eos_id with final state weight
-        if eos_id is not None:
-            scores[:, eos_id] = self.get_final(states=states)
-            next_states[:, eos_id] = states
+        # if eos_id is not None:
+        #     scores[:, eos_id] = self.get_final(states=states)
+        #     next_states[:, eos_id] = states
         return scores, next_states
 
     def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:

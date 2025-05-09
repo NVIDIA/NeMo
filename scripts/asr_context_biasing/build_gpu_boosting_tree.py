@@ -25,6 +25,7 @@ from omegaconf import MISSING
 from nemo.collections.asr.parts.context_biasing.gpu_boosting.context_graph import ContextGraph
 from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel, KenLMBatchedWrapper
+from nemo.collections.common.tokenizers import AggregateTokenizer
 import torch
 from torch.nn.utils.rnn import pad_sequence
 import nemo.collections.asr as nemo_asr
@@ -57,20 +58,25 @@ def main(cfg: BuildWordBoostingTreeConfig):
 
     # 1. load asr model for tokenizer
     asr_model = nemo_asr.models.ASRModel.restore_from(cfg.asr_model_nemo_file, map_location=torch.device('cpu'))
+    is_aggregate_tokenizer = isinstance(asr_model.tokenizer, AggregateTokenizer)
+    source_lang = "en" # TODO: replace hardcode lang
 
     # 2. tokenize context-biasing phrases
     cb_dict = {}
     with open(cfg.context_biasing_list, "r") as f:
         for line in f:
             line = line.strip()
-            cb_dict[line] = [asr_model.tokenizer.text_to_tokens(line), asr_model.tokenizer.text_to_ids(line)]
+            if not is_aggregate_tokenizer:
+                cb_dict[line] = asr_model.tokenizer.text_to_ids(line)
+            else:
+                cb_dict[line] = asr_model.tokenizer.text_to_ids(line, source_lang)
 
     # 3. build icefall context-biasing graph
     contexts = []
     scores = []
     phrases = []
     for phrase in cb_dict:
-        contexts.append(cb_dict[phrase][1])
+        contexts.append(cb_dict[phrase])
         scores.append(round(cfg.score_per_phrase / len(phrase), 2))
         phrases.append(phrase)
 
@@ -79,12 +85,17 @@ def main(cfg: BuildWordBoostingTreeConfig):
 
     # 4. convert icefall context-biasing graph to gpu boosting tree
     vocab_size = len(asr_model.tokenizer.vocab)
-    gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, use_triton=False)
+    # import ipdb; ipdb.set_trace()
+    if not is_aggregate_tokenizer:
+        gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, use_triton=False)
+    else:
+        gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, eos_id=asr_model.tokenizer.eos_id, use_triton=False)
 
     # 5. save gpu boosting tree to nemo file
     gpu_boosting_model.save_to(cfg.path_to_save_btree)
 
     # 6. test gpu boosting tree model
+    logging.info("testing gpu boosting tree model...")
     if cfg.test_btree_model:
         gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(cfg.path_to_save_btree, vocab_size=vocab_size, use_triton=False)
         device = torch.device("cuda")
@@ -100,8 +111,14 @@ def main(cfg: BuildWordBoostingTreeConfig):
             "lot of gpus",
             "omniverse cloud now",
         ]
-        sentences_ids = [asr_model.tokenizer.text_to_ids(sentence) for sentence in sentences]
-        sentences_tokens = [asr_model.tokenizer.text_to_tokens(sentence) for sentence in sentences]
+        if not is_aggregate_tokenizer:
+            sentences_ids = [asr_model.tokenizer.text_to_ids(sentence) for sentence in sentences]
+            sentences_tokens = [asr_model.tokenizer.text_to_tokens(sentence) for sentence in sentences]
+        else:
+            sentences_ids = [asr_model.tokenizer.text_to_ids(sentence, source_lang) for sentence in sentences]
+            sentences_ids.append([3])
+            # sentences_tokens = [asr_model.tokenizer.text_to_tokens(sentence, source_lang) for sentence in sentences]
+            sentences_tokens = []
 
         scores_lm = gpu_boosting_model_loaded(
             labels=pad_sequence([torch.LongTensor(sentence) for sentence in sentences_ids], batch_first=True).to(device),

@@ -20,9 +20,11 @@ from omegaconf import DictConfig
 from torch.distributions import Categorical
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
+from nemo.utils import logging
 
 __all__ = [
     "GreedySequenceGenerator",
@@ -509,7 +511,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
 
 class BeamSearchSequenceGeneratorWithNGramLM(BeamSearchSequenceGenerator):
     def __init__(
-        self, embedding, decoder, log_softmax, ngram_lm_model, ngram_lm_alpha=0.0, beam_size=1, len_pen=0, **kwargs
+        self, embedding, decoder, log_softmax, ngram_lm_model, btree_model, ngram_lm_alpha=0.0, btree_alpha=0.0, beam_size=1, len_pen=0, **kwargs
     ):
         """
         Beam Search sequence generator based on the decoder followed by
@@ -525,8 +527,14 @@ class BeamSearchSequenceGeneratorWithNGramLM(BeamSearchSequenceGenerator):
 
         super().__init__(embedding, decoder, log_softmax, beam_size=beam_size, len_pen=len_pen, **kwargs)
         # ngram lm
-        self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
-        self.ngram_lm_alpha = ngram_lm_alpha
+        if ngram_lm_model:
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
+            self.ngram_lm_alpha = ngram_lm_alpha
+            self.BOS = True
+        elif btree_model:
+            self.ngram_lm_batch = GPUBoostingTreeModel.from_nemo(lm_path=btree_model, vocab_size=self.num_tokens)
+            self.ngram_lm_alpha = btree_alpha
+            self.BOS = False
 
     def _forward(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
@@ -536,12 +544,16 @@ class BeamSearchSequenceGeneratorWithNGramLM(BeamSearchSequenceGenerator):
         self.ngram_lm_batch.to(device)
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
-        batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+        batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=self.BOS)
 
         # generate initial buffer of beam_size prefixes-hypotheses
         log_probs, decoder_mems_list = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
         # get ngram lm scores
         lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states, eos_id=self.eos)
+        # logging.warning("******"*10)
+        # logging.warning(f"self.eos: {self.eos}")
+        # logging.warning(f"lm_scores: {lm_scores[:, None, self.eos]}")
+        # raise ValueError("******"*10)
         log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
 
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)  # [Batch, Beam, 1]

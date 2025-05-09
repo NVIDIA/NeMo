@@ -163,7 +163,8 @@ def read_train_file(
         reader = fin
 
     for line in reader:
-        lang = None
+        # lang = None
+        lang = "en"
         if line:
             if path[-8:] == '.json.gz':  # for Common Crawl dataset
                 line = json.loads(line.decode('utf-8'))['text']

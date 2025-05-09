@@ -135,6 +135,8 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         preserve_alignments: bool = False,
         ngram_lm_model: Path | str | None = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Path | str | None = None,
+        btree_alpha: float = 0.0,
     ):
         super().__init__(
             transformer_decoder=transformer_decoder,
@@ -148,7 +150,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         self.bos = tokenizer.bos
         self.pad = tokenizer.pad
         self.eos = tokenizer.eos
-        if ngram_lm_model is None:
+        if ngram_lm_model is None and btree_model is None:
             self.beam_search = BeamSearchSequenceGenerator(
                 embedding=transformer_decoder.embedding,
                 decoder=transformer_decoder.decoder,
@@ -174,7 +176,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 len_pen=length_penalty,
                 max_delta_length=max_generation_delta,
                 ngram_lm_model=ngram_lm_model,
+                btree_model=btree_model,
                 ngram_lm_alpha=ngram_lm_alpha,
+                btree_alpha=btree_alpha,
             )
 
         self.preserve_alignments = preserve_alignments
@@ -274,3 +278,7 @@ class AEDBeamInferConfig:
     # ngram LM params
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: float = 0.0
+    # boosting tree params
+    btree_model: Optional[str] = None
+    btree_alpha: float = 0.0
+
