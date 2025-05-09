@@ -216,13 +216,6 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-mb",
-        "--micro_batch_size",
-        type=int,
-        required=False,
-        default=None,
-    )
-    parser.add_argument(
         "-gb",
         "--global_batch_size",
         type=int,
@@ -310,6 +303,13 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--num_distributed_optimizer_instances",
+        type=int,
+        help="Number of distributed optimizer instances. Defaults to 1",
+        required=False,
+        default=1,
+    )
 
     def list_of_strings(arg):
         return arg.split(',')
@@ -332,6 +332,24 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+
+    def list_of_ints(arg):
+        return [int(x) for x in arg.split(',')]
+
+    parser.add_argument(
+        "-mb",
+        "--micro_batch_size",
+        type=list_of_ints,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--cu_global_batch_splits",
+        type=list_of_ints,
+        help="Comma separated string of cu_global_batch_splits",
+        required=False,
+        default=None,
     )
 
     return parser
