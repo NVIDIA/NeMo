@@ -822,7 +822,7 @@ def get_speaker_embeddings_from_filepaths(filepaths, speaker_verification_model,
 
 def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper_model, device):
     speech_array, sampling_rate = librosa.load(audio_filepath, sr=16000)
-    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language) if language else None
+    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
     inputs = inputs.to(device)
     with torch.no_grad():
