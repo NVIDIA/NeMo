@@ -22,6 +22,9 @@ from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Con
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
@@ -60,6 +63,7 @@ def pretrain_recipe(
     num_gpus_per_node: int = 8,
     fn: Callable = pretrain,
     use_mtp: bool = True,
+    performance_mode: bool = False,
 ) -> run.Partial:
     """
     Create a pre-training recipe for DeepSeek-V3 (671B) model.
@@ -111,6 +115,50 @@ def pretrain_recipe(
     recipe.model.config.recompute_granularity = "full"
     recipe.model.config.recompute_method = "uniform"
     recipe.model.config.recompute_num_layers = 1
+
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
+
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for DeepSeek-V3 (671B) model.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=60,
+        gc_interval_val=60,
+    )
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            comm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
