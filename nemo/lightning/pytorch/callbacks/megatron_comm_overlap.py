@@ -103,8 +103,9 @@ class MegatronCommOverlapCallback(Callback):
     ):
         # Patch: Default tp_comm_bootstrap_backend to "nccl" if not provided and overlap is requested,
         # and guard against using "mpi" if MPI is already initialized.
-        import torch.distributed as dist
         import os
+
+        import torch.distributed as dist
 
         # Detect if torch.distributed is already initialized and with which backend
         _is_dist_initialized = dist.is_available() and dist.is_initialized()
@@ -113,7 +114,9 @@ class MegatronCommOverlapCallback(Callback):
         # Patch: Default to nccl if overlap is requested and no backend is specified
         if tp_comm_overlap and tp_comm_bootstrap_backend is None:
             tp_comm_bootstrap_backend = "nccl"
-            logging.info("MegatronCommOverlapCallback: Defaulting tp_comm_bootstrap_backend to 'nccl' for TP comm overlap.")
+            logging.info(
+                "MegatronCommOverlapCallback: Defaulting tp_comm_bootstrap_backend to 'nccl' for TP comm overlap."
+            )
 
         # Patch: Warn or error if user tries to use 'mpi' and MPI is already initialized
         if tp_comm_bootstrap_backend == "mpi":
