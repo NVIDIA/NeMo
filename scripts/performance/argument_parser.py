@@ -417,6 +417,4 @@ def parse_cli_args():
         action="store_true",
     )
 
-
-
     return parser
