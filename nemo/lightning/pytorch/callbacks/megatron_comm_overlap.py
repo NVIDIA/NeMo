@@ -101,6 +101,33 @@ class MegatronCommOverlapCallback(Callback):
         defer_embedding_wgrad_compute: bool = None,
         wgrad_deferral_limit: int = None,
     ):
+        # Patch: Default tp_comm_bootstrap_backend to "nccl" if not provided and overlap is requested,
+        # and guard against using "mpi" if MPI is already initialized.
+        import torch.distributed as dist
+        import os
+
+        # Detect if torch.distributed is already initialized and with which backend
+        _is_dist_initialized = dist.is_available() and dist.is_initialized()
+        _main_backend = dist.get_backend() if _is_dist_initialized else None
+
+        # Patch: Default to nccl if overlap is requested and no backend is specified
+        if tp_comm_overlap and tp_comm_bootstrap_backend is None:
+            tp_comm_bootstrap_backend = "nccl"
+            logging.info("MegatronCommOverlapCallback: Defaulting tp_comm_bootstrap_backend to 'nccl' for TP comm overlap.")
+
+        # Patch: Warn or error if user tries to use 'mpi' and MPI is already initialized
+        if tp_comm_bootstrap_backend == "mpi":
+            # If MPI is already initialized outside of torch, this can cause segfaults
+            # Try to detect if MPI is initialized by environment or torch
+            _mpi_env_vars = ["OMPI_COMM_WORLD_RANK", "MPI_LOCALRANKID", "PMI_RANK"]
+            _mpi_env = any(var in os.environ for var in _mpi_env_vars)
+            if _is_dist_initialized or _mpi_env:
+                logging.warning(
+                    "MegatronCommOverlapCallback: 'mpi' backend is requested for tp_comm_bootstrap_backend, "
+                    "but MPI appears to already be initialized. "
+                    "Using 'mpi' for userbuffer bootstrap in this situation can cause segmentation faults. "
+                    "Please use 'nccl' instead."
+                )
 
         self.user_comm_overlap_cfg = _CommOverlapConfig(
             tp_comm_overlap=tp_comm_overlap,
