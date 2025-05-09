@@ -1325,7 +1325,7 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
                 ]
 
                 longer_ids, longer_toks = self._alignment_decoder(longer_alignment, self.asr_model.tokenizer, self.blank_id)
-                ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                ids, _ = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                 if len(longer_ids) > 0 and a_idx < signal_end_idx:
                     if a_idx == 0 or len(self.unmerged[idx]) == 0:
@@ -1342,7 +1342,6 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
                         for i in range(start, end, -1):
                             if longer_ids[i] == id_to_match:
                                 ids = longer_ids[i+1:]
-                                toks = longer_toks[i+1:]
                                 break
 
                         self.unmerged[idx] = inplace_buffer_merge(
