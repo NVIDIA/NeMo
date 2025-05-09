@@ -258,6 +258,7 @@ def finetune_recipe(
 
     return recipe
 
+
 def finetune_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
     Modify the given recipe to optimize settings for performance.

@@ -42,7 +42,7 @@ HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = True
-USE_TOKEN_DROP = True # Use token drop callback
+USE_TOKEN_DROP = True  # Use token drop callback
 
 
 def override_recipe_configs(
