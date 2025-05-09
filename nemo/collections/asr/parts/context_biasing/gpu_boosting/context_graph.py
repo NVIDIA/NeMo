@@ -202,6 +202,9 @@ class ContextGraph:
         if ac_thresholds is not None:
             assert len(ac_thresholds) == num_phrases, (len(ac_thresholds), num_phrases)
 
+        # import ipdb; ipdb.set_trace()
+        max_depth = max([len(x) for x in token_ids])
+
         for index, tokens in enumerate(token_ids):
             phrase = "" if phrases is None else phrases[index]
             score = 0.0 if scores is None else scores[index]
@@ -216,6 +219,7 @@ class ContextGraph:
                 if token not in node.next:
                     if i > 0:
                         token_score = context_score + np.log(5*i) # assign a larger score for all tokens after the first one
+                        # token_score = np.log10(i/(max_depth+1))/2
                     else:
                         token_score = context_score
                     self.num_nodes += 1

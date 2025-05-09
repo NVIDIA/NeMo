@@ -30,6 +30,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 import nemo.collections.asr as nemo_asr
 from nemo.core.config import hydra_runner
+import numpy as np
 
 from nemo.utils import logging
 
@@ -71,6 +72,10 @@ def main(cfg: BuildWordBoostingTreeConfig):
             else:
                 cb_dict[line] = asr_model.tokenizer.text_to_ids(line, source_lang)
 
+    # cfg.unk_score = float(round(np.log10(1/len(asr_model.tokenizer.vocab)), 2))
+    # cfg.context_score = round(cfg.unk_score/1.5, 2)
+    
+    
     # 3. build icefall context-biasing graph
     contexts = []
     scores = []
