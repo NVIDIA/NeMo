@@ -273,12 +273,6 @@ class TranscriptionMixin(ABC):
                     if results is None:
                         results = []
 
-                        # # if list of inner list of results, copy structure
-                        # if isinstance(processed_outputs[0], list):
-                        #     for _ in processed_outputs:
-                        #         results.append([])
-
-                    # If flat list structure
                     results.extend(processed_outputs)
 
                 elif isinstance(processed_outputs, dict):
