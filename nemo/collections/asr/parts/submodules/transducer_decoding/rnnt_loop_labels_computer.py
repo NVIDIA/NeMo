@@ -250,6 +250,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         self.full_graph = None
         self.separate_graphs = None
 
+    def _get_frame_confidence(self, logits: torch.Tensor) -> Optional[torch.Tensor]:
+        float_dtype = logits.dtype
+        return (
+            self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
+            if self.preserve_frame_confidence
+            else None
+        )
+
     def loop_labels_torch(
         self,
         encoder_output: torch.Tensor,
@@ -380,11 +388,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
                     time_indices=time_indices_current_labels,
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
-                    confidence=(
-                        self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
-                        if self.preserve_frame_confidence
-                        else None
-                    ),
+                    confidence=self._get_frame_confidence(logits=logits),
                 )
 
             # advance_mask is a mask for current batch for searching non-blank labels;
@@ -415,6 +419,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
                     more_scores_w_lm, more_labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
                     # preserve "blank" / "non-blank" category
                     torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
+
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
@@ -426,11 +431,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
                         time_indices=time_indices_current_labels,
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
-                        confidence=(
-                            self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
-                            if self.preserve_frame_confidence
-                            else None
-                        ),
+                        confidence=self._get_frame_confidence(logits=logits),
                     )
 
                 blank_mask = labels == self._blank_index
@@ -498,7 +499,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(
 
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
-            # TODO: alignments
+            if use_alignments:
+                alignments.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
         # NB: last labels can not exist (nothing decoded on this step).
         # return the last labels from the previous state in this case
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
@@ -854,7 +856,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
             :current_batch_size
         ].unsqueeze(1)
-        # TODO: alignments
+        if self.state.alignments is not None:
+            self.state.alignments.timestamps[:current_batch_size] -= prev_batched_state.decoded_length[
+                :current_batch_size
+            ].unsqueeze(1)
 
     def _before_outer_loop(self):
         """Clear state and compute initial active mask"""
@@ -929,17 +934,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         # blank_mask = self.labels == self._blank_index
         self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
         if self.state.alignments is not None:
-            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.active_mask,
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=self.state.labels if self.preserve_alignments else None,
-                confidence=(
-                    self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
-                    if self.preserve_frame_confidence
-                    else None
-                ),
+                confidence=self._get_frame_confidence(logits=logits),
             )
 
         # advance_mask is a mask for current batch for searching non-blank labels;
@@ -990,17 +990,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         torch.where(self.state.advance_mask, more_scores, self.state.scores, out=self.state.scores)
 
         if self.state.alignments is not None:
-            float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.advance_mask,
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=more_labels if self.preserve_alignments else None,
-                confidence=(
-                    self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
-                    if self.preserve_frame_confidence
-                    else None
-                ),
+                confidence=self._get_frame_confidence(logits=logits),
             )
 
         # blank_mask = self.labels == self._blank_index

@@ -15,7 +15,7 @@
 
 import copy
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -210,7 +210,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         decoder,
         joint,
         blank_index: int,
-        durations: Union[list[int], ListConfig[int]],
+        durations: list[int] | ListConfig[int],
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments=False,
         preserve_frame_confidence=False,
@@ -273,12 +273,34 @@ class GreedyBatchedTDTLoopLabelsComputer(
         self.full_graph = None
         self.separate_graphs = None
 
+    def _get_frame_confidence(self, logits: torch.Tensor, num_durations: int) -> Optional[torch.Tensor]:
+        float_dtype = logits.dtype
+        return (
+            torch.stack(
+                (
+                    self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
+                        dtype=float_dtype
+                    ),
+                    self._get_confidence_tensor(F.log_softmax(logits[:, -num_durations:], dim=-1)).to(
+                        dtype=float_dtype
+                    ),
+                ),
+                dim=-1,
+            )
+            if self.include_duration_confidence
+            else (
+                self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(dtype=float_dtype)
+                if self.preserve_frame_confidence
+                else None
+            )
+        )
+
     def loop_labels_torch(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
         prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Pure PyTorch implementation
 
@@ -417,27 +439,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                     time_indices=time_indices_current_labels,
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
-                    confidence=(
-                        torch.stack(
-                            (
-                                self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                                    dtype=float_dtype
-                                ),
-                                self._get_confidence_tensor(F.log_softmax(logits[:, -num_durations:], dim=-1)).to(
-                                    dtype=float_dtype
-                                ),
-                            ),
-                            dim=-1,
-                        )
-                        if self.include_duration_confidence
-                        else (
-                            self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                                dtype=float_dtype
-                            )
-                            if self.preserve_frame_confidence
-                            else None
-                        )
-                    ),
+                    confidence=self._get_frame_confidence(logits=logits, num_durations=num_durations),
                 )
 
             # advance_mask is a mask for current batch for searching non-blank labels;
@@ -484,27 +486,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                         time_indices=time_indices_current_labels,
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
-                        confidence=(
-                            torch.stack(
-                                (
-                                    self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                                        dtype=float_dtype
-                                    ),
-                                    self._get_confidence_tensor(F.log_softmax(logits[:, -num_durations:], dim=-1)).to(
-                                        dtype=float_dtype
-                                    ),
-                                ),
-                                dim=-1,
-                            )
-                            if self.include_duration_confidence
-                            else (
-                                self._get_confidence_tensor(F.log_softmax(logits[:, :-num_durations], dim=-1)).to(
-                                    dtype=float_dtype
-                                )
-                                if self.preserve_frame_confidence
-                                else None
-                            )
-                        ),
+                        confidence=self._get_frame_confidence(logits=logits, num_durations=num_durations),
                     )
 
                 blank_mask = labels == self._blank_index
@@ -585,6 +567,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
             # TODO: alignments
+        # NB: last labels can not exist (nothing decoded on this step).
+        # return the last labels from the previous state in this case
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=last_decoder_state,
@@ -610,7 +594,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
         prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
         """
         Implementation with CUDA graphs.
 
@@ -934,6 +918,47 @@ class GreedyBatchedTDTLoopLabelsComputer(
                     self._inner_loop_code()
                 self._after_inner_loop()
 
+    def _init_decoding_state(
+        self, current_batch_size: int, prev_batched_state: Optional[BatchedGreedyDecodingState] = None
+    ):
+        # NB: we can speedup the case when prev_batched_state is None by using CUDA graphs
+        if prev_batched_state is None:
+            # initial state
+            self.decoder.batch_replace_states_all(
+                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+                dst_states=self.state.decoder_state,
+            )
+            # initial state - lm
+            if self.ngram_lm_batch is not None:
+                self.state.batch_lm_states.copy_(
+                    self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
+                )
+
+            # last found labels - initially <SOS> (<blank>) symbol
+            self.state.labels.fill_(self._SOS)
+        else:
+            # initial state
+            self.decoder.batch_replace_states_all(
+                src_states=prev_batched_state.predictor_state,
+                dst_states=self.state.decoder_state,
+                batch_size=current_batch_size,
+            )
+            # initial state - lm
+            if self.ngram_lm_batch is not None:
+                self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
+            # labels
+            self.state.labels[:current_batch_size].copy_(
+                prev_batched_state.labels[:current_batch_size], non_blocking=True
+            )
+
+    def _fix_timestamps_for_iterative_decoding(
+        self, current_batch_size: int, prev_batched_state: BatchedGreedyDecodingState
+    ):
+        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
+            :current_batch_size
+        ].unsqueeze(1)
+        # TODO: alignments
+
     def _before_outer_loop(self):
         """Clear state and compute initial active mask"""
         self.state.batched_hyps.clear_()
@@ -1021,27 +1046,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=self.state.labels if self.preserve_alignments else None,
-                confidence=(
-                    torch.stack(
-                        (
-                            self._get_confidence_tensor(
-                                F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                            ).to(dtype=float_dtype),
-                            self._get_confidence_tensor(
-                                F.log_softmax(logits[:, -self.state.all_durations.shape[0] :], dim=-1)
-                            ).to(dtype=float_dtype),
-                        ),
-                        dim=-1,
-                    )
-                    if self.include_duration_confidence
-                    else (
-                        self._get_confidence_tensor(
-                            F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                        ).to(dtype=float_dtype)
-                        if self.preserve_frame_confidence
-                        else None
-                    )
-                ),
+                confidence=self._get_frame_confidence(logits=logits, num_durations=self.state.all_durations.shape[0]),
             )
 
         # advance_mask is a mask for current batch for searching non-blank labels;
@@ -1100,27 +1105,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=more_labels if self.preserve_alignments else None,
-                confidence=(
-                    torch.stack(
-                        (
-                            self._get_confidence_tensor(
-                                F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                            ).to(dtype=float_dtype),
-                            self._get_confidence_tensor(
-                                F.log_softmax(logits[:, -self.state.all_durations.shape[0] :], dim=-1)
-                            ).to(dtype=float_dtype),
-                        ),
-                        dim=-1,
-                    )
-                    if self.include_duration_confidence
-                    else (
-                        self._get_confidence_tensor(
-                            F.log_softmax(logits[:, : -self.state.all_durations.shape[0]], dim=-1)
-                        ).to(dtype=float_dtype)
-                        if self.preserve_frame_confidence
-                        else None
-                    )
-                ),
+                confidence=self._get_frame_confidence(logits=logits, num_durations=self.state.all_durations.shape[0]),
             )
 
         # blank_mask = self.labels == self._blank_index
