@@ -111,6 +111,9 @@ def get_args():
         "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
     parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
+    parser.add_argument(
+        "--quant_cfg_overrides", nargs="*", help="List of 'key1.key2=value' overrides to apply for quant_cfg."
+    )
     args = parser.parse_args()
 
     if args.export_path is None:
@@ -137,6 +140,7 @@ def main():
         sq_alpha=args.sq_alpha,
         enable_kv_cache=args.enable_kv_cache,
         kv_cache_qformat=args.kv_cache_qformat,
+        quant_cfg_overrides=args.quant_cfg_overrides,
         calibration_dataset=args.calibration_dataset,
         calibration_dataset_size=args.calibration_dataset_size,
         calibration_batch_size=args.batch_size,
