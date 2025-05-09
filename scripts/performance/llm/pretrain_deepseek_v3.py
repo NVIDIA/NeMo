@@ -32,7 +32,7 @@ from ..utils import (
 )
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
-USE_TOKEN_DROP = True # Use token drop callback
+USE_TOKEN_DROP = True  # Use token drop callback
 
 
 def override_recipe_configs(
