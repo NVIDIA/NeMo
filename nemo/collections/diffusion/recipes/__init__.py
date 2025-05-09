@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo.collections.diffusion.recipes import flux_535m
+from nemo.collections.diffusion.recipes import flux_12b, flux_535m
 from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim import adam, sgd
 from nemo.collections.llm.recipes.run.executor import torchrun
@@ -24,5 +24,6 @@ __all__ = [
     "default_log",
     "default_resume",
     "flux_535m",
+    "flux_12b",
     "torchrun",
 ]
