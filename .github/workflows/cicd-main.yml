@@ -256,15 +256,6 @@ jobs:
   cicd-main-export-deploy:
     needs: [pre-flight]
     uses: ./.github/workflows/cicd-main-export-deploy.yml
-    if: |
-      (
-        success()
-        || (
-          needs.cicd-wait-in-queue.result == 'skipped'
-          && needs.pre-flight.outputs.is_ci_workload == 'true'
-        )
-      )
-      && !cancelled()
     with:
       test_to_run: '["all"]'
 
