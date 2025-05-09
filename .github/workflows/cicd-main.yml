@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+# Copyright (c) 2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,8 @@ on:
     branches:
       - main
       - r**
-      - weekly-bump
+      - weekly-bump*
     types: [labeled]
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       test_to_run:
@@ -33,6 +30,7 @@ on:
         description: Comma-separated list of tests to run. Use "all" to run the full test suite.
 
 concurrency:
+  # group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.event.pull_request.number || github.ref }}-${{ github.event_name }}
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}-${{ github.event_name }}
   cancel-in-progress: true
 
@@ -41,8 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
-      build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
-      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
+      is_ci_workload: ${{ steps.is_ci_workload.outputs.main }}
+      no_fail_fast: ${{ steps.no_fail_fast.outputs.main }}
+      components_to_run: ${{ steps.components_to_run.outputs.main }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -50,25 +49,43 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select components to run
+        id: components_to_run
+        run: |
+          pip install -U pip
+          pip install git-python
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python .github/scripts/components_to_run.py --source-sha ${{ github.event.pull_request.head.sha }} --target-sha ${{ github.event.pull_request.base.sha }}
+          else
+            echo '["nemo2", "automodel", "export-deploy", "speech"]' | tee -a test_modules.json
+          fi
+
+          components_to_run=$(cat test_modules.json)
+
+          echo "main=${components_to_run}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Select tests to run
         id: test_to_run
         run: |
-          # For manual dispatch, we replace `all` with the actual job names          
+          # For manual dispatch, we replace `all` with the actual job names
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             TESTS_TO_RUN=$TESTS_TO_RUN
 
-          # For correctly labeled PR, we replace `all` with the actual job names          
+          # For correctly labeled PR, we replace `all` with the actual job names
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
             TESTS_TO_RUN=all
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
-            
+
           # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
-          elif [[ "$EVENT_NAME" == "push" ]]; then
+          elif [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "schedule" ]]; then
             TESTS_TO_RUN=all
 
           else
@@ -79,75 +96,83 @@ jobs:
           parsed_string=$(echo "$TESTS_TO_RUN" | jq -c --raw-input 'split(",")')
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Parse manifest.json
-        id: manifest
+      - name: Check if this is a CI workload
+        shell: bash
+        id: is_ci_workload
         run: |
-          BUILD_ARGS=$(cat << EOF
-          BASE_IMAGE=$(cat requirements/manifest.json | jq -r '."ngc-pytorch"')
-          TRTLLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".repo')
-          TRTLLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."trt-llm".ref')
-          MLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".repo')
-          MLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
-          TE_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.repo')
-          TE_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.ref')
-          APEX_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.repo')
-          APEX_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.ref')
-          EOF
-          )
+          branch_name=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
-          echo "BUILD_ARGS<<EOF" >> $GITHUB_OUTPUT
-          echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [[ "$branch_name" =~ ^bump-ci-container || "$EVENT_NAME" == "schedule" ]]; then
+            is_ci_workload=true
+            echo "main=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            is_ci_workload=false
+          fi
 
-      - name: Get last merged PR
-        id: cache_from
+          echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check if no-fail-fast is set
+        shell: bash
+        id: no_fail_fast
         env:
-          GH_TOKEN: ${{ github.token }}
+          HAS_FAIL_FAST_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
         run: |
-          LAST_PRS=$(gh api graphql -f query='
-            query {
-              repository(owner: "NVIDIA", name: "NeMo") {
-                pullRequests(states: MERGED, first: 10, orderBy: {field: UPDATED_AT, direction: DESC}) {
-                  nodes {
-                    number
-                  }
-                }
-              }
-            }' | jq -r '.data.repository.pullRequests.nodes[].number' | while read -r number; do
-              echo "nemoci.azurecr.io/nemo_container-buildcache:$number"
-            done)
+          if [[ "$HAS_FAIL_FAST_LABEL" == "true" || "$EVENT_NAME" == "schedule" ]]; then
+            no_fail_fast=true
+          else
+            no_fail_fast=false
+          fi
 
-          echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
-          echo "$LAST_PRS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "main=$no_fail_fast" | tee -a "$GITHUB_OUTPUT"
 
   code-linting:
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
+    if: needs.pre-flight.outputs.test_to_run != '[]'
     needs: [pre-flight]
     uses: ./.github/workflows/code-linting.yml
 
-  cicd-test-container-build:
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
+  cicd-wait-in-queue:
     needs: [pre-flight, code-linting]
+    runs-on: ubuntu-latest
+    environment: test
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && needs.pre-flight.outputs.is_ci_workload == 'false'
+    steps:
+      - name: Running CI tests
+        run: |
+          echo "Running CI tests"
+
+  cicd-test-container-build:
+    uses: ./.github/workflows/_build_container.yml
+    needs: [pre-flight, code-linting, cicd-wait-in-queue]
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
-      image-label: nemo-core
-      build-args: |
-        IMAGE_LABEL=nemo-core
-        NEMO_TAG=${{ github.sha }}
-        NEMO_REPO=https://github.com/NVIDIA/NeMo
-        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
-      prune-filter-timerange: 24h
-      use-inline-cache: false
-      cache-from: |
-        nemoci.azurecr.io/nemo_container-buildcache:main
-        nemoci.azurecr.io/nemo_container-buildcache:${{ github.event.pull_request.number || 0 }}
-        ${{ needs.pre-flight.outputs.cache-from }}
 
   cicd-import-tests:
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     needs: [cicd-test-container-build, pre-flight]
     runs-on: self-hosted-azure-gpus-1
     steps:
@@ -185,22 +210,131 @@ jobs:
           '
 
   L0_Setup_Test_Data_And_Models:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: L0_Setup_Test_Data_And_Models
-      TESTS_TO_RUN: '["L0_Setup_Test_Data_And_Models"]'
+    needs: [pre-flight, cicd-test-container-build, cicd-wait-in-queue]
+    runs-on: self-hosted-azure
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+
+      - name: main
+        uses: NVIDIA/NeMo/.github/actions/test-template@main
+        with:
+          runner: ${{ runner.name }}
+          script: L0_Setup_Test_Data_And_Models
+          tests_to_run: '["L0_Setup_Test_Data_And_Models"]'
 
   cicd-main-unit-tests:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/cicd-main-unit-tests.yml
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
-  cicd-main-e2e-tests:
+  cicd-main-export-deploy:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-    uses: ./.github/workflows/cicd-main-e2e-tests.yml
+    uses: ./.github/workflows/cicd-main-export-deploy.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-speech:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-speech.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'speech')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-automodel:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-automodel.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-nemo2:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-nemo2.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2')
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     with:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
@@ -211,9 +345,11 @@ jobs:
       - cicd-import-tests
       - L0_Setup_Test_Data_And_Models
       - cicd-main-unit-tests
-      - cicd-main-e2e-tests
-
-    if: always() && (github.event.label.name == 'Run CICD' || github.event_name == 'workflow_dispatch')
+      - cicd-main-nemo2
+      - cicd-main-export-deploy
+      - cicd-main-automodel
+      - cicd-main-speech
+    if: always()
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
@@ -225,15 +361,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
+          HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
           # Get workflow run details and check job conclusions
+          LATEST_ATTEMPT=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion != null) | .conclusion] | last')
           NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
           NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
-          NUM_SKIPPED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "skipped") | .name] | length')
-            
-          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && $NUM_SKIPPED -eq 0 ]]; then
+
+          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && ("$HAS_LABEL" == "true" || "$IS_SCHEDULED" == "true") ]]; then
             RESULT="success"
-          elif [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -gt 0 && $NUM_SKIPPED -eq 0 ]]; then
+          elif [[ $NUM_CANCELLED -gt 0 ]]; then
             RESULT="cancelled"
           else
             RESULT="failure"
@@ -246,14 +384,20 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Remove label if not cancelled
-        if: ${{ steps.result.outputs.code != 'cancelled' && github.event.label.name == 'Run CICD' && github.event.pull_request.head.repo.full_name == github.repository }}
+        if: |
+          steps.result.outputs.code != 'cancelled' 
+          && github.event.label.name == 'Run CICD' 
+          && github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
         run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
 
       - name: Pipeline successful, add PR comment
-        if: ${{ always() && steps.result.outputs.code == 'success' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'success' 
+          && github.event_name == 'pull_request' 
+          && env.SLACK_WEBHOOK != ''
         uses: peter-evans/create-or-update-comment@v4
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -264,16 +408,20 @@ jobs:
           body: |
             [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
 
-            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
+            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully.
 
-            So it might be time to merge this PR or get some approvals
+            So it might be time to merge this PR or get some approvals.
 
-            I'm just a bot so I'll leave it you what to do next.
+            Due to a major CI change, merges are currently handled by the automation team.  
+            We will reach out to you quickly to merge this PR, but you can always reach us with the following handles:
 
-            //cc @pablo-garay @ko3n1g
+            //cc @chtruong814 @ko3n1g @pablo-garay @thomasdhc
 
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'failure' 
+          && github.event.label.name == 'Run CICD' 
+          && env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -284,6 +432,8 @@ jobs:
         run: |
           set -x
           pip install PyGithub
+          export BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+
           python .github/scripts/notify.py
 
       - name: Exit
@@ -299,7 +449,15 @@ jobs:
 
   Coverage:
     runs-on: ubuntu-latest
-    needs: [Nemo_CICD_Test]
+    needs: [pre-flight, Nemo_CICD_Test]
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success() 
+        || needs.Nemo_CICD_Test.result == 'success'
+      )
+      && !cancelled()
     strategy:
       matrix:
         flag: [unit-test, e2e]
