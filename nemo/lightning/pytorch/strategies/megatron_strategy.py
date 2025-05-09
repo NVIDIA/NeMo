@@ -21,6 +21,7 @@ import shutil
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -131,6 +132,9 @@ class ParallelismConfig:
     use_te_rng_tracker: bool = False
     expert_tensor_parallel_size: int = None
     use_tp_pp_dp_mapping: bool = False
+    num_distributed_optimizer_instances: int = 1
+    nccl_communicator_config_path: str = None
+    use_sharp: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -215,6 +219,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             Note that setting the level to 1 or 2 might cause increase in iteration time.
         use_tp_pp_dp_mapping (bool): Whether to use TP-PP-DP mapping instead of TP-DP-PP mapping.
             Defaults to False.
+        num_distributed_optimizer_instances (int): The number of distributed optimizer replicas across
+            the data-parallel domain.
+        nccl_communicator_config_path (Optional[str]): Path to the yaml file of NCCL communicator configurations.
+            `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
+        use_sharp (bool): Whether to use SHARP. Defaults to False.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -254,6 +263,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         use_te_rng_tracker: bool = False,
+        use_sharp: bool = False,
         save_ckpt_format: str = "torch_dist",
         ckpt_async_save: bool = True,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
@@ -271,6 +281,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         restore_config: Optional[RestoreConfig] = None,
         megatron_log_level: int = 0,
         use_tp_pp_dp_mapping: bool = False,
+        num_distributed_optimizer_instances: int = 1,
+        nccl_communicator_config_path: Optional[str] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -308,6 +320,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_save_optimizer = ckpt_save_optimizer
         self.ckpt_load_strictness = ckpt_load_strictness
         self.use_te_rng_tracker = use_te_rng_tracker
+        self.use_sharp = use_sharp
         self._pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -323,10 +336,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
-
+        self.num_distributed_optimizer_instances = num_distributed_optimizer_instances
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
-
+        self.nccl_communicator_config_path = nccl_communicator_config_path
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
@@ -366,6 +379,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
+
+        if isinstance(self.ddp_config, DistributedDataParallelConfig):
+            self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
@@ -555,9 +571,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         world_size = self.cluster_environment.world_size()
         os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
         os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        if timeout := os.getenv("TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC"):
+            timeout = timedelta(seconds=int(timeout))
         _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
         torch.distributed.init_process_group(
-            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store, timeout=timeout
         )
 
         if self._process_group_backend == "nccl":
@@ -1126,6 +1144,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             pipeline_dtype=self.pipeline_dtype,
             use_te_rng_tracker=self.use_te_rng_tracker,
             use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
+            num_distributed_optimizer_instances=self.num_distributed_optimizer_instances,
+            nccl_communicator_config_path=self.nccl_communicator_config_path,
+            use_sharp=self.use_sharp,
         )
 
     @contextmanager

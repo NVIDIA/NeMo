@@ -70,6 +70,7 @@ def override_recipe_configs(
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -103,7 +104,7 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs
+    ) = kwargs[:13]
 
     recipe = override_recipe_configs(
         args,
