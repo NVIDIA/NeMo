@@ -31,12 +31,13 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def get_args():
-    """Parse the command line arguments."""
+    """Parse the command-line arguments."""
     parser = ArgumentParser(description="""Run Knowledge Distillation from a teacher model to a student.""")
 
     parser.add_argument("--name", type=str, required=True, help="""Experiment name""")
     parser.add_argument("--teacher_path", type=str, required=True, help="""Path to NeMo 2 checkpoint""")
     parser.add_argument("--student_path", type=str, required=True, help="""Path to NeMo 2 checkpoint""")
+    parser.add_argument("--kd_config", type=str, default=None, help="""Path to Knowledge-Distillation config file""")
     parser.add_argument("--tp_size", type=int, default=1, help="""Tensor parallel size""")
     parser.add_argument("--cp_size", type=int, default=1, help="""Context parallel size""")
     parser.add_argument("--pp_size", type=int, default=1, help="""Pipeline parallel size""")
@@ -140,6 +141,7 @@ if __name__ == "__main__":
     llm.distill(
         student_model_path=args.student_path,
         teacher_model_path=args.teacher_path,
+        distillation_config_path=args.kd_config,
         data=data,
         trainer=trainer,
         log=logger,
