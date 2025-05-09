@@ -81,10 +81,12 @@ def slurm_executor(
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
     srun_args = custom_srun_args
-    srun_args.extend([
-        "--mpi=pmix",
-        "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))", # numactl command should be always at the end of srun_args
-    ])
+    srun_args.extend(
+        [
+            "--mpi=pmix",
+            "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",  # numactl command should be always at the end of srun_args
+        ]
+    )
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
@@ -363,7 +365,7 @@ def set_primary_perf_configs(
     # Sharp configs
     if use_sharp:
         recipe.trainer.strategy.use_sharp = True
-    
+
     # Recompute configs
     if recompute_layers > 0:
         recipe.model.config.recompute_granularity = "full"
