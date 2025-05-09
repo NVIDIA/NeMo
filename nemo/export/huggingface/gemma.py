@@ -13,15 +13,16 @@
 # limitations under the License.
 
 
-import torch
-from nemo.lightning import io
-import yaml
 from pathlib import Path
 
-from nemo.lightning.io.state import TransformFns, _ModelState
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
-from nemo.utils import logging
+import torch
+import yaml
+
 from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.lightning import io
+from nemo.lightning.io.state import TransformFns, _ModelState
+from nemo.utils import logging
 
 try:
     from nemo.collections.llm import GemmaModel
@@ -79,7 +80,6 @@ class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
                 target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
                 fn=TransformFns.split_fc1,
             ),
-
         ]
 
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
@@ -102,7 +102,7 @@ class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
         )
 
         source = dict_to_obj(config['config'])
-        
+
         from transformers import GemmaConfig as HFGemmaConfig
 
         return HFGemmaConfig(

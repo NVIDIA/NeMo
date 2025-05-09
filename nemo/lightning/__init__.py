@@ -80,7 +80,9 @@ __all__ = [
 
 try:
     from nemo.lightning.nemo_logger import NeMoLogger
+
     __all__.append("NeMoLogger")
 except ImportError:
     from nemo.utils import logging
+
     logging.warning("NeMoLogger is not available")

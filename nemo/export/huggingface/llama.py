@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from nemo.lightning import io
-import yaml
 from pathlib import Path
 from typing import Union
 
-from nemo.lightning.io.state import TransformFns, _ModelState
+import torch
+import yaml
+
+from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter, torch_dtype_from_mcore_config
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.lightning import io
+from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
-from nemo.export.huggingface.utils import torch_dtype_from_mcore_config, ckpt_load, get_tokenizer, io_model_exporter
 
 try:
     from nemo.collections.llm import LlamaModel
 except ImportError as e:
     from nemo.export.huggingface.utils import DummyModel as LlamaModel
+
 
 # TODO: test multiple Llama model types
 @io_model_exporter(LlamaModel, "hf")
@@ -37,7 +39,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
     LlamaForCausalLM format, including weight mapping and configuration translation.
     """
 
-    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM": #TODO precision
+    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":  # TODO precision
         """Initialize a HF LlamaForCausalLM instance.
 
         Args:
@@ -52,7 +54,6 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
-
     def apply(self, output_path: Path) -> Path:
         """Apply the conversion from NeMo to HF format.
 
@@ -64,10 +65,9 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         """
         source, source_config = ckpt_load(str(self))
         if self.is_llama4(source_config):
-            source= self._modify_llama4_source_state(source, source_config)
+            source = self._modify_llama4_source_state(source, source_config)
         else:
             source = _ModelState(source, source_config)
-
 
         target = self.init(torch_dtype_from_mcore_config(source_config))
         target = self.convert_state(source, target, source_config)
@@ -221,7 +221,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
 
         rope_scaling = None
         # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
-        if True or isinstance(source, Llama31Config): # TODO check for llama31 and llama32 explicitly
+        if True or isinstance(source, Llama31Config):  # TODO check for llama31 and llama32 explicitly
             rope_scaling = {
                 'factor': source.scale_factor,
                 'low_freq_factor': float(source.low_freq_factor),
@@ -335,7 +335,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         )
         config_obj = dict_to_obj(config['config'])
         langauge_layers = config_obj.num_layers
-        
+
         distributed_model_weights = load_distributed_model_weights(path, True).items()
 
         for k, v in distributed_model_weights:
@@ -348,12 +348,10 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
                     state_dict[new_k.replace('layers', f'layers.{str(i)}')] = v[i]
             state_dict[new_k] = v
 
-
         if self.is_llama4(config_obj):
             return self._modify_llama4_source_state(state_dict, config_obj), config_obj
-        
-        return _ModelState(state_dict, config_obj), config_obj
 
+        return _ModelState(state_dict, config_obj), config_obj
 
     def _modify_llama4_source_state(self, state_dict, source_config):
         """
@@ -361,7 +359,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         For dense layer, we change the name for the post attention layer norm to
         avoid the many-to-one mapping in the conversion confi.
         """
-        
+
         for layer_i in range(source_config.num_layers):
             is_moe_layer = True
             if isinstance(source_config.moe_layer_freq, list):
@@ -407,11 +405,12 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         Returns:
             AutoPeftModelForCausalLM: Initialized HF PEFT model
         """
-        from peft import get_peft_model
-        from nemo.lightning.io.pl import ckpt_to_weights_subdir
         import json
-        from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 
+        from peft import get_peft_model
+
+        from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+        from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
         model = super().init(dtype=dtype)
 

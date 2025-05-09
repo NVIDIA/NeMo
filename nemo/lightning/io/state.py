@@ -518,7 +518,6 @@ class TransformFns:
         hidden_size = megatron_config.hidden_size
         qkv_total_dim = head_num + 2 * num_query_groups
 
-
         linear_qkv = linear_qkv.reshape([qkv_total_dim, -1, hidden_size])
         # when converting base model (linear_qkv), hidden size = megatron_config.hidden_size
         # when converting lora (linear_qkv.adapter.linear_out), hidden size = lora_r

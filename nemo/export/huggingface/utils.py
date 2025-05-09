@@ -12,24 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Tuple
 from pathlib import Path
-import yaml
-from omegaconf import OmegaConf
-from hydra.utils import instantiate
+from typing import Any, Dict, Tuple
 
 import torch
+import yaml
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
+
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.utils import logging
 
 llm_available = True
 try:
-    from nemo.collections import llm # noqa: F401
+    from nemo.collections import llm  # noqa: F401
 except ImportError:
     llm_available = False
-    logging.warning("nemo.collections.llm module is not available,"
-                    " model exporters will not be connected to llm.GPTModels")
-    
+    logging.warning(
+        "nemo.collections.llm module is not available," " model exporters will not be connected to llm.GPTModels"
+    )
+
 
 class DummyModel:
     pass
@@ -41,6 +43,7 @@ def io_model_exporter(cls, format):
         return noop
 
     from nemo.lightning.io import model_exporter
+
     return model_exporter(cls, format)
 
 
@@ -87,6 +90,7 @@ def change_paths_to_absolute_paths(tokenizer_config: Dict[Any, Any], nemo_checkp
 
     return tokenizer_config
 
+
 def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
     """
     This function loads the state dict directly from a distributed checkpoint, and modify the state dict
@@ -114,7 +118,7 @@ def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
     )
     config_obj = dict_to_obj(config['config'])
     langauge_layers = config_obj.num_layers
-    
+
     distributed_model_weights = load_distributed_model_weights(path, True).items()
 
     for k, v in distributed_model_weights:
@@ -129,6 +133,7 @@ def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
 
     return state_dict, config_obj
 
+
 def get_tokenizer(path: str) -> "TokenizerSpec":
     """Get the tokenizer from the NeMo model.
 
@@ -138,9 +143,7 @@ def get_tokenizer(path: str) -> "TokenizerSpec":
 
     nemo_checkpoint = Path(path)
     tokenizer_config = OmegaConf.load(nemo_checkpoint / "context/model.yaml").tokenizer
-    if ('additional_special_tokens' in tokenizer_config) and len(
-        tokenizer_config['additional_special_tokens']
-    ) == 0:
+    if ('additional_special_tokens' in tokenizer_config) and len(tokenizer_config['additional_special_tokens']) == 0:
         del tokenizer_config['additional_special_tokens']
 
     tokenizer_config = change_paths_to_absolute_paths(tokenizer_config, nemo_checkpoint)
