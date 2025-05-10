@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Optional, Sequence, Union
+from typing import Dict, Literal, Optional, Sequence, Union
 
 import torch
-from torchmetrics.functional.text.bleu import _bleu_score_compute
+from torchmetrics.functional.text.bleu import _bleu_score_compute, _bleu_score_update
+from torchmetrics.functional.text.sacre_bleu import _SacreBLEUTokenizer
 from torchmetrics.text import SacreBLEUScore
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
@@ -31,7 +32,6 @@ def move_dimension_to_the_front(tensor, dim_index):
     return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
 
-# TODO: Add documentation
 class BLEU(SacreBLEUScore):
     """
     This metric computes numerator, denominator, hypotheses lengths, and target lengths for Overall Bilingual Evaluation Understudy (BLEU)
@@ -82,7 +82,7 @@ class BLEU(SacreBLEUScore):
     def __init__(
         self,
         decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
-        tokenize: Literal["none", "13a", "zh", "intl", "char"] = "13a",
+        tokenize: Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"] | Dict[str,  Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]] = "13a",
         n_gram: int = 4,
         lowercase: bool = False,
         weights: Optional[Sequence[float]] = None,
@@ -91,16 +91,25 @@ class BLEU(SacreBLEUScore):
         batch_dim_index=0,
         dist_sync_on_step=False,
     ):
+        self.log_prediction = log_prediction
+        self.batch_dim_index = batch_dim_index
+        self.decoding = decoding
+        self.decode = None
+        self.multi_token = type(tokenize) is dict
+        self._tokenizer = {}
+
         super().__init__(
-            tokenize=tokenize,
+            tokenize=tokenize["default"] if self.multi_token else tokenize,
             n_gram=n_gram,
             lowercase=lowercase,
             weights=weights,
             smooth=smooth,
             dist_sync_on_step=dist_sync_on_step,
         )
-        self.decoding = decoding
-        self.decode = None
+        if self.multi_token:
+            for k, v in tokenize.items():
+               self._tokenizer[k] =  _SacreBLEUTokenizer(v, lowercase)
+
         if isinstance(self.decoding, AbstractRNNTDecoding):
             self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
                 encoder_output=predictions, encoded_lengths=predictions_lengths
@@ -121,9 +130,6 @@ class BLEU(SacreBLEUScore):
         else:
             raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
 
-        self.tokenize = tokenize
-        self.log_prediction = log_prediction
-        self.batch_dim_index = batch_dim_index
 
     def update(
         self,
@@ -133,6 +139,7 @@ class BLEU(SacreBLEUScore):
         targets_lengths: torch.Tensor,
         predictions_mask: Optional[torch.Tensor] = None,
         input_ids: Optional[torch.Tensor] = None,
+        langs: Optional[str] = None,
     ):
         """
         Updates metric state.
@@ -148,6 +155,9 @@ class BLEU(SacreBLEUScore):
             input_ids: an int torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
         """
+        if self.multi_token:
+            assert langs is not None, "BLEU metrics configured for multiple tokens but metric update called without tokenizer args."
+
         references = []
         with torch.no_grad():
             tgt_lenths_cpu_tensor = targets_lengths.long().cpu()
@@ -160,7 +170,7 @@ class BLEU(SacreBLEUScore):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
-                references.append(reference)
+                references.append([reference])  # needs parentheses to allow multiple targets
             hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
         if self.log_prediction:
@@ -168,9 +178,24 @@ class BLEU(SacreBLEUScore):
             logging.info(f"reference:{references[0]}")
             logging.info(f"predicted:{hypotheses[0]}")
 
-        super().update(
-            [h.text for h in hypotheses], [references]
-        )  # Note: [references] since BLEU allows multiple references.
+        if self.multi_token:
+            for h, r, l in zip(hypotheses, references, langs):
+                self.preds_len, self.target_len = _bleu_score_update(
+                            [h.text],
+                            [r],
+                            self.numerator,
+                            self.denominator,
+                            self.preds_len,
+                            self.target_len,
+                            self.n_gram,
+                            self._tokenizer.get(l, self._tokenizer["default"]),
+                        )
+        else:
+            super().update(
+                [h.text for h in hypotheses],
+                references
+            )
+
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
         """

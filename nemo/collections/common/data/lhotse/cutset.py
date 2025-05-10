@@ -22,7 +22,7 @@ from typing import KeysView, Mapping, Sequence, Tuple, Union
 import omegaconf
 from lhotse import CutSet, Features, Recording
 from lhotse.array import Array, TemporalArray
-from lhotse.cut import Cut, MixedCut, PaddingCut
+from lhotse.cut import Cut, MixedCut, MonoCut, PaddingCut
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.nemo_adapters import (
@@ -38,6 +38,13 @@ from nemo.collections.common.data.lhotse.text_adapters import (
 )
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
+
+def flatten_mixed(cutset: CutSet) -> CutSet:
+    def _flatten(c: MixedCut) -> MonoCut:
+        if type(c) is MixedCut:
+            return c.to_mono()
+        return c
+    return cutset.map(_flatten)
 
 def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bool]:
     """
