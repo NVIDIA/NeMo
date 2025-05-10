@@ -44,8 +44,6 @@ def make_squad_hf_dataset(
     packed_sequence_size,
     limit_dataset_samples=None,
     fp8=False,
-    num_replicas=1,
-    rank=0,
 ):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -90,8 +88,6 @@ def make_squad_hf_dataset(
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-            num_replicas=num_replicas,
-            rank=rank,
         )
     else:
         datamodule = llm.HFDatasetDataModule(
@@ -100,8 +96,6 @@ def make_squad_hf_dataset(
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-            num_replicas=num_replicas,
-            rank=rank,
         )
     ## tokenization is happening here
     datamodule.map(
@@ -135,9 +129,6 @@ def make_strategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
     elif strategy == 'fsdp2':
-        print(
-            f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}"
-        )
 
         offload_policy = None
         if enable_cpu_offload:
@@ -145,10 +136,12 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-            assert (
-                dp_size * tp_size * cp_size == devices * num_nodes
-            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+
+        assert (
+            dp_size * tp_size * cp_size == devices * num_nodes
+        ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
         print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
+
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -194,11 +187,11 @@ def main():
         choices=['auto', 'ddp', 'fsdp2'],
         help='Training strategy e.g. ddp/fsdp2/single-gpu',
     )
-    parser.add_argument('--devices', type=int, default=2, help='Number of GPUs to use')
+    parser.add_argument('--devices', type=int, default=8, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
     parser.add_argument('--dp-size', type=int, default=2, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
-    parser.add_argument('--cp-size', type=int, default=1, help='Context Parallel size; to be used with fsdp2')
+    parser.add_argument('--cp-size', type=int, default=4, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
         '--sequence-parallel',
         action='store_true',
@@ -214,7 +207,7 @@ def main():
         default=1,
         help='Number of batches to accumulate gradient over.',
     )
-    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--max-steps', type=int, default=2, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
@@ -386,8 +379,6 @@ def main():
             packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
-            num_replicas=args.dp_size,
-            rank=0,
         )
 
     llm.api.finetune(
@@ -405,7 +396,7 @@ def main():
             limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=False,
+            use_distributed_sampler=True,  # needed to use PL DistributedSampler
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
