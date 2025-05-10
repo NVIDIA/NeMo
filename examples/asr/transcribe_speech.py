@@ -40,6 +40,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.timers import SimpleTimer
+from normalizer.data_utils import normalizer
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
@@ -206,6 +207,8 @@ class TranscriptionConfig:
     calculate_rtfx: bool = False
     warmup_steps: int = 0  # by default - no warmup
     run_steps: int = 1  # by default - single run
+    
+    normalize: bool = True
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -447,7 +450,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     if cfg.return_transcriptions:
         return transcriptions
-
+        
     # write audio transcriptions
     output_filename, pred_text_attr_name = write_transcription(
         transcriptions,

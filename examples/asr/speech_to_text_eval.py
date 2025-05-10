@@ -80,6 +80,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 from nemo.collections.common.metrics.punct_er import DatasetPunctuationErrorRate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from normalizer.data_utils import normalizer
 
 
 @dataclass
@@ -124,6 +125,10 @@ def main(cfg: EvaluationConfig):
 
     if not os.path.exists(cfg.dataset_manifest):
         raise FileNotFoundError(f"The dataset manifest file could not be found at path : {cfg.dataset_manifest}")
+    
+    if cfg.normalize:
+        with open_dict(cfg):
+            cfg.output_filename_normalized = cfg.output_filename.replace('.json', '_normalized.json')
 
     if not cfg.only_score_manifest:
         # Transcribe speech into an output directory
@@ -138,7 +143,7 @@ def main(cfg: EvaluationConfig):
     else:
         cfg.output_filename = cfg.dataset_manifest
         transcription_cfg = cfg
-
+        
     ground_truth_text = []
     predicted_text = []
     invalid_manifest = False
@@ -149,11 +154,31 @@ def main(cfg: EvaluationConfig):
             if "pred_text" not in data:
                 invalid_manifest = True
                 break
+            
+            gt_text = data[cfg.gt_text_attr_name]
+            pred_text = data["pred_text"]
+            
+            ground_truth_text.append(gt_text)
+            predicted_text.append(pred_text)
 
-            ground_truth_text.append(data[cfg.gt_text_attr_name])
+    if cfg.normalize:
+        ground_truth_text_normalized=[]
+        predicted_text_normalized=[]
+        invalid_manifest = False
+        with open(transcription_cfg.output_filename_normalized, 'r') as f:
+            for line in f:
+                data = json.loads(line)
 
-            predicted_text.append(data["pred_text"])
-
+                if "pred_text" not in data:
+                    invalid_manifest = True
+                    break
+                
+                gt_text = data[cfg.gt_text_attr_name]
+                pred_text = data["pred_text"]
+                
+                ground_truth_text_normalized.append(gt_text)
+                predicted_text_normalized.append(pred_text)
+            
     pc = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
     if cfg.text_processing.separate_punctuation:
         ground_truth_text = pc.separate_punctuation(ground_truth_text)
@@ -164,6 +189,17 @@ def main(cfg: EvaluationConfig):
     if cfg.text_processing.rm_punctuation:
         ground_truth_text = pc.rm_punctuation(ground_truth_text)
         predicted_text = pc.rm_punctuation(predicted_text)
+
+    if cfg.normalize:
+        if cfg.text_processing.separate_punctuation:
+            ground_truth_text_normalized = pc.separate_punctuation(ground_truth_text_normalized)
+            predicted_text_normalized = pc.separate_punctuation(predicted_text_normalized)
+        if cfg.text_processing.do_lowercase:
+            ground_truth_text_normalized = pc.do_lowercase(ground_truth_text_normalized)
+            predicted_text_normalized = pc.do_lowercase(predicted_text_normalized)
+        if cfg.text_processing.rm_punctuation:
+            ground_truth_text_normalized = pc.rm_punctuation(ground_truth_text_normalized)
+            predicted_text_normalized = pc.rm_punctuation(predicted_text_normalized)
 
     # Test for invalid manifest supplied
     if invalid_manifest:
@@ -199,12 +235,24 @@ def main(cfg: EvaluationConfig):
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
     wer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=False)
 
+    if cfg.normalize:
+        norm_cer = word_error_rate(hypotheses=predicted_text_normalized, references=ground_truth_text_normalized, use_cer=True)
+        norm_wer = word_error_rate(hypotheses=predicted_text_normalized, references=ground_truth_text_normalized, use_cer=False)
+
     if cfg.use_cer:
         metric_name = 'CER'
         metric_value = cer
     else:
         metric_name = 'WER'
         metric_value = wer
+
+    if cfg.normalize:
+        if cfg.use_cer:
+            norm_metric_name = 'norm_CER'
+            norm_metric_value = norm_cer
+        else:
+            norm_metric_name = 'norm_WER'
+            norm_metric_value = norm_wer
 
     if cfg.tolerance is not None:
         if metric_value > cfg.tolerance:
@@ -213,6 +261,8 @@ def main(cfg: EvaluationConfig):
         logging.info(f'Got {metric_name} of {metric_value}. Tolerance was {cfg.tolerance}')
 
     logging.info(f"Dataset WER/CER {wer:.2%}/{cer:.2%}")
+    if cfg.normalize:
+        logging.info(f"Dataset WER/CER after normalization {norm_wer:.2%}/{norm_cer:.2%}")
 
     if cfg.use_punct_er:
         dper_obj.print()
@@ -222,6 +272,11 @@ def main(cfg: EvaluationConfig):
     with open_dict(cfg):
         cfg.metric_name = metric_name
         cfg.metric_value = metric_value
+        
+        if cfg.normalize:
+            cfg.norm_metric_name = norm_metric_name
+            cfg.norm_metric_value = norm_metric_value
+
 
     return cfg
 

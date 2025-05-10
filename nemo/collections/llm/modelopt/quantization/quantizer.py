@@ -126,9 +126,10 @@ class Quantizer:
         dtype = export_config.dtype
         # Export and Quantization config sanity checks
         assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
-        assert (
-            quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
-        ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
+        if quantization_config.enable_kv_cache:
+            assert (
+                quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
+            ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
@@ -256,8 +257,11 @@ class Quantizer:
             enable_quant_kv_cache = "int8" not in self.quantization_config.algorithm and decoder_type != "gpt"
         else:
             enable_quant_kv_cache = self.quantization_config.enable_kv_cache
+        if self.quantization_config.enable_kv_cache is None and enable_quant_kv_cache:
+            logging.warning("Enabled KV cache quantization but enable_kv_cache is None in quantization_config")
+        else:
+            logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
 
-        print(f"{'Enable' if enable_quant_kv_cache else 'Disable'} KV cache quantization")
         # Check if any bmm_quantizer is in the quant_cfg. If so, we need to enable the bmm_quantizer.
         if enable_quant_kv_cache:
             # Update KV cache related bmm quantizers
