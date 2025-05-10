@@ -382,6 +382,7 @@ def _measure_tps(cut: Cut) -> float:
     num_tokens = _measure_tokens(cut)
     return num_tokens / cut.duration
 
+
 class PlaceholderFilter:
     """
     Callable, returns ``True`` if a cut's "_skipme" is set and ``False`` otherwise.
