@@ -388,3 +388,9 @@ def deepseekv3(config: FLOPSConfig):
             per_input_vocab_flops += 6 * config.hs * 2 * config.hs * config.enc_seq_len
 
     return (per_input_attention_flops + per_input_linear_flops + per_input_vocab_flops) * config.gbs
+
+
+def nemotronh(config: FLOPSConfig):
+    """Model FLOPs for NemotronH"""
+
+    return 1
