@@ -65,18 +65,15 @@ class FixedPositionalEncoding(nn.Module):
     def forward(self, position_ids):
         """
         Forward pass for pos_emb.
-        Checks if position_ids are in range. 
+        Checks if position_ids are in range.
         If yes -> use lookup table
         If no -> recalculate positions.
         """
         start_pos, seq_length = position_ids[0], position_ids.shape[1]
         if start_pos + seq_length > self.max_sequence_length:
             return FixedPositionalEncoding._calc_pos_enc(
-                            self._hidden_size, 
-                            seq_length, 
-                            start_pos=start_pos, 
-                            device=position_ids.device
-                        )
+                self._hidden_size, seq_length, start_pos=start_pos, device=position_ids.device
+            )
         return torch.embedding(self.pos_enc, position_ids)
 
 
@@ -124,7 +121,7 @@ class TransformerEmbedding(nn.Module):
     def forward(self, input_ids, token_type_ids=None, start_pos=0):
         seq_length = input_ids.size(1)
         # we fail here only with parametric positional embedding. FixedPositionalEncoding automatically extends.
-        if (seq_length > self.max_sequence_length):
+        if seq_length > self.max_sequence_length:
             logging.warning(
                 f"Input sequence is longer than maximum sequence length for positional encoding. "
                 f"Got {seq_length} and {self.max_sequence_length}."
@@ -138,7 +135,7 @@ class TransformerEmbedding(nn.Module):
         )
         position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
         position_embeddings = self.position_embedding(position_ids)
-        
+
         token_embeddings = self.token_embedding(input_ids)
         embeddings = token_embeddings + position_embeddings
 

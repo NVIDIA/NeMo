@@ -82,7 +82,10 @@ class BLEU(SacreBLEUScore):
     def __init__(
         self,
         decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
-        tokenize: Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"] | Dict[str,  Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]] = "13a",
+        tokenize: (
+            Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]
+            | Dict[str, Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]]
+        ) = "13a",
         n_gram: int = 4,
         lowercase: bool = False,
         weights: Optional[Sequence[float]] = None,
@@ -108,7 +111,7 @@ class BLEU(SacreBLEUScore):
         )
         if self.multi_token:
             for k, v in tokenize.items():
-               self._tokenizer[k] =  _SacreBLEUTokenizer(v, lowercase)
+                self._tokenizer[k] = _SacreBLEUTokenizer(v, lowercase)
 
         if isinstance(self.decoding, AbstractRNNTDecoding):
             self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
@@ -129,7 +132,6 @@ class BLEU(SacreBLEUScore):
             )
         else:
             raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
-
 
     def update(
         self,
@@ -156,7 +158,9 @@ class BLEU(SacreBLEUScore):
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
         """
         if self.multi_token:
-            assert langs is not None, "BLEU metrics configured for multiple tokens but metric update called without tokenizer args."
+            assert (
+                langs is not None
+            ), "BLEU metrics configured for multiple tokens but metric update called without tokenizer args."
 
         references = []
         with torch.no_grad():
@@ -181,21 +185,17 @@ class BLEU(SacreBLEUScore):
         if self.multi_token:
             for h, r, l in zip(hypotheses, references, langs):
                 self.preds_len, self.target_len = _bleu_score_update(
-                            [h.text],
-                            [r],
-                            self.numerator,
-                            self.denominator,
-                            self.preds_len,
-                            self.target_len,
-                            self.n_gram,
-                            self._tokenizer.get(l, self._tokenizer["default"]),
-                        )
+                    [h.text],
+                    [r],
+                    self.numerator,
+                    self.denominator,
+                    self.preds_len,
+                    self.target_len,
+                    self.n_gram,
+                    self._tokenizer.get(l, self._tokenizer["default"]),
+                )
         else:
-            super().update(
-                [h.text for h in hypotheses],
-                references
-            )
-
+            super().update([h.text for h in hypotheses], references)
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
         """

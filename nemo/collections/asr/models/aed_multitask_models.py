@@ -232,13 +232,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         bleu_tokenizer = self.cfg.get("bleu_tokenizer", "13a")
         if type(bleu_tokenizer) is DictConfig:
             bleu_tokenizer = OmegaConf.to_container(bleu_tokenizer)
-        self.bleu = BLEU(
-            self.decoding, tokenize=bleu_tokenizer, log_prediction=False
-        )  # WER is handling logging
+        self.bleu = BLEU(self.decoding, tokenize=bleu_tokenizer, log_prediction=False)  # WER is handling logging
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
-
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -709,15 +706,16 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     # Wrapper function for updating output dict with metrics.
     # Performs single update, reset loop with metric functions.
     # Expand as needed.
-    def _eval(self, 
-              output_dict: Dict[str, torch.Tensor],
-              batch: PromptedAudioToTextMiniBatch,
-              encoded_states: torch.Tensor, 
-              encoded_len: torch.Tensor, 
-              encoded_mask: torch.Tensor,
-              eval_prefix: Literal["val", "test", "training_batch"],
-              return_all_metrics: bool,
-        ):
+    def _eval(
+        self,
+        output_dict: Dict[str, torch.Tensor],
+        batch: PromptedAudioToTextMiniBatch,
+        encoded_states: torch.Tensor,
+        encoded_len: torch.Tensor,
+        encoded_mask: torch.Tensor,
+        eval_prefix: Literal["val", "test", "training_batch"],
+        return_all_metrics: bool,
+    ):
         self.wer.update(
             predictions=encoded_states,
             predictions_lengths=encoded_len,
@@ -729,7 +727,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # TODO: Remove conditional once wer reflects bleu batch behavior.
         wer, wer_num, wer_denom = self.wer.compute()
         if return_all_metrics:
-            output_dict.update({f"{eval_prefix}_wer": wer, f"{eval_prefix}_wer_num": wer_num, f"{eval_prefix}_wer_denom": wer_denom})
+            output_dict.update(
+                {f"{eval_prefix}_wer": wer, f"{eval_prefix}_wer_num": wer_num, f"{eval_prefix}_wer_denom": wer_denom}
+            )
         else:
             output_dict.update({f"{eval_prefix}_wer": wer})
         self.wer.reset()
@@ -741,7 +741,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             targets_lengths=batch.transcript_lens,
             predictions_mask=encoded_mask,
             input_ids=batch.prompt,
-            langs=[c.custom["target_lang"] for c in flatten_mixed(batch.cuts)]
+            langs=[c.custom["target_lang"] for c in flatten_mixed(batch.cuts)],
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_prefix}_", return_all_metrics=return_all_metrics)
         output_dict.update(bleu_metrics)
@@ -796,15 +796,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 return_all_metrics=False,
             )
 
-        output_dict.update({
-            'train_loss': transf_loss,
-            'learning_rate': torch.as_tensor(self._optimizer.param_groups[0]['lr']),
-            'batch_size': torch.as_tensor(batch.audio.shape[0]),
-            'num_frames': num_frames,
-            'num_tokens': num_tokens,
-            'input_to_padding_ratio': num_frames / tot_frames,
-            'output_to_padding_ratio': num_tokens / tot_tokens,
-        })
+        output_dict.update(
+            {
+                'train_loss': transf_loss,
+                'learning_rate': torch.as_tensor(self._optimizer.param_groups[0]['lr']),
+                'batch_size': torch.as_tensor(batch.audio.shape[0]),
+                'num_frames': num_frames,
+                'num_tokens': num_tokens,
+                'input_to_padding_ratio': num_frames / tot_frames,
+                'output_to_padding_ratio': num_tokens / tot_tokens,
+            }
+        )
         return {"loss": transf_loss, "log": output_dict}
 
     def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):

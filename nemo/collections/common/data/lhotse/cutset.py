@@ -44,7 +44,9 @@ def flatten_mixed(cutset: CutSet) -> CutSet:
         if type(c) is MixedCut:
             return c.to_mono()
         return c
+
     return cutset.map(_flatten)
+
 
 def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bool]:
     """
