@@ -38,6 +38,7 @@ _model_flops_map = {
     "hyena": hyena,
     "deepseekv3": flops_formulas.deepseekv3,
     "transformer": flops_formulas.transformer,
+    "nemotronh": flops_formulas.nemotronh,
 }
 
 
