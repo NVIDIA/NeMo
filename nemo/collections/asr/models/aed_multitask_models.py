@@ -783,7 +783,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             input_ids=batch.prompt,
         )
         wer, wer_num, wer_denom = self.wer.compute()
-        output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
+        output_dict.update({f"{eval_mode}_wer": wer, f"{eval_mode}_wer_num": wer_num, f"{eval_mode}_wer_denom": wer_denom})
         self.wer.reset()
 
         self.bleu.update(
