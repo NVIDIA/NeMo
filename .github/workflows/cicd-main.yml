@@ -21,9 +21,6 @@ on:
       - r**
       - weekly-bump*
     types: [labeled]
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       test_to_run:
@@ -139,6 +136,7 @@ jobs:
     environment: test
     if: |
       needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && needs.pre-flight.outputs.is_ci_workload == 'false'
     steps:
       - name: Running CI tests
@@ -150,6 +148,7 @@ jobs:
     needs: [pre-flight, code-linting, cicd-wait-in-queue]
     if: |
       needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success() 
         || (
@@ -165,6 +164,7 @@ jobs:
   cicd-import-tests:
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
@@ -214,6 +214,7 @@ jobs:
     runs-on: self-hosted-azure
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
@@ -240,6 +241,7 @@ jobs:
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
@@ -360,12 +362,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
           HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
           # Get workflow run details and check job conclusions
+          LATEST_ATTEMPT=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion != null) | .conclusion] | last')
           NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
           NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
 
-          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && "$HAS_LABEL" == "true" ]]; then
+          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && ("$HAS_LABEL" == "true" || "$IS_SCHEDULED" == "true") ]]; then
             RESULT="success"
           elif [[ $NUM_CANCELLED -gt 0 ]]; then
             RESULT="cancelled"
@@ -445,9 +449,11 @@ jobs:
 
   Coverage:
     runs-on: ubuntu-latest
-    needs: [Nemo_CICD_Test]
+    needs: [pre-flight, Nemo_CICD_Test]
     if: |
-      (
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
         success() 
         || needs.Nemo_CICD_Test.result == 'success'
       )

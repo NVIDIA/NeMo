@@ -340,6 +340,41 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     dependencies = bucket_deps
 
+    # Additional dependencies
+    # Add all files in requirements/ directory
+    requirements_dir = os.path.join(nemo_root, "requirements")
+    if os.path.exists(requirements_dir):
+        for filename in os.listdir(requirements_dir):
+            filepath = os.path.join("requirements", filename)
+            relative_path = os.path.relpath(filepath, nemo_root)
+
+            dependencies[relative_path] = [
+                "nemo2",
+                "unit-tests",
+                "speech",
+                "automodel",
+                "export-deploy",
+            ]
+
+    # Add all Dockerfile files
+    for root, _, files in os.walk(nemo_root):
+        for file_path in files:
+            full_path = os.path.join(root, file_path)
+            relative_path = os.path.relpath(full_path, nemo_root)
+
+            if "cicd-main-export-deploy" in file_path:
+                dependencies[relative_path] = ["export-deploy"]
+            if "cicd-main-nemo2" in file_path:
+                dependencies[relative_path] = ["nemo2"]
+            if "cicd-main-speech" in file_path:
+                dependencies[relative_path] = ["speech"]
+            if "cicd-main-automodel" in file_path:
+                dependencies[relative_path] = ["automodel"]
+            if "cicd-main-unit-tests" in file_path:
+                dependencies[relative_path] = ["unit-tests"]
+            if "Dockerfile" in file_path:
+                dependencies[relative_path] = ["nemo2", "unit-tests", "speech", "automodel", "export-deploy"]
+
     # Sort dependencies by length of values (number of dependencies)
     dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
 
