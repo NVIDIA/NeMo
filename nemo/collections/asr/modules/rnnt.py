@@ -405,11 +405,16 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         cls,
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
-        dst_states[0].copy_(src_states[0])
+        if batch_size is None:
+            dst_states[0].copy_(src_states[0])
+        else:
+            dst_states[0][:batch_size].copy_(src_states[0][:batch_size])
 
-    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+    @classmethod
+    def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
@@ -1148,19 +1153,52 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         cls,
         src_states: Tuple[torch.Tensor, torch.Tensor],
         dst_states: Tuple[torch.Tensor, torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
-        dst_states[0].copy_(src_states[0])
-        dst_states[1].copy_(src_states[1])
+        if batch_size is None:
+            dst_states[0].copy_(src_states[0])
+            dst_states[1].copy_(src_states[1])
+        else:
+            dst_states[0][:, :batch_size].copy_(src_states[0][:, :batch_size])
+            dst_states[1][:, :batch_size].copy_(src_states[1][:, :batch_size])
 
+    @classmethod
+    def clone_states(cls, states: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return copy of the states"""
+        return (states[0].clone(), states[1].clone())
+
+    @classmethod
     def batch_split_states(
-        self, batch_states: Tuple[torch.Tensor, torch.Tensor]
+        cls, batch_states: Tuple[torch.Tensor, torch.Tensor]
     ) -> list[Tuple[torch.Tensor, torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
         """
-        return list(zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1)))
+        return [
+            (sub_state_1.squeeze(1), sub_state_2.squeeze(1))
+            for sub_state_1, sub_state_2 in zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1))
+        ]
+
+    @classmethod
+    def batch_unsplit_states(
+        cls, batch_states: List[Tuple[torch.Tensor, torch.Tensor]], device=None, dtype=None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Concatenate a batch of decoder state to a packed state.
+
+        Args:
+            batch_states (list): batch of decoder states
+                B x ([L x (H)], [L x (H)])
+
+        Returns:
+            (tuple): decoder states
+                (L x B x H, L x B x H)
+        """
+        return (
+            torch.stack([state[0] for state in batch_states], dim=1).to(device=device, dtype=dtype),
+            torch.stack([state[1] for state in batch_states], dim=1).to(device=device, dtype=dtype),
+        )
 
     def batch_copy_states(
         self,
