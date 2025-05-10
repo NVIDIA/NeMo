@@ -183,3 +183,4 @@ nemo_experiments/
 slurm*.out
 decoders
 boost_*
+*.json
