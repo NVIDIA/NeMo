@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from lhotse.cut import MixedCut, MonoCut
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
@@ -43,6 +44,7 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import process_aed_timestamp_outputs
 from nemo.collections.common import tokenizers
+from nemo.collections.common.data.lhotse.cutset import flatten_mixed
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
@@ -225,12 +227,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # TODO: PytorchMetrics lets you join two metrics together to save compute.
         # But need to make wer and bleu have same outputs first
         self.wer = WER(self.decoding, log_prediction=self.cfg.get("log_prediction"))
+
+        # Resolves bleu_tokenizer config if multiple configs are passed.
+        bleu_tokenizer = self.cfg.get("bleu_tokenizer", "13a")
+        if type(bleu_tokenizer) is DictConfig:
+            bleu_tokenizer = OmegaConf.to_container(bleu_tokenizer)
         self.bleu = BLEU(
-            self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=False
-        )  # Wer is handling logging
+            self.decoding, tokenize=bleu_tokenizer, log_prediction=False
+        )  # WER is handling logging
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
+
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -775,7 +783,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             input_ids=batch.prompt,
         )
         wer, wer_num, wer_denom = self.wer.compute()
-        output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
+        output_dict.update({f"{eval_mode}_wer": wer, f"{eval_mode}_wer_num": wer_num, f"{eval_mode}_wer_denom": wer_denom})
         self.wer.reset()
 
         self.bleu.update(
@@ -785,6 +793,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             targets_lengths=batch.transcript_lens,
             predictions_mask=enc_mask,
             input_ids=batch.prompt,
+            langs=[c.custom["target_lang"] for c in flatten_mixed(batch.cuts)]
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
         output_dict.update(bleu_metrics)
@@ -802,10 +811,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         metrics = self.validation_pass(batch, batch_idx, dataloader_idx, eval_mode="test")
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(metrics)
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_idx].append(metrics)
         else:
-            self.validation_step_outputs.append(metrics)
+            self.test_step_outputs.append(metrics)
         return metrics
 
     def test_dataloader(self):
