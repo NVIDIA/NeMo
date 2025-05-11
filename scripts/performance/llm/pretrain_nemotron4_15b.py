@@ -44,6 +44,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     enable_cuda_graphs: bool,
 ):
     """
@@ -65,9 +67,13 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        save_checkpoint=args.checkpoint_save,
+        load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -97,13 +103,37 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "nemotron4", "15b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        num_layers,
+        hidden_size,
+        _,
+        enable_cuda_graphs,
+    ) = kwargs[:12]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        num_layers,
+        hidden_size,
+        enable_cuda_graphs,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
@@ -128,8 +158,15 @@ if __name__ == "__main__":
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
         )
     ]
+
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+            )
+        )
 
     with run.Experiment(exp_name) as exp:
         exp.add(

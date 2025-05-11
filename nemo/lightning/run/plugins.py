@@ -158,6 +158,7 @@ class NsysPlugin(run.Plugin):
     end_step: int
     ranks: Optional[list[int]] = None
     nsys_trace: Optional[list[str]] = None
+    nsys_extra_args: Optional[list[str]] = None
     gen_shape: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
@@ -185,6 +186,10 @@ class NsysPlugin(run.Plugin):
             "--cuda-event-trace=false",
             "--nvtx-domain-include=NCCL",
         ]
+
+        # if override is provided (defaults will be discarded)
+        if self.nsys_extra_args:
+            launcher.nsys_extra_args = self.nsys_extra_args
 
 
 @dataclass(kw_only=True)

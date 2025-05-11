@@ -23,6 +23,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.config import get_nemorun_home
 from numpy import nan
 
+import nemo.lightning as nl
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -33,6 +34,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_mixed,
     bf16_with_mxfp8_mixed,
 )
+from nemo.lightning import AutoResume
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.utils import logging
@@ -88,6 +90,10 @@ def slurm_executor(
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
+
+    # Extra location mount for checkpointing support
+    NEMORUN_HOME = os.getenv('NEMORUN_HOME')
+    mounts.extend([f"{NEMORUN_HOME}:{NEMORUN_HOME}"])
     if hf_token is not None:
         env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
 
@@ -118,7 +124,7 @@ def slurm_executor(
         time=time_limit,
         mem="0",
         exclusive=True,
-        packager=run.GitArchivePackager(),
+        packager=run.Packager(),
         segment=segment,
     )
 
@@ -200,6 +206,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
+    num_layers = args.num_layers
+    hidden_size = args.hidden_size
+
     use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
@@ -220,7 +229,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     else:
         recompute_modules = None
 
-    kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
+    kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, num_layers, hidden_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -245,6 +254,8 @@ def set_primary_perf_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
@@ -253,6 +264,8 @@ def set_primary_perf_configs(
     compute_dtype: str = None,
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
+    save_checkpoint: Optional[bool] = False,
+    load_checkpoint_path: Optional[str] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -278,6 +291,10 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
 
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+
+    # other parameters to make them explicit in yaml configs
+    recipe.model.config.num_layers = num_layers
+    recipe.model.config.hidden_size = hidden_size
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -364,6 +381,26 @@ def set_primary_perf_configs(
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
+    recipe.trainer.enable_checkpointing = save_checkpoint
+    recipe.trainer.val_check_interval = max_steps
+
+    if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
+        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
+
+    if load_checkpoint_path is not None:
+        recipe.resume = run.Config(
+            AutoResume,
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+            restore_config=run.Config(
+                nl.RestoreConfig,
+                path=load_checkpoint_path,
+                load_model_state=True,
+                load_optim_state=True,
+                load_artifacts=False,
+            ),
+        )
+
     return recipe
 
 
@@ -401,7 +438,6 @@ def set_exp_logging_configs(
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = False
     recipe.trainer.log_every_n_steps = 1
 
     return recipe
