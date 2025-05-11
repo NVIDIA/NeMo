@@ -1,4 +1,3 @@
-import os
 import torch
 import argparse
 from pathlib import Path
@@ -10,28 +9,28 @@ from nemo.collections.tts.models import AudioCodecModel
 from lightning.pytorch.callbacks import BasePredictionWriter
 from lhotse import CutSet, MonoCut
 from lhotse.shar.writers.shar import SharWriter
-
+from lhotse.dataset import SimpleCutSampler
+import time
 
 class SharPredictionWriter(BasePredictionWriter):
     def __init__(
         self,
         output_dir: str,
         codec_model_name: str,
-        codec_frame_rate: float,
         fields: dict,
         shard_size: int = 1000,
+        buffer_size: int = 128,
     ) -> None:
         super().__init__(write_interval="batch")
 
         self.output_dir = Path(output_dir)
         self.codec_model_name = codec_model_name
-        self.codec_frame_rate = codec_frame_rate
         self.fields = fields
         self.shard_size = shard_size
         self.is_initialized = False
 
         self.cuts_buffer = list()
-        self.buffer_size = 10
+        self.buffer_size = buffer_size
 
     def setup(self, trainer, pl_module, stage=None):
         if not self.is_initialized:
@@ -56,6 +55,8 @@ class SharPredictionWriter(BasePredictionWriter):
         return cut
 
     def write_on_batch_end(self, trainer, pl_module, prediction, batch_indices, batch, batch_idx, dataloader_idx):
+        import time
+        st = time.time()
         cuts_local, codes_local, context_codes_local = prediction["cuts"], prediction["codes"], prediction["context_codes"]
         world_size = trainer.world_size
         if world_size > 1:
@@ -78,8 +79,12 @@ class SharPredictionWriter(BasePredictionWriter):
 
             if len(self.cuts_buffer) >= self.buffer_size:
                 self._write_buffer()
+            
+        et = time.time()
+        print("Time to write:", et - st)
 
     def _write_buffer(self):
+        print("Writing buffer of size:", len(self.cuts_buffer))
         for cut in self.cuts_buffer:
             processed_cut = self.process_cut_for_saving(cut)
             self.shar_writer.write(processed_cut)
@@ -102,7 +107,34 @@ class CodecExtractor(pl.LightningModule):
         self.codec_model = AudioCodecModel.restore_from(restore_path=model_path, strict=False)
         self.codec_model.eval()
 
-    def predict_step(self, cuts, _):
+    def predict_step(self, batch, _):
+        audio_stacked = batch["audio"].to(device=self.device)
+        context_audio_stacked = batch["context_audio"].to(device=self.device)
+        audio_lens = batch["audio_lens"].to(device=self.device)
+        context_audio_lens = batch["context_audio_lens"].to(device=self.device)
+        cuts = batch["cuts"]
+
+        mt = time.time()
+        with torch.no_grad():
+            codes, lengths = self.codec_model.encode(
+                audio=audio_stacked, audio_len=audio_lens
+            )
+            context_codes, context_lengths = self.codec_model.encode(
+                audio=context_audio_stacked, audio_len=context_audio_lens
+            )
+
+        print("Time to encode:", time.time() - mt)
+        
+        mt = time.time()
+        codes = [c[:, :L].cpu().type(torch.int16) for c, L in zip(codes, lengths)]
+        context_codes = [c[:, :L].cpu().type(torch.int16) for c, L in zip(context_codes, context_lengths)]
+        print("Time to process:", time.time() - mt)
+        return {"cuts": cuts, "codes": codes, "context_codes": context_codes}
+
+class MyDataset(torch.utils.data.Dataset):
+    def __getitem__(self, cuts: CutSet):
+        # return cuts
+        pad_multiple = 1024
         audios = cuts.load_audio()
         context_audios_torch = []
         audios_torch = []
@@ -110,12 +142,12 @@ class CodecExtractor(pl.LightningModule):
         audio_lens = []
         for idx, audio in enumerate(audios):
             audio = torch.from_numpy(audio)[0]
-            audio = torch.nn.functional.pad(audio, (0, self.pad_multiple - audio.size(0) % self.pad_multiple), value=0)
+            audio = torch.nn.functional.pad(audio, (0, pad_multiple - audio.size(0) % pad_multiple), value=0)
             audio_length = torch.tensor(audio.size(0)).long()
 
             context_audio = cuts[idx].context_recording.load_audio()
             context_audio = torch.from_numpy(context_audio)[0]
-            context_audio = torch.nn.functional.pad(context_audio, (0, self.pad_multiple - context_audio.size(0) % self.pad_multiple), value=0)
+            context_audio = torch.nn.functional.pad(context_audio, (0, pad_multiple - context_audio.size(0) % pad_multiple), value=0)
             context_audio_length = torch.tensor(context_audio.size(0)).long()
 
             context_audios_torch.append(context_audio)
@@ -124,31 +156,35 @@ class CodecExtractor(pl.LightningModule):
             audio_lens.append(audio_length)
             
         # Pad to max length
-        audio_stacked = torch.nn.utils.rnn.pad_sequence(audios_torch, batch_first=True).to(device=self.device)
-        context_audio_stacked = torch.nn.utils.rnn.pad_sequence(context_audios_torch, batch_first=True).to(device=self.device)
-        audio_lens = torch.stack(audio_lens).to(device=self.device)
-        context_audio_lens = torch.stack(context_audio_lens).to(device=self.device)
-        
-        codes, lengths = self.codec_model.encode(
-            audio=audio_stacked, audio_len=audio_lens
-        )
-        context_codes, context_lengths = self.codec_model.encode(
-            audio=context_audio_stacked, audio_len=context_audio_lens
-        )
-        
+        audio_stacked = torch.nn.utils.rnn.pad_sequence(audios_torch, batch_first=True)
+        context_audio_stacked = torch.nn.utils.rnn.pad_sequence(context_audios_torch, batch_first=True)
+        audio_lens = torch.stack(audio_lens)
+        context_audio_lens = torch.stack(context_audio_lens)
 
-        codes = [c[:, :L].cpu().type(torch.int16) for c, L in zip(codes, lengths)]
-        context_codes = [c[:, :L].cpu().type(torch.int16) for c, L in zip(context_codes, context_lengths)]
-        return {"cuts": cuts, "codes": codes, "context_codes": context_codes}
-
-
+        return {
+            "audio": audio_stacked,
+            "context_audio": context_audio_stacked,
+            "audio_lens": audio_lens,
+            "context_audio_lens": context_audio_lens,
+            "cuts": cuts,
+        }
+    
+    def __len__(self):
+        return len(self.cuts)
+    
 def make_loader(shar_root, batch_size, num_workers):
     cuts = CutSet.from_shar(
         in_dir=shar_root,
     )
-    return DataLoader(cuts, batch_size=batch_size,
-                      num_workers=num_workers, shuffle=False,
-                      collate_fn=lambda batch: CutSet.from_cuts(batch))
+    dataset = MyDataset()
+    sampler = SimpleCutSampler(cuts, shuffle=False, max_cuts=batch_size)
+    dataloader = DataLoader(
+        dataset,
+        sampler=sampler,
+        batch_size=None,
+        num_workers=num_workers,
+    )
+    return dataloader
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -156,21 +192,23 @@ if __name__ == "__main__":
     parser.add_argument("--out_dir")
     parser.add_argument("--codec_ckpt")
     parser.add_argument("--codec_name", default="48k")
-    parser.add_argument("--frame_rate", type=float, default=50.0)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--devices", type=int, default=-1)
     parser.add_argument("--num_nodes", type=int, default=1)
     parser.add_argument("--shard_size", type=int, default=4096)
+    parser.add_argument("--buffer_size", type=int, default=128)
     args = parser.parse_args()
 
     writer = SharPredictionWriter(
         output_dir=args.out_dir,
         codec_model_name=args.codec_name,
-        codec_frame_rate=args.frame_rate,
         fields={"recording": "flac", f"codes_{args.codec_name}": "numpy", f"context_codes_{args.codec_name}": "numpy"},
         shard_size=args.shard_size,
+        buffer_size=args.batch_size,
     )
+
+    dataloader = make_loader(args.in_dir, args.batch_size, args.num_workers)
 
     trainer = pl.Trainer(
         accelerator="gpu",
@@ -179,9 +217,9 @@ if __name__ == "__main__":
         strategy=DDPStrategy(find_unused_parameters=False),
         logger=False,
         callbacks=[writer],
+        use_distributed_sampler=False, 
     )
 
     model = CodecExtractor(args.codec_ckpt)
-    dataloader = make_loader(args.in_dir, args.batch_size, args.num_workers)
 
     trainer.predict(model, dataloaders=dataloader, return_predictions=False)
