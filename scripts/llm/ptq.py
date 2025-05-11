@@ -17,6 +17,7 @@ import argparse
 from nemo.collections import llm
 from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
 from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.quantizer import KV_QUANT_CFG_CHOICES
 
 
 def get_args():
@@ -82,6 +83,13 @@ def get_args():
     parser.add_argument("--disable_kv_cache", dest="enable_kv_cache", action="store_false")
     parser.set_defaults(enable_kv_cache=None)
     parser.add_argument(
+        "--kv_cache_qformat",
+        type=str,
+        default="fp8",
+        choices=KV_QUANT_CFG_CHOICES,
+        help="KV-cache quantization format",
+    )
+    parser.add_argument(
         "-dt", "--dtype", default="bf16", choices=["16", "bf16"], help="Default precision for non-quantized layers"
     )
     parser.add_argument("-bs", "--batch_size", default=64, type=int, help="Calibration batch size")
@@ -103,7 +111,6 @@ def get_args():
         "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
     parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
-
     args = parser.parse_args()
 
     if args.export_path is None:
@@ -129,6 +136,7 @@ def main():
         awq_block_size=args.awq_block_size,
         sq_alpha=args.sq_alpha,
         enable_kv_cache=args.enable_kv_cache,
+        kv_cache_qformat=args.kv_cache_qformat,
         calibration_dataset=args.calibration_dataset,
         calibration_dataset_size=args.calibration_dataset_size,
         calibration_batch_size=args.batch_size,

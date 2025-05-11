@@ -16,6 +16,7 @@ import contextlib
 import io
 import signal
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
 
@@ -30,7 +31,8 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
-from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.tensor import DeviceMesh
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel, parallelize_module
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
@@ -38,10 +40,11 @@ from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
-    "torch.distributed._composable.fsdp", "MixedPrecisionPolicy"
+    "torch.distributed.fsdp", "MixedPrecisionPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
-fully_shard, HAS_FULLY_SHARD = safe_import_from("torch.distributed._composable.fsdp.fully_shard", "fully_shard")
-
+fully_shard, HAS_FULLY_SHARD = safe_import_from(
+    "torch.distributed.fsdp", "fully_shard", fallback_module="torch.distributed._composable.fsdp"
+)
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
     "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
@@ -54,14 +57,12 @@ class RestoreConfig:
 
     Attributes:
         path (str): Path to the checkpoint directory.
-        adapter_path (Optional[str]): Path to adapter checkpoint, if any.
         load_model_state (bool): Whether to load model weights.
         load_optim_state (bool): Whether to load optimizer state.
         load_artifacts (bool): Whether to load additional artifacts (e.g., tokenizer).
     """
 
     path: str
-    adapter_path: Optional[str] = None
     load_model_state: bool = True
     load_optim_state: bool = False
     # eg tokenizer, etc.
@@ -451,13 +452,26 @@ def fsdp2_strategy_parallelize(
     model,
     device_mesh: DeviceMesh = None,
     mp_policy: MixedPrecisionPolicy = None,
+    use_hf_tp_plan: bool = False,
+    tp_shard_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
     offload_policy: 'CPUOffloadPolicy' = None,
 ):
     """Apply parallelisms and activation checkpointing to the model.
+
+    Args:
+        model: The model to be parallelized.
+        device_mesh (DeviceMesh): The device mesh for distributed training.
+        mp_policy (MixedPrecisionPolicy): Mixed precision policy for model parallelism.
+        tp_shard_plan (Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]]):
+            A tensor parallel sharding plan. The keys should be the module names and the values should be the
+            corresponding parallel styles (e.g., RowwiseParallel, ColwiseParallel, SequenceParallel).
+        offload_policy (CPUOffloadPolicy): The offload policy for FSDP. If None, it will use the default policy.
+
     NOTE: The passed-in model preferably should be on meta device. Otherwise,
     the model must fit on GPU or CPU memory.
     NOTE: Currently, the user is required to manually handle precision settings such as the `mp_policy` here
     because the model parallel strategy does not respect all settings of `Fabric(precision=...)` at the moment.
+    NOTE: Currently, the user should make sure that custom_tp_plan is compatible with the model architecture.
     """
 
     if not mp_policy:
@@ -486,20 +500,69 @@ def fsdp2_strategy_parallelize(
 
     # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
     dp_mesh = device_mesh["context_parallel" if device_mesh["context_parallel"].size() > 1 else "data_parallel"]
+    tp_mesh = device_mesh["tensor_parallel"]
+
     if dp_mesh.size() > 1:
         assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
 
-        assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
-        # Find transformer layers and apply parallelisms
-        parallelize_helper(model, dp_mesh, mp_policy)
+    # TP sharding
+    if tp_mesh.size() > 1:
+        if tp_shard_plan is None and use_hf_tp_plan:
+            tp_shard_plan = get_hf_tp_shard_plan(model)
+        parallelize_module(model, tp_mesh, tp_shard_plan)
 
-        # reshard_after_forward=True based on
-        # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
-        model = fully_shard(
-            model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
-        )
+    # FSDP sharding
+    assert dp_mesh.ndim == 1, "Hybrid-sharding not supported"
+    assert HAS_FULLY_SHARD is not None, "Expected to have fully_shard"
+
+    # Find transformer layers and apply parallelisms
+    parallelize_helper(model, dp_mesh, mp_policy)
+
+    # reshard_after_forward=True based on
+    # https://github.com/pytorch/torchtitan/blob/main/torchtitan/parallelisms/parallelize_llama.py#L359
+    model = fully_shard(
+        model, mesh=dp_mesh, mp_policy=mp_policy, reshard_after_forward=True, offload_policy=offload_policy
+    )
 
     return model
+
+
+def get_hf_tp_shard_plan(model):
+    """
+    Get the tensor parallel sharding plan from the model.
+    """
+    hf_tp_shard_plan = {}
+    if hasattr(model, '_tp_plan') and model._tp_plan is not None:
+        hf_tp_shard_plan.update(model._tp_plan)
+    if hasattr(model.model, '_tp_plan') and model.model._tp_plan is not None:
+        hf_tp_shard_plan.update({f"model.{k}": v for k, v in model.model._tp_plan.items()})
+
+    hf_tp_shard_plan = {k: translate_to_torch_parallel_style(v) for k, v in hf_tp_shard_plan.items()}
+    return hf_tp_shard_plan
+
+
+@lru_cache
+def translate_to_torch_parallel_style(style: str):
+    """
+    In model configurations, we use a neutral type (string) to specify parallel
+    styles, here we translate them into torch.distributed tensor-parallel
+    types.
+    """
+    if not isinstance(style, str):
+        raise ValueError(f"Unsupported parallel style type {type(style)}, expected str")
+
+    if style == "colwise":
+        return ColwiseParallel()
+    elif style == "rowwise":
+        return RowwiseParallel()
+    elif style == "colwise_rep":
+        return ColwiseParallel(output_layouts=Replicate())
+    elif style == "rowwise_rep":
+        return RowwiseParallel(input_layouts=Replicate())
+    elif style == "sequence_parallel":
+        return SequenceParallel()
+    else:
+        raise ValueError(f"Unsupported parallel style value: {style}")
 
 
 def to_cpu(v):
@@ -531,9 +594,9 @@ def to_cpu(v):
         tensor([4, 5, 6])
     """
     if isinstance(v, DTensor):
-        if v.device.type == 'cuda':
+        if v.device.type == "cuda":
             return v.full_tensor().cpu()
-        elif v.device.type == 'cpu':
+        elif v.device.type == "cpu":
             return v._local_tensor
         else:
             raise ValueError("Unknown device " + str(v.device))

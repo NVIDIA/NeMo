@@ -41,13 +41,31 @@ TELayerNormColumnParallelLinear, HAVE_TE_LN_COL_LINEAR = safe_import_from(
     "megatron.core.extensions.transformer_engine",
     "TELayerNormColumnParallelLinear",
 )
+TEColumnParallelGroupedLinear, HAVE_TE_COL_GRP_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TEColumnParallelGroupedLinear"
+)
 TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
     "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
 )
+TERowParallelGroupedLinear, HAVE_TE_ROW_GRP_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TERowParallelGroupedLinear"
+)
 TELinear, HAVE_TE_LINEAR = safe_import_from("megatron.core.extensions.transformer_engine", "TELinear")
-HAVE_TE = all((HAVE_TE_COL_LINEAR, HAVE_TE_LN_COL_LINEAR, HAVE_TE_ROW_LINEAR, HAVE_TE_LINEAR))
+HAVE_TE = all(
+    (
+        HAVE_TE_COL_LINEAR,
+        HAVE_TE_LN_COL_LINEAR,
+        HAVE_TE_ROW_LINEAR,
+        HAVE_TE_LINEAR,
+        HAVE_TE_COL_GRP_LINEAR,
+        HAVE_TE_ROW_GRP_LINEAR,
+    )
+)
 
 MixedFusedLayerNorm, HAVE_APEX = safe_import_from("apex.normalization.fused_layer_norm", "MixedFusedLayerNorm")
+
+TECL = (TEColumnParallelLinear, TELayerNormColumnParallelLinear, TEColumnParallelGroupedLinear)
+TERL = (TERowParallelLinear, TERowParallelGroupedLinear)
 
 
 def get_adapter_attributes_from_linear(m: nn.Module):
@@ -56,7 +74,7 @@ def get_adapter_attributes_from_linear(m: nn.Module):
     """
     disable_sequence_parallel_comm = not m.config.sequence_parallel
 
-    if HAVE_TE and isinstance(m, TEColumnParallelLinear) or isinstance(m, TELayerNormColumnParallelLinear):
+    if HAVE_TE and any(isinstance(m, te_column_parallel) for te_column_parallel in TECL):
         input_is_parallel = False
         # m.in_features and m.out_features are divided by tp_size already,
         # but in_features and out_features passed to ParallelLinearAdapter are not.
@@ -85,7 +103,7 @@ def get_adapter_attributes_from_linear(m: nn.Module):
                     # in the forward method is not needed, so disable sp communications
                     # unless TP communication overlap is used
                     disable_sequence_parallel_comm = True
-    elif HAVE_TE and isinstance(m, TERowParallelLinear):
+    elif HAVE_TE and any(isinstance(m, te_row_parallel) for te_row_parallel in TERL):
         input_is_parallel = True
         tp_size = parallel_state.get_tensor_model_parallel_world_size()
         in_features = m.in_features * tp_size
@@ -113,7 +131,7 @@ def is_expert_linear(fqn):
     Return whether the current base module is an expert linear module.
     See ParallelLinearAdapter.is_expert for usage details.
     """
-    return re.match(r'.*mlp\.experts\.local_experts.[0-9]+\.linear_fc[1-2]$', fqn) is not None
+    return re.match(r'.*mlp\..*experts.*\.linear_fc[1-2]$', fqn) is not None
 
 
 def wildcard_match(pattern, key):
@@ -233,21 +251,14 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         dim: int,
         base_linear_name: str,
         activation: str = 'swish',
-        norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
         column_init_method: str = 'xavier',
-        # TODO: (@adithyare) should rename this to input_init_method to be more precise.
         row_init_method: str = 'zero',
-        # TODO: (@adithyare) should rename this to output_init_method to be more precise.
-        gather_output: bool = True,
         input_is_parallel: bool = False,
-        # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
         dropout_position: str = 'post',
         a2a_experimental: bool = False,
-        # TODO: should rename this or make it a default feature
         is_expert: bool = False,
         disable_sequence_parallel_comm: bool = True,
         **kwargs,
@@ -255,7 +266,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         super().__init__()
         self.base_linear_name = base_linear_name
         self.activation = activation_registry[activation]()
-        self.norm_position = norm_position
         self.dim = dim
         self.alpha = alpha if alpha is not None else self.dim
         self.input_is_parallel = input_is_parallel
@@ -291,44 +301,22 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 init_method=self._get_init_fn(column_init_method),
                 disable_grad_reduce=_sequence_parallel,
             )
-        if gather_output:
-            self.linear_out = RowParallelLinear(
-                dim,
-                out_features,
-                config=model_parallel_config,
-                bias=False,
-                init_method=self._get_init_fn(row_init_method),
-                input_is_parallel=False,
-                skip_bias_add=True,
-            )
-        else:
-            # (@adithyare) we use this option to mirror the behavior
-            # a column parallel layer with two low-rank column parallel layers
-            # if the original column parallel layer uses gather_output=False,
-            # then we will use the self.liner_out layer defined below.
-            lin_out_gather_output = True if input_is_parallel else False
-            if self.use_a2a and input_is_parallel and _sequence_parallel:
-                lin_out_gather_output = False
-            self.linear_out = ColumnParallelLinear(
-                dim,
-                out_features,
-                config=model_parallel_config,
-                bias=False,
-                gather_output=lin_out_gather_output,
-                init_method=self._get_init_fn(row_init_method),
-            )
 
-        if self.norm_position in ["pre", "post"]:
-            ln_features = in_features if self.norm_position == "pre" else out_features
-            if norm_type == 'mixedfusedlayernorm':
-                assert HAVE_APEX, "Apex is required to use MixedFusedLayerNorm"
-                self.layer_norm = MixedFusedLayerNorm(ln_features, 1e-5, sequence_parallel_enbaled=False)
-            elif norm_type == 'layernorm':
-                self.layer_norm = nn.LayerNorm(ln_features)
-            else:
-                raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
-        else:
-            self.layer_norm = None
+        # (@adithyare) we use this option to mirror the behavior
+        # a column parallel layer with two low-rank column parallel layers
+        # if the original column parallel layer uses gather_output=False,
+        # then we will use the self.liner_out layer defined below.
+        lin_out_gather_output = True if input_is_parallel else False
+        if self.use_a2a and input_is_parallel and _sequence_parallel:
+            lin_out_gather_output = False
+        self.linear_out = ColumnParallelLinear(
+            dim,
+            out_features,
+            config=model_parallel_config,
+            bias=False,
+            gather_output=lin_out_gather_output,
+            init_method=self._get_init_fn(row_init_method),
+        )
 
         if dropout > 0.0:
             self.dropout = nn.Dropout(dropout)
@@ -363,14 +351,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
         return init_fn
 
-    def adapter_unfreeze(
-        self,
-    ):
-        """
-        Can be customized to allow for selective training of only some params in the PEFT.
-        """
-        super().adapter_unfreeze()
-
     def forward(self, x):
         """ """
 
@@ -381,8 +361,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if self.is_expert:
             x, pad_len = pad_seq_to_mult(x, self.config.tensor_model_parallel_size)
 
-        if self.norm_position == 'pre':
-            x = self.layer_norm(x)
         if not self.disable_sequence_parallel_comm and not self.input_is_parallel and not self.is_expert:
             # for attention_qkv and linear_fc1
             # layernorm before lora is impacted by sequence parallel,
@@ -410,9 +388,6 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 x = all2all_hp2sp(x)
             else:
                 x = scatter_to_sequence_parallel_region(x)
-
-        if self.norm_position == 'post':
-            x = self.layer_norm(x)
 
         # Add dropout if available
         if self.dropout is not None and self.dropout_position == 'post':

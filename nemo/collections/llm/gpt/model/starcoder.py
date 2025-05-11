@@ -245,7 +245,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
         from transformers import GPTBigCodeForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return GPTBigCodeForCausalLM._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -330,6 +330,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
         source: StarcoderConfig = io.load_context(str(self)).model.config
 
         return HFStarcoderConfig(
+            architectures=["GPTBigCodeForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,

@@ -83,17 +83,17 @@ class TestDeepSeekV3:
         assert recipe.trainer.strategy.tensor_model_parallel_size == 8
         assert recipe.trainer.strategy.expert_model_parallel_size == 1
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 5
-        assert recipe.model.config.num_layers_in_first_pipeline_stage == 13
-        assert recipe.model.config.num_layers_in_last_pipeline_stage == 12
+        assert recipe.trainer.strategy.num_layers_in_first_pipeline_stage == 13
+        assert recipe.trainer.strategy.num_layers_in_last_pipeline_stage == 12
 
     def test_finetune_recipe_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
-        assert recipe.trainer.strategy.sequence_parallel is True
-        assert recipe.trainer.strategy.expert_model_parallel_size == 4
-        assert recipe.trainer.strategy.tensor_model_parallel_size == 16
-        assert recipe.trainer.strategy.pipeline_model_parallel_size == 7
-        assert recipe.model.config.num_layers_in_first_pipeline_stage == 8
-        assert recipe.model.config.num_layers_in_last_pipeline_stage == 8
+        assert recipe.trainer.strategy.sequence_parallel is False
+        assert recipe.trainer.strategy.expert_model_parallel_size == 64
+        assert recipe.trainer.strategy.tensor_model_parallel_size == 1
+        assert recipe.trainer.strategy.pipeline_model_parallel_size == 8
+        assert recipe.trainer.strategy.num_layers_in_first_pipeline_stage == 6
+        assert recipe.trainer.strategy.num_layers_in_last_pipeline_stage == 7
         assert recipe.optim.config.lr == 5e-6
         assert not hasattr(recipe, 'peft') or recipe.peft is None
 
