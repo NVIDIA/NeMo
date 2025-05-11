@@ -30,7 +30,6 @@ from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -389,7 +388,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
             # map vision model output size to language model input size.
             image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
-
             # TODO: Support batched inference.
             # In inference, the language model KV cache will be updated for image token positions.
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
@@ -402,7 +400,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if not self.add_decoder:
             return image_embeddings
-
+        
         language_embeddings = None
         if self.pre_process:
             input_ids_text = input_ids.clone()
@@ -445,6 +443,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     combined_embeddings, final_labels, final_loss_mask, packed_seq_params
                 )
             )
+        
 
         output = self.language_model(
             input_ids=None,
@@ -459,6 +458,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if labels is None or loss_mask is None:
             return output
+
+        # current_rank = torch.distributed.get_rank()
+        # if current_rank == 0:
+        #     breakpoint()
+        # torch.distributed.barrier()
 
         return output, final_loss_mask.contiguous()
 

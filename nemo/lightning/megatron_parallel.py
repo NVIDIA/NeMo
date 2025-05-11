@@ -362,7 +362,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             if isinstance(_loss_reduction, _ModuleStepFunction):
                 _loss_reduction = _loss_reduction(self.module)
-
+            # current_rank = torch.distributed.get_rank()
+            # if current_rank == 0:
+            #     breakpoint()
+            # torch.distributed.barrier()
             reduced = _loss_reduction.reduce(microbatch_outputs)
             self.callbacks.event(
                 "on_megatron_reduce_microbatches_end",
@@ -1867,14 +1870,24 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                 [loss_sum_for_ub.clone().detach().view(1), num_valid_tokens_in_ub]
             )
             torch.distributed.all_reduce(loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group())
+            
             return loss_sum_for_ub, num_valid_tokens_in_ub, {"loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu}
 
         reduced_loss = average_losses_across_data_parallel_group([loss_sum_for_ub / num_valid_tokens_in_ub])
+        # breakpoint()
+        # current_rank = torch.distributed.get_rank()
+        # if current_rank == 0:
+        #     breakpoint()
+        # torch.distributed.barrier()
         return loss_sum_for_ub, num_valid_tokens_in_ub, {"avg": reduced_loss}
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""  # pylint: disable=line-too-long
         if losses_reduced_per_micro_batch:
+            # current_rank = torch.distributed.get_rank()
+            # if current_rank == 0:
+            #     breakpoint()
+            # torch.distributed.barrier()
             if "avg" in losses_reduced_per_micro_batch[0]:
                 loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
                 loss_tensor = torch.concat(loss_tensors_list)
@@ -1893,7 +1906,7 @@ class MaskedTokenLossReduction(MegatronLossReduction):
                 else torch.tensor([0.0, 0.0], device=torch.cuda.current_device())
             )
             return loss_sum
-
+       
         return torch.tensor(0.0, device=torch.cuda.current_device())
 
 

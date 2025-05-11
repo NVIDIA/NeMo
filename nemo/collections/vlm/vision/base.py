@@ -98,13 +98,21 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                 self.layer_spec = MLPSubmodules(linear_fc1=TEColumnParallelLinear, linear_fc2=None)
             else:
                 raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
-
-            return MCoreMultimodalProjector(
+            projection = MCoreMultimodalProjector(
                 self,
                 self.layer_spec,
                 projector_type=self.projector_type,
                 input_size=self.input_size,
             )
+
+            # make all weights and bias value 0.5
+            for name, param in projection.named_parameters():
+                if 'weight' in name:
+                    param.data.fill_(0.05)
+                elif 'bias' in name:
+                    param.data.fill_(0.05)
+            
+            return projection
 
         # e.g. "mlp2x_gelu"
         mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)

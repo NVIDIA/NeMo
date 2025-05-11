@@ -101,8 +101,8 @@ def main(args):
         )
     elif args.data_type == "energon":
         from transformers import AutoProcessor
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
         from nemo.collections.multimodal.data.energon import (
             EnergonMultiModalDataModule,
             ImageToken,
@@ -112,13 +112,14 @@ def main(args):
 
         processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
         image_processor = processor.image_processor
-        tokenizer = AutoTokenizer("llava-hf/llava-1.5-7b-hf")
-
+        # tokenizer = AutoTokenizer("llava-hf/llava-1.5-7b-hf")
+        tokenizer = processor.tokenizer
+        tokenizer.chat_template = processor.chat_template
         # Configure multimodal samples
         config = MultiModalSampleConfig(
             image_token=ImageToken(token_str="<image>", token_id=-200),
             ignore_place_holder=-100,
-            conversation_template_config=LLaVATemplateConfig(system="", chat_template=""),
+            conversation_template_config=LLaVATemplateConfig(system="You are a helpful assistant.", chat_template=""),
         )
 
         # Initialize the data module
@@ -130,6 +131,8 @@ def main(args):
             micro_batch_size=mbs,
             global_batch_size=gbs,
             num_workers=0,
+            shuffle_buffer_size=None,
+            max_samples_per_sequence=None,
             multimodal_sample_config=config,
             task_encoder=MultiModalTaskEncoder(
                 tokenizer=tokenizer,
@@ -183,7 +186,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=500,
+        every_n_train_steps=50000,
         dirpath=args.log_dir,
     )
 
@@ -194,9 +197,9 @@ def main(args):
         max_steps=max_steps,
         accelerator="gpu",
         strategy=strategy,
-        plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
+        # plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=500,
+        val_check_interval=100,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -229,12 +232,12 @@ def main(args):
         lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.95,
-        use_distributed_optimizer=True,
-        bf16=True,
+        # use_distributed_optimizer=True,
+        # bf16=True,
     )
     sched = CosineAnnealingScheduler(
         max_steps=trainer.max_steps,
-        warmup_steps=70,
+        warmup_steps=150,
         constant_steps=0,
         min_lr=2.0e-05,
     )

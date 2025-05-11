@@ -199,6 +199,9 @@ class VQASampleEncoder(BaseSampleEncoder):
         # Add system message if it exists
         if self.conversation_template_config.system:
             messages.append({'role': 'system', 'content': self.conversation_template_config.system})
+        def _wrap(txt: str):
+            """Return the minimal chunk list expected by the template."""
+            return [{"type": "text", "text": txt}]
 
         # Handle cases where context and answers are lists
         if isinstance(input_text.context, list) and isinstance(input_text.answers, list):
@@ -209,8 +212,8 @@ class VQASampleEncoder(BaseSampleEncoder):
                 messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers[i]})
         elif isinstance(input_text.context, str) and isinstance(input_text.answers, str):
             # Handle single context and answer as strings
-            messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context})
-            messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
+            messages.append({'role': self.conversation_template_config.roles[0], 'content': _wrap(input_text.context)})
+            messages.append({'role': self.conversation_template_config.roles[1], 'content': _wrap(input_text.answers)})
         else:
             raise ValueError(
                 "VQA Sample context/answers should either be a List[str] or str. Other types not supported"
@@ -256,7 +259,6 @@ class VQASampleEncoder(BaseSampleEncoder):
                 tokenized_chunks.append(self.image_token.token_id)
             elif len(chunk) > 0:
                 tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
-
         return torch.tensor(tokenized_chunks, dtype=torch.long)
 
     def compute_labels(self, tokens: torch.Tensor, sample: VQASample) -> torch.Tensor:
@@ -285,15 +287,17 @@ class VQASampleEncoder(BaseSampleEncoder):
         # Iterate through the answers and compute labels for each answer
         for answer in answers:
             # Encode the answer with the stop string
-            answer = self.process_answer_str(answer, stop_str)
+
+            # answer = self.process_answer_str(answer, stop_str)
             answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
 
             # sometimes the tokenizer can add additional space. See:
             # https://github.com/huggingface/transformers/issues/25073#issuecomment-1655271420
-            if self.tokenizer.decode(answer_tokens[0]) == "":
-                answer_tokens = answer_tokens[1:]
+            # if self.tokenizer.decode(answer_tokens[0]) == "":
+            #     answer_tokens = answer_tokens[1:]
 
             # Find the start and end indices of the answer tokens in the prompt
+
             answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)
             if answer_start < 0:
                 logging.warning(
@@ -332,11 +336,13 @@ class VQASampleEncoder(BaseSampleEncoder):
         ImageTextSample: The encoded sample stored in output_sample.
         """
         # apply prompt template
+
         conversation_prompt = self.apply_prompt_template(input_sample)
         logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
+
 
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()

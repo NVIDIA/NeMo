@@ -423,6 +423,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     logging.info("Fixing mis-match between ddp-config & mcore-optimizer config")
                     ddp_config.use_distributed_optimizer = mcore_opt_config.use_distributed_optimizer
 
+                # current_rank = torch.distributed.get_rank()
+                # if current_rank == 0:
+                #     breakpoint()
+                # torch.distributed.barrier()
+
     @override
     def setup(self, trainer: pl.Trainer) -> None:
         """Setups the strategy"""
@@ -690,6 +695,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 opt.zero_grad()
 
             out = self.model.training_step(dataloader_iter, *args, **kwargs)
+            # breakpoint()
+            # current_rank = torch.distributed.get_rank()
+            # if current_rank == 0:
+            #     breakpoint()
+            # torch.distributed.barrier()
 
             if torch.is_tensor(out):
                 reduced_train_loss = out
@@ -756,7 +766,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     ) -> Any:
         """Runs one optimizer step"""
         optimizer_output = super().optimizer_step(optimizer, closure, model, **kwargs)
-
+        current_rank = torch.distributed.get_rank()
+        if current_rank == 0:
+            breakpoint()
+        torch.distributed.barrier()
         if isinstance(optimizer, McoreDistributedOptimizer):
             optimizer_output, grad_norm, num_zeros_in_grad = optimizer_output
             if grad_norm is not None:

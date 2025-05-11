@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Dict, List, Union
 
 import torch
@@ -21,8 +22,11 @@ from megatron.energon import (
     InterleavedSample,
     SimilarityInterleavedSample,
     VQASample,
+    WorkerConfig,
     batch_list,
     batch_pad_stack,
+    get_loader,
+    get_train_dataset,
 )
 from megatron.energon.task_encoder.base import stateless
 
@@ -110,6 +114,8 @@ class MultiModalTaskEncoder(
                 image_tag_type=image_tag_type,
             ),
         }
+        
+        self.cached_data = None
 
     def register_encoder(self, sample_type: str, encoder: SampleEncoder) -> None:
         """
@@ -233,6 +239,60 @@ class MultiModalTaskEncoder(
         Returns:
         dict: A dictionary containing the encoded batch data, ready for model input.
         """
+        # ------------------------------------------------------------------
+        # Optional fast-path: serve pre-computed batches from a cached file.
+        # ------------------------------------------------------------------
+        # Turn the flag on if you want the dataloader to *ignore* the real
+        # batch_data given to this function and instead cycle through the
+        # cached dataset that lives on disk at `saved_data_path`.
+        # Each call returns one micro-batch of size `cached_bsz` (default 8)
+        # and once we reach the end we wrap around to the beginning again.
+        # ------------------------------------------------------------------
+
+        return_cached_data = True  # set to True to enable the behaviour above
+        saved_data_path = "/lustre/fsw/coreai_dlalgo_genai/ykarnati/checkpoints/nemo_cache_data_bs_4096.pth"
+        cached_bsz = 8
+
+        if return_cached_data:
+            # ----------------------------------------------------------------
+            # 1. Load the cached file (only once) and remember an index pointer
+            #    so we can iterate over it in a circular fashion.
+            # ----------------------------------------------------------------
+            if self.cached_data is None:
+                self.cached_data = torch.load(saved_data_path)
+               
+ 
+                if not hasattr(self, "_cached_ptr"):
+                    self._cached_ptr = 0
+                if not hasattr(self, "_cached_size"):
+                    self._cached_size = 4096
+
+            # ----------------------------------------------------------------
+            # 2. Pick `cached_bsz` indices with modulo arithmetic for
+            #    seamless wrap-around. Simpler and works for both tensors
+            #    and Python sequences.
+            # ----------------------------------------------------------------
+            micro_bs = cached_bsz
+            total_cached = self._cached_size
+            idxs = [(self._cached_ptr + i) % total_cached for i in range(micro_bs)]
+
+            out_batch = {}
+            for k, v in self.cached_data.items():
+                if v is None:
+                    out_batch[k] = None
+                else:
+                    try:
+                        # Works for tensors and numpy arrays
+                        out_batch[k] = v[idxs]
+                    except Exception:
+                        # Fallback for generic sequences (e.g., list)
+                        out_batch[k] = [v[i] for i in idxs]
+
+            # Advance the pointer.
+            self._cached_ptr = (self._cached_ptr + micro_bs) % total_cached
+
+            return out_batch
+
         batch_dict = batch_data.__dict__
         if 'images' in batch_dict:
             batch_dict['media'] = batch_dict['images']
@@ -333,3 +393,86 @@ class MultiModalTaskEncoder(
             packed_seq_params=packed_seq_params,
             num_image_tiles=batch_num_image_tiles,
         )
+if __name__ == '__main__':
+
+    import os
+    import random
+
+    import numpy as np
+    import torch
+    SEED = 42         
+    # 1.  Global seeding
+    os.environ["PYTHONHASHSEED"] = str(SEED)
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    
+    import argparse
+
+    from megatron.energon import DefaultTaskEncoder, VQASample, WorkerConfig, get_loader, get_train_dataset
+
+    from nemo.collections.multimodal.data.energon.sample_encoder import VQASampleEncoder
+
+
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', type=str, required=True, help='path to the dataset directory in energon format')
+    args = parser.parse_args()
+    model_name = "llava-hf/llava-1.5-7b-hf"
+    # support for mistral is wip,need to handle processor
+    # model_name = "mistralai/Mistral-7B-v0.3"
+    from transformers import AutoProcessor
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.multimodal.data.energon import (
+        EnergonMultiModalDataModule,
+        ImageToken,
+        LLaVATemplateConfig,
+        MultiModalSampleConfig,
+    )
+    processor = AutoProcessor.from_pretrained(model_name)
+    tokenizer = processor.tokenizer
+    tokenizer.chat_template = processor.chat_template
+    config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+            conversation_template_config=LLaVATemplateConfig(system="You are a helpful assistant.", chat_template=""),
+        )
+    worker_config = WorkerConfig.default_worker_config(0)
+    train_loader = get_loader(
+        get_train_dataset(
+            args.data_path,
+            batch_size=8,
+            shuffle_buffer_size=None,
+            max_samples_per_sequence=None,
+            task_encoder=MultiModalTaskEncoder(
+                 tokenizer=tokenizer,
+                image_processor=processor.image_processor,
+                multimodal_sample_config=config,
+                packed_sequence=False,
+                # leave some space for perf padding, otherwise after packing and padding,
+                # it will go beyond max seq len, then it will need a truncation.
+                packed_sequence_size=-1,
+                num_image_embeddings_per_tile=576,
+            ),
+            worker_config=worker_config,
+        ),
+        worker_config=worker_config,
+    )
+
+    save_path = "/lustre/fsw/coreai_dlalgo_genai/ykarnati/checkpoints/nemo_cache_data_bs_4096.pth"
+
+    print(f"data loader length {len(train_loader)}")
+    for idx, batch in enumerate(train_loader):
+        print(f"batch {idx}  tokens {batch['tokens']}")
+       
+
+        # if idx == 0:                              
+        #     os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        #     print(f"batch {idx} tokens {batch['tokens']}")  
+        #     torch.save(batch, save_path)          
+        #     print(f"First batch written to {save_path}")
+        # breakpoint()
+
+        # break                                   
