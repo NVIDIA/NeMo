@@ -629,6 +629,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         print("Mean reward: ", mean_reward)
         return {
             'mean_reward': torch.tensor(mean_reward, device=self.device),
+            'std_reward': torch.tensor(std_reward, device=self.device),
             'batch_repeated': batch_repeated,
             'metrics': batch_metrics,
             'predicted_codes': predicted_codes,
@@ -716,6 +717,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         
         return {
             'mean_reward': generated_codes_and_metrics['mean_reward'],
+            'std_reward': generated_codes_and_metrics['std_reward'],
             'loss': total_loss,
             'kl_loss': total_kl,
             'batch_metrics': generated_codes_and_metrics['metrics'],
@@ -728,6 +730,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         self.log('train_loss', po_outputs['loss'], prog_bar=True, sync_dist=True)
         self.log('train_kl_loss', po_outputs['kl_loss'], prog_bar=True, sync_dist=True)
         self.log('train_mean_reward', po_outputs['mean_reward'], prog_bar=True, sync_dist=True)
+        self.log('train_std_reward', po_outputs['std_reward'], prog_bar=True, sync_dist=True)
         return po_outputs['loss']
 
     def validation_step(self, batch, batch_idx):
@@ -739,6 +742,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
         self.validation_step_outputs.append({
             'mean_reward': mean_reward,
+            'std_reward': po_outputs['std_reward'],
             'val_loss': val_loss,
             'val_kl_loss': val_kl_loss,
             'batch_metrics': batch_metrics,
@@ -758,10 +762,12 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         val_loss = collect("val_loss")
         val_kl_loss = collect("val_kl_loss")
         mean_reward = collect("mean_reward")
+        std_reward = collect("std_reward")
 
         self.log("val_loss", val_loss, prog_bar=True, sync_dist=True)
         self.log("val_kl_loss", val_kl_loss, prog_bar=True, sync_dist=True)
         self.log("val_mean_reward", mean_reward, prog_bar=True, sync_dist=True)
+        self.log("val_std_reward", std_reward, prog_bar=True, sync_dist=True)
 
         mean_metrics = {}
         for val_output in self.validation_step_outputs:
