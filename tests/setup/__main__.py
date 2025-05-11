@@ -30,7 +30,8 @@ print(f"Arguments are: {vars(args)}")
 os.makedirs(args.save_dir, exist_ok=True)
 
 create_sample_jsonl(
-    output_file=os.path.join(args.save_dir, "test_quantization", "test.json"), overwrite=args.overwrite,
+    output_file=os.path.join(args.save_dir, "test_quantization", "test.json"),
+    overwrite=args.overwrite,
 )
 
 create_hf_model(
