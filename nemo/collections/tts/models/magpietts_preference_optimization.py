@@ -435,6 +435,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             # import ipdb; ipdb.set_trace()
             assert HAVE_TORCHAUDIO, "torchaudio is required for PESQ reward"
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
+        
+        self.loss_type = self.cfg.get('loss_type', 'grpo')
+        self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
@@ -444,8 +447,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
-
-
+    
     def _get_per_token_logps(self, logits, labels, loss_mask):
         """Compute the log probabilities of the given labels under the given logits.
 
@@ -486,7 +488,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         print("use_cfg", use_cfg)
         predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, _ = self.infer_batch(
             batch_repeated,
-            max_decoder_steps=self.cfg.get('max_decoder_steps', 430),
+            max_decoder_steps=self.max_decoder_steps,
             temperature=temperature,
             topk=topk,
             use_cfg=use_cfg,
@@ -616,7 +618,10 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             mean_reward /= num_generations_per_item
             std_reward = np.std(group_rewards)
             for idx in range(group_start_idx, group_end_idx):
-                batch_metrics[idx]['advantage'] = (batch_metrics[idx]['reward'] - mean_reward) / (std_reward + 1e-6)
+                if self.loss_type == "grpo":
+                    batch_metrics[idx]['advantage'] = (batch_metrics[idx]['reward'] - mean_reward) / (std_reward + 1e-4)
+                elif self.loss_type == "dr_grpo":
+                    batch_metrics[idx]['advantage'] = batch_metrics[idx]['reward'] - mean_reward
 
 
         advantages = [x['advantage'] for x in batch_metrics]
@@ -691,7 +696,14 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             else:
                 codebook_kl_loss_mean = torch.tensor(0.0, device=self.device)
 
-            codebook_loss = ((per_token_loss * policy_model_outputs['loss_mask']).sum(dim=1) / policy_model_outputs['loss_mask'].sum(dim=1)).mean()
+            if self.loss_type == "grpo":
+                codebook_loss = ((per_token_loss * policy_model_outputs['loss_mask']).sum(dim=1) / policy_model_outputs['loss_mask'].sum(dim=1)).mean()
+            elif self.loss_type == "dr_grpo":
+                # https://github.com/huggingface/trl/blob/main/trl/trainer/grpo_trainer.py
+                total_tokens = per_token_loss.shape[0] * self.max_decoder_steps
+                codebook_loss = ((per_token_loss * policy_model_outputs['loss_mask']).sum() / total_tokens).mean()
+            else:
+                raise ValueError(f"Unknown loss function: {self.loss_type}")
 
             if total_loss is None:
                 total_loss = codebook_loss
@@ -700,9 +712,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 total_loss += codebook_loss
                 total_kl += codebook_kl_loss_mean
 
-
         total_loss /= self.num_audio_codebooks
-        print("Total kl", total_kl, n_generations_per_item)
+        
         return {
             'mean_reward': generated_codes_and_metrics['mean_reward'],
             'loss': total_loss,
