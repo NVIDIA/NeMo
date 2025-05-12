@@ -24,16 +24,26 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import _read_audio
 
 
 class CodecEmbedder(nn.Module):
+    """
+    Embeds audio codec codes into the codec's continuous embedding space.
+    Accepts as input either a batch of codes or a path to an audio file.
+    """
     def __init__(self, codec: AudioCodecModel):
         super().__init__()
         self.codec = codec
 
     def codes_to_emedding(self, x: Tensor, x_len: Tensor) -> Tensor:
+        """
+        Embeds a batch of audio codec codes into the codec's continuous embedding space.
+        """
         # x: (B, T, C)
         # x_len: (B,)
         return self.codec.dequantize(tokens=x, tokens_len=x_len)
 
     def encode_from_file(self, audio_path: str) -> Tensor:
+        """
+        Encodes an audio file into audio codec codes.
+        """
         print(f"Encoding audio {audio_path}")
         audio_segment = _read_audio(
             audio_filepath=audio_path, sample_rate=self.codec.sample_rate, offset=0, duration=0
@@ -134,7 +144,8 @@ class FrechetCodecDistance(Metric):
         self.update_from_codes(codes, codes_len, is_real)
 
     def update(self, codes: Tensor, codes_len: Tensor, is_real: bool):
-        # alias for update_from_codes
+        # The torchmetrics.Metric interface requires an `update()` method which we override here.
+        # Alias for `update_from_codes()`
         self.update_from_codes(codes, codes_len, is_real)
 
     def update_from_codes(self, codes: Tensor, codes_len: Tensor, is_real: bool):
@@ -250,31 +261,3 @@ class FrechetCodecDistance(Metric):
 
         return fcd
 
-
-if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    codec_path = "/datap/misc/checkpoints/AudioCodec_21Hz_no_eliz.nemo"
-    codec = AudioCodecModel.restore_from(codec_path, strict=False)
-    codec.to(device)
-    codec_feature_dim = codec.num_codebooks * codec.vector_quantizer.codebook_dim_per_group
-    metric = FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
-
-    B = 3
-    T = 20
-    C = codec.num_codebooks
-
-    # "generated"
-    codes = torch.randint(low=0, high=codec.codebook_size, size=(B, C, T), device=device)
-    codes_len = torch.randint(low=1, high=T, size=(B,), device=device)
-    metric.update(codes, codes_len, is_real=False)
-
-    # real
-    codes = torch.randint(low=0, high=codec.codebook_size, size=(B, C, T), device=device)
-    codes_len = torch.randint(low=1, high=T, size=(B,), device=device)
-    metric.update_from_codes(codes, codes_len, is_real=True)
-    metric.update_from_codes(codes, codes_len, is_real=True)
-    metric.update_from_audio_file(
-        "/datap/misc/Datasets/LibriTTS/dev-clean/1272/141231/1272_141231_000013_000002.wav", is_real=True
-    )
-    # compute metric
-    print(metric.compute())
