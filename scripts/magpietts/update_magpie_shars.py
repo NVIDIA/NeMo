@@ -11,6 +11,7 @@ from lhotse import CutSet, MonoCut
 from lhotse.shar.writers.shar import SharWriter
 from lhotse.dataset import SimpleCutSampler
 import time
+import librosa
 
 class SharPredictionWriter(BasePredictionWriter):
     def __init__(
@@ -107,9 +108,8 @@ def ddp_info():
     return 1, 0
 
 class CodecExtractor(pl.LightningModule):
-    def __init__(self, model_path, pad_multiple, batch_size, shar_root, num_workers):
+    def __init__(self, model_path, batch_size, shar_root, num_workers):
         super().__init__()
-        self.pad_multiple = pad_multiple
         self.codec_model = AudioCodecModel.restore_from(restore_path=model_path, strict=False)
         self.codec_model.eval()
         self._dataloader = None
@@ -129,7 +129,10 @@ class CodecExtractor(pl.LightningModule):
                 cuts, shuffle=False, max_cuts=self.batch_size,
                 world_size=world_size, rank=rank,
             )
-            dataset = SimpleCutDataset(pad_multiple=self.pad_multiple)
+            dataset = SimpleCutDataset(
+                pad_multiple=self.codec_model.samples_per_frame,
+                sample_rate=self.codec_model.sample_rate,
+            )
             self._dataloader = DataLoader(
                 dataset,
                 sampler=sampler,
@@ -161,9 +164,10 @@ class CodecExtractor(pl.LightningModule):
         return {"cuts": cuts, "codes": codes, "context_codes": context_codes}
 
 class SimpleCutDataset(torch.utils.data.Dataset):
-    def __init__(self, pad_multiple: int = 1024):
+    def __init__(self, pad_multiple: int, sample_rate: int):
         super().__init__()
         self.pad_multiple = pad_multiple
+        self.sample_rate = sample_rate
 
     def __getitem__(self, cuts: CutSet):
         pad_multiple = self.pad_multiple
@@ -173,12 +177,22 @@ class SimpleCutDataset(torch.utils.data.Dataset):
         context_audio_lens = []
         audio_lens = []
         for idx, audio in enumerate(audios):
-            audio = torch.from_numpy(audio)[0]
+            audio = librosa.resample(
+                audio[0],
+                orig_sr=cuts[idx].recording.sampling_rate,
+                target_sr=self.sample_rate
+            )
+            audio = torch.from_numpy(audio)
             audio = torch.nn.functional.pad(audio, (0, pad_multiple - audio.size(0) % pad_multiple), value=0)
             audio_length = torch.tensor(audio.size(0)).long()
 
             context_audio = cuts[idx].context_recording.load_audio()
-            context_audio = torch.from_numpy(context_audio)[0]
+            context_audio = librosa.resample(
+                context_audio[0],
+                orig_sr=cuts[idx].context_recording.sampling_rate,
+                target_sr=self.sample_rate
+            )
+            context_audio = torch.from_numpy(context_audio)
             context_audio = torch.nn.functional.pad(context_audio, (0, pad_multiple - context_audio.size(0) % pad_multiple), value=0)
             context_audio_length = torch.tensor(context_audio.size(0)).long()
 
@@ -207,7 +221,6 @@ if __name__ == "__main__":
     parser.add_argument("--out_dir")
     parser.add_argument("--codec_ckpt")
     parser.add_argument("--codec_name", default="testcodec")
-    parser.add_argument("--pad_multiple", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--devices", type=int, default=-1)
@@ -221,7 +234,7 @@ if __name__ == "__main__":
         codec_model_name=args.codec_name,
         fields={"recording": "flac", f"codes_{args.codec_name}": "numpy", f"context_codes_{args.codec_name}": "numpy"},
         shard_size=args.shard_size,
-        buffer_size=args.batch_size,
+        buffer_size=args.buffer_size,
     )
 
     trainer = pl.Trainer(
@@ -236,7 +249,6 @@ if __name__ == "__main__":
 
     model = CodecExtractor(
         args.codec_ckpt,
-        pad_multiple=args.pad_multiple,
         batch_size=args.batch_size,
         shar_root=args.in_dir,
         num_workers=args.num_workers,
