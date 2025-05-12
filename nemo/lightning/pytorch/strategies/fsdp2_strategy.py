@@ -291,7 +291,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # This is so cFSDP2 can micromanage the location of model and gradient shards.
         if self._data_parallel_size == 1 and not self.cfsdp2:
             self._lightning_module = self._lightning_module.to(self.root_device)
-        # setup optim
+
+        # Setup optimizers.
         if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)
 

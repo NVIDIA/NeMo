@@ -442,7 +442,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 # Use the flattened DP / CP device mesh for loss reduction
                 # if it exists, else default to the data parallel mesh.
                 group = device_mesh[
-                    ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping[device_mesh] else "data_parallel")
+                    ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(device_mesh, {}) else "data_parallel")
                 ].get_group()
 
             def reduce_item(val, op, device, group, dtype):
