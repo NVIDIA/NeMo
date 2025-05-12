@@ -186,66 +186,66 @@ jobs:
           # - script: L2_NeMo_2_LLAVA_NEXT_ENERGON_PACKED_TRAIN
           #   runner: self-hosted-azure
           - script: L2_NeMo_2_AVLM_MOCK_TRAINING
-            runner: self-hosted-azures
+            runner: self-hosted-azure
           - script: L2_NeMo_2_AVLM_ENERGON_TRAIN
             runner: self-hosted-azure
           - script: L2_NeMo_2_AVLM_ENERGON_PACKED_TRAIN
             runner: self-hosted-azure
-          # - script: L2_NeMo_2_CLIP_PRETRAIN
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_CLIP_INFER
-          #   runner: self-hosted-azure
-          # - script: Optional_L2_NeMo_2_EVAL
-          #   runner: self-hosted-azure-gpus-1
-          #   is_optional: true
-          # - script: L2_NeMo_2_Auto_Configurator_llama_TP1_PP1_MBS124
-          #   runner: self-hosted-azure-gpus-1
-          # - script: L2_NeMo_2_Auto_Configurator_bert_TP1_PP1_MBS124
-          #   runner: self-hosted-azure-gpus-1
-          # - script: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
-          #   runner: self-hosted-azure-gpus-1
-          # - script: L2_NeMo_2_Conversion_Test_Baichuan2
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_ChatGLM
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_DeepSeek
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Gemma
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Gemma2
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Mistral
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Llama
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Llama_Embedding
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Nemotron
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Phi3Mini
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Qwen2
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Starcoder
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_Starcoder2
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_BERT
-          #   runner: self-hosted-azure
-          # - script: L2_NeMo_2_Conversion_Test_T5
-          #   runner: self-hosted-azure
-          # - runner: self-hosted-azure
-          #   script: L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2
-          # - runner: self-hosted-azure
-          #   script: L2_NeMo_2_QWEN2VL_PRELOADED_FINETUNE_TP2
-          # - runner: self-hosted-azure
-          #   script: L2_NeMo_2_QWEN2VL_ENERGON_FINETUNE_TP2
-          # - runner: self-hosted-azure
-          #   script: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2
-          # - runner: self-hosted-azure
-          #   script: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2
-          # - runner: self-hosted-azure
-          #   script: L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2
+          - script: L2_NeMo_2_CLIP_PRETRAIN
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_CLIP_INFER
+            runner: self-hosted-azure
+          - script: Optional_L2_NeMo_2_EVAL
+            runner: self-hosted-azure-gpus-1
+            is_optional: true
+          - script: L2_NeMo_2_Auto_Configurator_llama_TP1_PP1_MBS124
+            runner: self-hosted-azure-gpus-1
+          - script: L2_NeMo_2_Auto_Configurator_bert_TP1_PP1_MBS124
+            runner: self-hosted-azure-gpus-1
+          - script: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
+            runner: self-hosted-azure-gpus-1
+          - script: L2_NeMo_2_Conversion_Test_Baichuan2
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_ChatGLM
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_DeepSeek
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Gemma
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Gemma2
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Mistral
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Llama
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Llama_Embedding
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Nemotron
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Phi3Mini
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Qwen2
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Starcoder
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Starcoder2
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_BERT
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_T5
+            runner: self-hosted-azure
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_QWEN2VL_MOCK_FINETUNE_TP2
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_QWEN2VL_PRELOADED_FINETUNE_TP2
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_QWEN2VL_ENERGON_FINETUNE_TP2
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_PP2
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_LLAMA4_MOCK_FINETUNE_CP2
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_LLAMA4_ENERGON_FINETUNE_EP2
     needs: [build]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
