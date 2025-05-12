@@ -191,13 +191,13 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         return tokenized_chunks
 
     def build_tokenizer(self):
-        ''' Build the tokenizer '''
+        '''Build the tokenizer'''
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         self.tokenizer = AutoTokenizer(self.multimodal_sample_config.model_id).tokenizer
 
     def build_audio_processor(self):
-        ''' Build the audio processor '''
+        '''Build the audio processor'''
         self.audio_augmentor = audio_process_augmentations(
             self.multimodal_sample_config.audio_augmentor,
             global_rank=parallel_state.get_data_parallel_rank(),
@@ -214,7 +214,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         self.audio_processor["from_decoded"] = self._process_audio_from_decoded
 
     def build_image_processor(self):
-        ''' Build the image processor '''
+        '''Build the image processor'''
         from transformers import AutoProcessor
 
         self.image_processor = AutoProcessor.from_pretrained(self.multimodal_sample_config.model_id).image_processor
@@ -264,7 +264,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
     def process_video(self, video: MediaDict) -> Dict[int, dict]:
         """
         Returns:
-            {video_stream_index: {"media_type": Literal["video", "audio"], 
+            {video_stream_index: {"media_type": Literal["video", "audio"],
                 "data": torch.tensor, "original_size": Union[AudioSize, VideoSize]}}
             audio tensor in "data" is of shape: [audio_length]
             video tensor in "data" is of shape: [frames x num_of_tiles x channel x height x width]
@@ -552,6 +552,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
     '''
     AVLM sample encoder for question answering sample
     '''
+
     def __init__(
         self,
         tokenizer=None,

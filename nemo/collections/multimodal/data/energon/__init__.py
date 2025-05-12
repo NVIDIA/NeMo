@@ -32,6 +32,8 @@ from nemo.collections.multimodal.data.energon.sample_encoder import (
 __all__ = [
     "EnergonMultiModalDataModule",
     "ImageToken",
+    "AudioToken",
+    "VideoToken",
     "ImageTextSample",
     "MultiModalSampleConfig",
     "LLaVATemplateConfig",
