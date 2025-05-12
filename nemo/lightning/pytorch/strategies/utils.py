@@ -503,7 +503,7 @@ def fsdp2_strategy_parallelize(
 
     # Set FSDP sharding mesh to context parallel mesh if CP > 1, else default to the data parallel mesh.
     dp_mesh = device_mesh[
-        ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping[device_mesh] else "data_parallel")
+        ("dp_cp" if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(device_mesh, {}) else "data_parallel")
     ]
     tp_mesh = device_mesh["tensor_parallel"]
 
