@@ -127,28 +127,12 @@
   "info": "Anchor 'distributed-pretraining' not found"
 }
 {
-  "filename": "features/parallelisms.rst",
-  "lineno": 319,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/Megatron-LM/blob/e2ec14ab5690fead7e33760b0f8fb20c83b4fd1f/megatron/core/transformer/moe/moe_layer.py#L29",
-  "info": "Anchor 'L29' not found"
-}
-{
   "filename": "checkpoints/dist_ckpt.rst",
   "lineno": 428,
   "status": "broken",
   "code": 0,
   "uri": "https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/optimizer/optimizer.py#L793",
   "info": "Anchor 'L793' not found"
-}
-{
-  "filename": "features/optimizations/attention_optimizations.rst",
-  "lineno": 96,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L49",
-  "info": "Anchor 'L49' not found"
 }
 {
   "filename": "tools/nemo_forced_aligner.rst",
@@ -159,28 +143,12 @@
   "info": "Anchor 'installation' not found"
 }
 {
-  "filename": "features/optimizations/activation_recomputation.rst",
-  "lineno": 12,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_config.py#L15",
-  "info": "Anchor 'L15' not found"
-}
-{
   "filename": "nlp/text_normalization/wfst/wfst_customization.rst",
   "lineno": 17,
   "status": "broken",
   "code": 0,
   "uri": "https://github.com/NVIDIA/NeMo-text-processing#from-source",
   "info": "Anchor 'from-source' not found"
-}
-{
-  "filename": "features/mixed_precision.rst",
-  "lineno": 63,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/2e1814c9f031ad2aeeebad44597365e97253d2c4/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml/#L192-L200",
-  "info": "Anchor 'L192-L200' not found"
 }
 {
   "filename": "nlp/nemo_megatron/gpt/gpt_training.rst",
@@ -197,30 +165,6 @@
   "code": 0,
   "uri": "https://github.com/NVIDIA/NeMo/blob/main/examples/llm/pretrain/README.md#create-and-run-a-custom-recipe",
   "info": "Anchor 'create-and-run-a-custom-recipe' not found"
-}
-{
-  "filename": "features/parallelisms.rst",
-  "lineno": 291,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68",
-  "info": "Anchor 'L68' not found"
-}
-{
-  "filename": "features/optimizations/communication_overlap.rst",
-  "lineno": 52,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/tp_overlap_configs/userbuffers.py#L50",
-  "info": "Anchor 'L50' not found"
-}
-{
-  "filename": "features/optimizations/communication_overlap.rst",
-  "lineno": 52,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/megatron_comm_overlap.py#L61",
-  "info": "Anchor 'L61' not found"
 }
 {
   "filename": "nlp/joint_intent_slot.rst",
