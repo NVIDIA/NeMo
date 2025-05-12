@@ -139,9 +139,10 @@ class TranscriptionConfig:
     stateful_decoding: bool = False  # Whether to perform stateful decoding
 
     # Merge algorithm for transducers
-    merge_algo: Optional[str] = (
-        'middle'  # choices=['middle', 'lcs', 'tdt'], choice of algorithm to apply during inference.
-    )
+    # choices=['middle', 'lcs', 'tdt'], choice of algorithm to apply during inference.
+    # if None, we use 'middle' for rnnt and 'tdt' for tdt.
+    merge_algo: Optional[str] = None
+
     lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
 
     # Config for word / character error rate calculation
@@ -220,9 +221,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
 
-    model_is_tdt = hasattr(asr_model, '_loss') and type(asr_model.loss._loss).__name__ == 'TDTLossNumba'
+    model_is_tdt = hasattr(asr_model.loss, '_loss') and type(asr_model.loss._loss).__name__ == 'TDTLossNumba'
     if cfg.merge_algo is None:
         cfg.merge_algo = "tdt" if model_is_tdt else "middle"
+        logging.info(
+            f"merge_algo not specified. We use the default algorithm (middle for rnnt and tdt for tdt)."
+        )
 
     if model_is_tdt and cfg.merge_algo != "tdt":
         raise ValueError("merge_algo must be 'tdt' for TDT models")
