@@ -451,11 +451,22 @@ class IpaG2p(BaseG2p):
     def __call__(self, text: str) -> List[str]:
         text = normalize_unicode_text(text)
 
-        if self.heteronym_model is not None:
-            try:
-                text = self.heteronym_model.disambiguate(sentences=[text])[1][0]
-            except Exception as e:
-                logging.warning(f"Heteronym model failed {e}, skipping")
+        # Use the singleton for heteronym disambiguation instead of direct model access
+        # This ensures the model is properly handled in multiprocessing contexts
+        try:
+            from nemo.collections.tts.g2p.models.heteronym_classification_singleton import HeteronymModelSingleton
+            
+            # Use the singleton's disambiguate method which handles errors internally
+            _, disambiguated_texts, _ = HeteronymModelSingleton.disambiguate(sentences=[text])
+            if disambiguated_texts and len(disambiguated_texts) > 0:
+                text = disambiguated_texts[0]
+        except ImportError:
+            # Fallback to direct model access for backward compatibility
+            if self.heteronym_model is not None:
+                try:
+                    text = self.heteronym_model.disambiguate(sentences=[text])[1][0]
+                except Exception as e:
+                    logging.warning(f"Heteronym model failed {e}, skipping")
 
         words_list_of_tuple = self.word_tokenize_func(text)
 

@@ -54,6 +54,9 @@ class BaseG2p(ABC):
             wordid_to_phonemes_file will be converted to phoneme form during heteronym model inference;
             the rest will be left in grapheme form.
 
+        This method uses the HeteronymModelSingleton to ensure proper initialization in multiprocessing contexts.
+        The singleton pattern ensures that the model is only loaded once and is properly shared across processes.
+
         Args:
             heteronym_model: Initialized HeteronymClassificationModel
             wordid_to_phonemes_file: Path to a file with mapping from wordid predicted by heteronym model to phonemes
@@ -61,9 +64,13 @@ class BaseG2p(ABC):
 
         try:
             from nemo.collections.tts.g2p.models.heteronym_classification import HeteronymClassificationModel
+            from nemo.collections.tts.g2p.models.heteronym_classification_singleton import HeteronymModelSingleton
 
+            # Initialize the singleton with the heteronym model
+            HeteronymModelSingleton.get_instance(model=heteronym_model, wordid_to_phonemes_file=wordid_to_phonemes_file)
+            
+            # Store a reference to the singleton for backward compatibility
             self.heteronym_model = heteronym_model
-            self.heteronym_model.set_wordid_to_phonemes(wordid_to_phonemes_file)
         except ImportError as e:
             logging.warning("Heteronym model setup will be skipped")
             logging.error(e)
