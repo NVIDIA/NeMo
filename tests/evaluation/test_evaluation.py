@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     # Evaluation code
     logging.info("Waiting for server readiness...")
-    server_ready = wait_for_fastapi_server(base_url="http://0.0.0.0:8886", max_retries=30)
+    server_ready = wait_for_fastapi_server(base_url="http://0.0.0.0:8886", max_retries=120)
     if server_ready:
         logging.info("Starting evaluation...")
         api_endpoint = ApiEndpoint(url="http://0.0.0.0:8886/v1/completions/")
