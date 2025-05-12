@@ -234,7 +234,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
         return (packed_result,)
 
-    def format_hypotheses(self, packed_result: List[Hypothesis | NBestHypotheses], decoder_input_ids: Union[torch.Tensor, None]) -> None:
+    def format_hypotheses(
+        self, packed_result: List[Hypothesis | NBestHypotheses], decoder_input_ids: Union[torch.Tensor, None]
+    ) -> None:
         """
         For each hypothesis in the mini-batch:
         * Remove the decoder input ids (prompt) from the predictions
@@ -246,16 +248,16 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 len(packed_result) == decoder_input_ids.shape[0]
             ), f"Mismatching number of examples {len(packed_result)=} {decoder_input_ids.shape[0]=}"
             decoder_input_ids = decoder_input_ids.detach().cpu()
-            
+
             for h, prefix in zip(packed_result, decoder_input_ids):
                 hypotheses = h.n_best_hypotheses if isinstance(h, NBestHypotheses) else [h]
                 for hyp in hypotheses:
-                    assert (hyp.y_sequence[:prefix.shape[0]] == prefix).all(), (
+                    assert (hyp.y_sequence[: prefix.shape[0]] == prefix).all(), (
                         f"The decoder input IDs were not found at the beginning of prediction: "
                         f"{hyp.y_sequence=} {prefix=}"
                     )
-                    hyp.y_sequence = hyp.y_sequence[prefix.shape[0]:]
-                
+                    hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
+
         for h in packed_result:
             hyps = h.n_best_hypotheses if isinstance(h, NBestHypotheses) else [h]
             for hyp in hyps:
