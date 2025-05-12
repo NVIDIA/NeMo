@@ -26,27 +26,32 @@ from nemo.collections.asr.parts.preprocessing.perturb import perturbation_types 
 
 @dataclass
 class AudioSize:
-    """ Audio size class for audio sample config """
+    """Audio size class for audio sample config"""
+
     length: int
     channel: int
 
 
 @dataclass
 class VideoSize:
-    """ Video size class for video sample config """
+    """Video size class for video sample config"""
+
     frames: int
     height: int
     width: int
 
+
 @dataclass
 class ImageSize:
-    """ Image size class for image sample config """
+    """Image size class for image sample config"""
+
     height: int
     width: int
 
 
 class MediaDict(TypedDict):
-    """ Media dictionary class for media sample config """
+    """Media dictionary class for media sample config"""
+
     media_type: Literal["audio", "video", "image"]
     media_value: bytes
     offset: NotRequired[float]
@@ -55,13 +60,15 @@ class MediaDict(TypedDict):
 
 @dataclass
 class AVLMEnergonInterleavedSample(Sample):
-    """ Sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image) """
+    """Sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image)"""
+
     sequence: List[Union[bytes, str, MediaDict]]
 
 
 @dataclass
 class AVLMEnergonQASample(Sample):
-    """ Sample class for question answering sample """
+    """Sample class for question answering sample"""
+
     context: List[str]
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
@@ -116,6 +123,7 @@ class AVLMRawBatch:
 
     Attributes:
     """
+
     __keys__: List[str] = field(default_factory=list)
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
@@ -144,6 +152,7 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     """
     Sample config for AVLM model
     """
+
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
 
     # audio related sample config
@@ -152,9 +161,8 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     audio_sample_rate: int = field(default=16000)
     audio_channel_selector: Optional[Union[int, Iterable[int], Literal["average"]]] = "average"
     audio_waveform_featurizer_int_values: bool = field(default=False)
-    # the detailed structure of audio_augmentor can be found at: 
-    audio_augmentor: Optional[
-        Dict[Literal[*list(audio_perturbation_types.keys())], Dict[str, Any]]] = None
+    # the detailed structure of audio_augmentor can be found at:
+    audio_augmentor: Optional[Dict[str, Dict[str, Any]]] = None
 
     # video related sample config
     video_token: VideoToken = field(default_factory=VideoToken)
@@ -167,9 +175,10 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     """
     audio_video_tokens_concatenate_pattern: Literal[
         "sequential",
-        "audio_video", 
-        "video_audio",     
-        "interleaved_optimal",] = field(default="sequential")
-    
+        "audio_video",
+        "video_audio",
+        "interleaved_optimal",
+    ] = field(default="sequential")
+
     # image related sample config
     image_encoder_config: Optional[dict] = None
