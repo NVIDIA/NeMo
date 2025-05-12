@@ -44,6 +44,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
     from transformers import AutoModelForCausalLM
+    from transformers import DeepseekV3Config as HFDeepseekV3Config
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -620,6 +621,44 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
     @property
     def tokenizer(self) -> 'AutoTokenizer':
         return io.load_context(self, subpath="model").tokenizer
+
+    @property
+    def config(self) -> "HFDeepseekV3Config":
+        from transformers import DeepseekV3Config as HFDeepseekV3Config
+
+        # TODO: Generalize that to different DeepSeek model variants
+        source: DeepSeekV3Config = io.load_context(str(self)).model.config
+
+        # Figure out the number of zeros in the prefix of moe_layer_freq array
+        # for the HF first_k_dense_replace parameter and validate the reminder:
+        i = 0
+        while i < len(source.moe_layer_freq) and source.moe_layer_freq[i] == 0:
+            i += 1
+        assert all(x == 1 for x in source.moe_layer_freq[i:])
+
+        return HFDeepseekV3Config(
+            architectures=["DeepseekV3ForCausalLM"],
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            q_lora_rank=source.q_lora_rank,
+            qk_nope_head_dim=source.qk_head_dim,
+            qk_rope_head_dim=source.qk_pos_emb_head_dim,
+            v_head_dim=source.v_head_dim,
+            kv_lora_rank=source.kv_lora_rank,
+            num_key_value_heads=source.kv_channels,
+            n_routed_experts=source.num_moe_experts,
+            moe_intermediate_size=source.moe_ffn_hidden_size,
+            first_k_dense_replace=i,
+            num_experts_per_tok=source.moe_router_topk,
+            n_group=source.moe_router_num_groups,
+            topk_group=source.moe_router_group_topk,
+            routed_scaling_factor=source.moe_router_topk_scaling_factor,
+            aux_loss_alpha=source.moe_aux_loss_coeff,
+            max_position_embeddings=source.max_position_embeddings,
+            vocab_size=self.tokenizer.vocab_size,
+        )
 
 
 __all__ = [
