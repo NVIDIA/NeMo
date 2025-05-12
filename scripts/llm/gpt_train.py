@@ -24,9 +24,11 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
+from nemo.utils import logging
 
 # Suppress lengthy HF warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -70,7 +72,6 @@ def get_args():
     parser.add_argument(
         "--data_paths",
         nargs="+",
-        required=True,
         help="List of tokenized data paths to load from. If using chat data, provide a single path.",
     )
     parser.add_argument("--use-chat-data", action="store_true", help="Use chat data for fine-tuning.")
@@ -94,6 +95,9 @@ def get_args():
     parser.add_argument("--limit_val_batches", type=int, default=32, help="Number of batches per validation stage")
     parser.add_argument("--log_interval", type=int, default=10, help="Write to log every _ steps")
     parser.add_argument("--legacy_ckpt", action="store_true", help="Load ckpt saved with TE < 1.14")
+    parser.add_argument(
+        "--use_mock_data", action="store_true", help="Use mock data instead of custom data in --data_paths"
+    )
     return parser.parse_args()
 
 
@@ -149,7 +153,13 @@ if __name__ == "__main__":
     )
 
     # Set up dataset
-    if args.use_chat_data:
+    if not args.use_mock_data and len(args.data_paths) == 0:
+        raise ValueError("Must provide either custom dataset(s) in --data_paths or set --use_mock_data.")
+
+    if args.use_mock_data:
+        logging.warning("Using Mock Data for training!")
+        data = MockDataModule(seq_length=args.seq_length, global_batch_size=args.gbs, micro_batch_size=args.mbs)
+    elif args.use_chat_data:
         assert len(args.data_paths) == 1, "If using chat data, provide a single path."
         assert args.tokenizer is not None, "Tokenizer is required if using chat data."
 
