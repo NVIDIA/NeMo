@@ -86,6 +86,7 @@ class SharPredictionWriter(BasePredictionWriter):
     def _write_buffer(self):
         print("Writing buffer of size:", len(self.cuts_buffer))
         for cut in self.cuts_buffer:
+            # print("Writing cut:", cut.id)
             processed_cut = self.process_cut_for_saving(cut)
             self.shar_writer.write(processed_cut)
         self.cuts_buffer.clear()
@@ -99,14 +100,43 @@ class SharPredictionWriter(BasePredictionWriter):
                 self._write_buffer()
             self.shar_writer.close()
             self.shar_writer = None
-            
+
+def ddp_info():
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        return torch.distributed.get_world_size(), torch.distributed.get_rank()
+    return 1, 0
+
 class CodecExtractor(pl.LightningModule):
-    def __init__(self, model_path: str, pad_multiple: int = 1024):
+    def __init__(self, model_path, pad_multiple, batch_size, shar_root, num_workers):
         super().__init__()
         self.pad_multiple = pad_multiple
         self.codec_model = AudioCodecModel.restore_from(restore_path=model_path, strict=False)
         self.codec_model.eval()
+        self._dataloader = None
+        self.batch_size = batch_size
+        self.shar_root = shar_root
+        self.num_workers = num_workers
 
+    def setup(self, stage=None):
+        if self._dataloader is None:
+            world_size, rank = ddp_info()
+            print("In model.setup - world size:", world_size, "rank:", rank)
+            cuts = CutSet.from_shar(in_dir=self.shar_root)
+            sampler = SimpleCutSampler(
+                cuts, shuffle=False, max_cuts=self.batch_size,
+                world_size=world_size, rank=rank,
+            )
+            dataset = SimpleCutDataset(pad_multiple=self.pad_multiple)
+            self._dataloader = DataLoader(
+                dataset,
+                sampler=sampler,
+                batch_size=None,
+                num_workers=self.num_workers,
+            )
+    
+    def predict_dataloader(self):
+        return self._dataloader
+    
     def predict_step(self, batch, _):
         audio_stacked = batch["audio"].to(device=self.device)
         context_audio_stacked = batch["context_audio"].to(device=self.device)
@@ -131,10 +161,13 @@ class CodecExtractor(pl.LightningModule):
         print("Time to process:", time.time() - mt)
         return {"cuts": cuts, "codes": codes, "context_codes": context_codes}
 
-class MyDataset(torch.utils.data.Dataset):
+class SimpleCutDataset(torch.utils.data.Dataset):
+    def __init__(self, pad_multiple: int = 1024):
+        super().__init__()
+        self.pad_multiple = pad_multiple
+
     def __getitem__(self, cuts: CutSet):
-        # return cuts
-        pad_multiple = 1024
+        pad_multiple = self.pad_multiple
         audios = cuts.load_audio()
         context_audios_torch = []
         audios_torch = []
@@ -168,30 +201,14 @@ class MyDataset(torch.utils.data.Dataset):
             "context_audio_lens": context_audio_lens,
             "cuts": cuts,
         }
-    
-    def __len__(self):
-        return len(self.cuts)
-    
-def make_loader(shar_root, batch_size, num_workers):
-    cuts = CutSet.from_shar(
-        in_dir=shar_root,
-    )
-    dataset = MyDataset()
-    sampler = SimpleCutSampler(cuts, shuffle=False, max_cuts=batch_size)
-    dataloader = DataLoader(
-        dataset,
-        sampler=sampler,
-        batch_size=None,
-        num_workers=num_workers,
-    )
-    return dataloader
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--in_dir")
     parser.add_argument("--out_dir")
     parser.add_argument("--codec_ckpt")
-    parser.add_argument("--codec_name", default="48k")
+    parser.add_argument("--codec_name", default="testcodec")
+    parser.add_argument("--pad_multiple", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--devices", type=int, default=-1)
@@ -208,8 +225,6 @@ if __name__ == "__main__":
         buffer_size=args.batch_size,
     )
 
-    dataloader = make_loader(args.in_dir, args.batch_size, args.num_workers)
-
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=args.devices,
@@ -220,6 +235,12 @@ if __name__ == "__main__":
         use_distributed_sampler=False, 
     )
 
-    model = CodecExtractor(args.codec_ckpt)
+    model = CodecExtractor(
+        args.codec_ckpt,
+        pad_multiple=args.pad_multiple,
+        batch_size=args.batch_size,
+        shar_root=args.in_dir,
+        num_workers=args.num_workers,
+    )
 
-    trainer.predict(model, dataloaders=dataloader, return_predictions=False)
+    trainer.predict(model, return_predictions=False)
