@@ -145,6 +145,7 @@ extras_require['deploy'] = list(
     chain(
         extras_require['nlp'],
         extras_require['multimodal'],
+        extras_require['tts'],
         extras_require['deploy'],
     )
 )
