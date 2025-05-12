@@ -96,6 +96,20 @@ def parse_cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "-em",
+        "--enable_memory_profile",
+        help="Enable memory usage profiling. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-mp",
+        "--memory_profile_out_path",
+        type=str,
+        help="Path to the output file of memory profiling",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "-tb",
         "--tensorboard",
         help="Enable tensorboard logging. Disabled by default",
@@ -300,6 +314,13 @@ def parse_cli_args():
         "--activation_offload_layers",
         type=int,
         help="Number of Transformer layers to offload to the CPU memory. Defaults to None",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--nccl_communicator_config_path",
+        type=str,
+        help="Path to NCCL communicator config yaml file",
         required=False,
         default=None,
     )
