@@ -50,6 +50,12 @@ class BuildWordBoostingTreeConfig:
     unk_score: float = 0.5  # The score for unknown tokens (tokens that are not in the beginning of context-biasing phrases)
     score_per_phrase: float = 0.0  # Custom score for each phrase in the context graph.
 
+    # alternative transcription generation
+    use_bpe_dropout: bool = False # Whether to use BPE dropout for generating alternative transcriptions.
+    num_of_transcriptions: int = 5  # The number of alternative transcriptions to generate for each context-biasing phrase.
+    bpe_alpha: float = 0.3  # The alpha parameter for BPE dropout.
+
+
     test_btree_model: bool = False  # Whether to test the GPU-accelerated word boosting graph after building it.
 
 
@@ -69,8 +75,27 @@ def main(cfg: BuildWordBoostingTreeConfig):
             line = line.strip()
             if not is_aggregate_tokenizer:
                 cb_dict[line] = asr_model.tokenizer.text_to_ids(line)
+                if cfg.use_bpe_dropout:
+                    cb_dict[line] = [asr_model.tokenizer.text_to_ids(line)]
+                    trans_set = set()
+                    trans_set.add(" ".join(asr_model.tokenizer.text_to_tokens(line)))
+                    i = 1
+                    cur_step = 1
+                    while i < cfg.num_of_transcriptions and cur_step < cfg.num_of_transcriptions * 2:
+                        cur_step += 1                       
+                        trans = asr_model.tokenizer.tokenizer.encode(line, enable_sampling=True, alpha=cfg.bpe_alpha, nbest_size=-1)
+                        trans_text = asr_model.tokenizer.ids_to_tokens(trans)
+                        if trans_text[0] == "▁":
+                            continue
+                        trans_text = " ".join(trans_text)
+                        if trans_text not in trans_set:
+                            cb_dict[line].append(trans)
+                            trans_set.add(trans_text)
+                            i += 1
+                        # import ipdb; ipdb.set_trace()
             else:
                 cb_dict[line] = asr_model.tokenizer.text_to_ids(line, source_lang)
+
 
     # cfg.unk_score = float(round(np.log10(1/len(asr_model.tokenizer.vocab)), 2))
     # cfg.context_score = round(cfg.unk_score/1.5, 2)
@@ -81,9 +106,16 @@ def main(cfg: BuildWordBoostingTreeConfig):
     scores = []
     phrases = []
     for phrase in cb_dict:
-        contexts.append(cb_dict[phrase])
-        scores.append(round(cfg.score_per_phrase / len(phrase), 2))
-        phrases.append(phrase)
+        if cfg.use_bpe_dropout:
+            # import ipdb; ipdb.set_trace()
+            for trans in cb_dict[phrase]:
+                contexts.append(trans)
+                scores.append(round(cfg.score_per_phrase / len(phrase), 2))
+                phrases.append(phrase)
+        else:
+            contexts.append(cb_dict[phrase])
+            scores.append(round(cfg.score_per_phrase / len(phrase), 2))
+            phrases.append(phrase)
 
     context_graph = ContextGraph(context_score=cfg.context_score)
     context_graph.build(token_ids=contexts, scores=scores, phrases=phrases)
