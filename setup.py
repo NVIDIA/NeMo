@@ -114,12 +114,6 @@ extras_require['nlp'] = list(
         extras_require['common'],
     )
 )
-extras_require['deploy'] = list(
-    chain(
-        extras_require['nlp'],
-        extras_require['deploy'],
-    )
-)
 extras_require['llm'] = extras_require['nlp']
 extras_require['tts'] = list(
     chain(
@@ -145,6 +139,13 @@ extras_require['slu'] = list(
     chain(
         extras_require['slu'],
         extras_require['asr'],
+    )
+)
+extras_require['deploy'] = list(
+    chain(
+        extras_require['nlp'],
+        extras_require['multimodal'],
+        extras_require['deploy'],
     )
 )
 
