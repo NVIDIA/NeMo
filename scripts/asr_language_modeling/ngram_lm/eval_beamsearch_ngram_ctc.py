@@ -318,7 +318,15 @@ def main(cfg: EvalBeamSearchNGramConfig):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
                     asr_model.cur_decoder = 'ctc'
-                all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
+                    # The EncDecHybridRNNTCTCModel doesn't support the 'logprobs' parameter in its transcribe method
+                    # Unlike other ASR models that have classification capabilities
+                    # This is because the method directly inherits from ASRTranscriptionMixin.transcribe
+                    # which doesn't have the logprobs parameter
+                    all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size)
+                else:
+                    # For ASR models with classification capabilities that support the logprobs parameter
+                    # This includes models like EncDecClassificationModel and EncDecRegressionModel
+                    all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
 
         all_probs = all_logits
         if cfg.probs_cache_file:
