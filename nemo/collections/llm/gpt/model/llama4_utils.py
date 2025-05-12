@@ -69,7 +69,8 @@ def chunkify_cu_seqlens(cu_seqlens, cu_seqlens_padded, attention_chunk_size):
             new_cu_seqlens.append(end)
             new_cu_seqlens_padded.append(end_padded)
 
-    return new_cu_seqlens, new_cu_seqlens_padded
+    return (torch.tensor(new_cu_seqlens).cuda(non_blocking=True),
+            torch.tensor(new_cu_seqlens_padded).cuda(non_blocking=True))
 
 
 def chunkify(x, attention_chunk_size):
@@ -89,7 +90,10 @@ def chunkify(x, attention_chunk_size):
         torch.Tensor: The reshaped tensor with shape
                       [attention_chunk_size, num_chunks * batch_size, ...].
     """
-    # Determine original sequence length.
+    # Determine original sequence length. Assume SBHD format.
+    assert x.shape[1] == 1, \
+        (f"When chunked attention is on, `micro_batch_size` needs to be set to 1. "
+         f"Current value is {x.shape[1]}")
     seq_length = x.shape[0]
     # Compute new sequence length (pad_seq_len) as the smallest multiple of attention_chunk_size
     pad_seq_len = ((seq_length + attention_chunk_size - 1) // attention_chunk_size) * attention_chunk_size
@@ -133,14 +137,8 @@ def get_llama4_layer_spec(config) -> ModuleSpec:
     for idx, layer_spec in enumerate(llama4_layer_spec.layer_specs):
         layer_no = idx + offset
         updated_layer_spec = deepcopy(layer_spec)
-
-        is_nope_layer = config.nope_layer_interval is not None and (layer_no + 1) % config.nope_layer_interval == 0
-        updated_layer_spec.submodules.self_attention.module = Llama4SelfAttention
-        updated_layer_spec.submodules.self_attention.params = {
-            'is_nope_layer': is_nope_layer,
-            'attention_chunk_size': config.attention_chunk_size,
-            "attn_mask_type": AttnMaskType.causal,
-        }
+        is_nope_layer = config.no_rope_freq is not None and config.no_rope_freq[layer_no]
+        updated_layer_spec.submodules.self_attention.module = MCoreSelfAttention
         if config.qk_l2_norm and not is_nope_layer:
             # Use QK Norm
             updated_layer_spec.submodules.self_attention.submodules.q_layernorm = L2Norm
@@ -152,6 +150,7 @@ def get_llama4_layer_spec(config) -> ModuleSpec:
 
     llama4_layer_spec.layer_specs = updated_layer_specs
     return llama4_layer_spec
+<<<<<<< HEAD
 
 
 class Llama4SelfAttention(MCoreSelfAttention):
@@ -406,3 +405,5 @@ class Llama4SelfAttention(MCoreSelfAttention):
         output, bias = self.linear_proj(core_attn_out)
 
         return output, bias
+=======
+>>>>>>> 36f35b195 (update)
