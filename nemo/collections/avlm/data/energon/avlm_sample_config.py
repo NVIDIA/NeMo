@@ -26,23 +26,27 @@ from nemo.collections.asr.parts.preprocessing.perturb import perturbation_types 
 
 @dataclass
 class AudioSize:
+    """ Audio size class for audio sample config """
     length: int
     channel: int
 
 
 @dataclass
 class VideoSize:
+    """ Video size class for video sample config """
     frames: int
     height: int
     width: int
 
 @dataclass
 class ImageSize:
+    """ Image size class for image sample config """
     height: int
     width: int
 
 
 class MediaDict(TypedDict):
+    """ Media dictionary class for media sample config """
     media_type: Literal["audio", "video", "image"]
     media_value: bytes
     offset: NotRequired[float]
@@ -51,12 +55,13 @@ class MediaDict(TypedDict):
 
 @dataclass
 class AVLMEnergonInterleavedSample(Sample):
-    # sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image)
+    """ Sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image) """
     sequence: List[Union[bytes, str, MediaDict]]
 
 
 @dataclass
 class AVLMEnergonQASample(Sample):
+    """ Sample class for question answering sample """
     context: List[str]
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
@@ -68,14 +73,14 @@ class AVLMEnergonQASample(Sample):
 
 @dataclass
 class AVLMSample:
-    '''
+    """
     Sample type for media to text task, extending LlavaNextTextSample to support audio and video data.
 
     This class adds additional attributes for handling the audio and video raw bytes,
     along with metadata about the tiled images.
 
     Attributes:
-    '''
+    """
 
     __key__: str = ''
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
@@ -136,6 +141,9 @@ class PackedAVLMRawBatch(AVLMRawBatch):
 
 @dataclass
 class AVLMSampleConfig(MultiModalSampleConfig):
+    """
+    Sample config for AVLM model
+    """
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
 
     # audio related sample config

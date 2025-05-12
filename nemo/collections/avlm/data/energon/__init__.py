@@ -22,3 +22,14 @@ from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AVLMSampleConfig,
 )
 from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
+
+__all__ = [
+    "AVLMDataModule",
+    "AVLMEnergonInterleavedSample",
+    "AVLMEnergonQASample",
+    "AVLMSample",
+    "AVLMRawBatch",
+    "AVLMMediaDict",
+    "AVLMSampleConfig",
+    "AVLMTaskEncoder",
+]

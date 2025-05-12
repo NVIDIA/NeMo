@@ -703,7 +703,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             # audio modality
             # (for audio modality, we need to base on audio_embedding_lens to filter out the padded audio embeddings)
             if audio_embeddings is not None:
-                audio_embeddings_max_seq_len, num_audios = audio_embeddings.shape[0], audio_embeddings.shape[1]
+                audio_embeddings_max_seq_len, _ = audio_embeddings.shape[0], audio_embeddings.shape[1]
                 nonpadded_mask = torch.arange(audio_embeddings_max_seq_len).unsqueeze(1).to(
                     audio_embeddings.device
                 ) < audio_embedding_lens.unsqueeze(0)

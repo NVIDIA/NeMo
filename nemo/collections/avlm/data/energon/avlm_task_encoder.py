@@ -105,7 +105,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "video_audio":
             self.concate_audio_video_tokens = self.concate_audio_video_tokens_video_audio
         elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "interleaved_optimal":
-            self.concate_audio_video_tokens = concate_audio_video_tokens_interleaved_optimal
+            self.concate_audio_video_tokens = self.concate_audio_video_tokens_interleaved_optimal
         else:
             raise ValueError(
                 f"Unsupported method in audio_video_tokens_concatenate_pattern: "
@@ -181,6 +181,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             key=lambda x: x[0],
         )
         interleaved_optimal = [j[i] for _, g in groups for i, j in enumerate(g)]
+        tokenized_chunks = []
         for item in interleaved_optimal:
             if isinstance(item, list):
                 tokenized_chunks.extend(item)
@@ -190,11 +191,13 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         return tokenized_chunks
 
     def build_tokenizer(self):
+        ''' Build the tokenizer '''
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         self.tokenizer = AutoTokenizer(self.multimodal_sample_config.model_id).tokenizer
 
     def build_audio_processor(self):
+        ''' Build the audio processor '''
         self.audio_augmentor = audio_process_augmentations(
             self.multimodal_sample_config.audio_augmentor,
             global_rank=parallel_state.get_data_parallel_rank(),
@@ -211,6 +214,7 @@ class AVLMSampleEncoder(BaseSampleEncoder):
         self.audio_processor["from_decoded"] = self._process_audio_from_decoded
 
     def build_image_processor(self):
+        ''' Build the image processor '''
         from transformers import AutoProcessor
 
         self.image_processor = AutoProcessor.from_pretrained(self.multimodal_sample_config.model_id).image_processor
@@ -260,7 +264,8 @@ class AVLMSampleEncoder(BaseSampleEncoder):
     def process_video(self, video: MediaDict) -> Dict[int, dict]:
         """
         Returns:
-            {video_stream_index: {"media_type": Literal["video", "audio"], "data": torch.tensor, "original_size": Union[AudioSize, VideoSize]}}
+            {video_stream_index: {"media_type": Literal["video", "audio"], 
+                "data": torch.tensor, "original_size": Union[AudioSize, VideoSize]}}
             audio tensor in "data" is of shape: [audio_length]
             video tensor in "data" is of shape: [frames x num_of_tiles x channel x height x width]
         """
@@ -366,7 +371,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         """
         super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
 
-    def tokenize(self, sequence: AVLMEnergonInterleavedSample):
+    def tokenize(self, sample: AVLMEnergonInterleavedSample):
         """
         Tokenize the input sequence and process images in an interleaved sample.
 
@@ -442,7 +447,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                         media_data = video_audio_dict[stream_index]
 
                         if media_data["media_type"] == "video":
-                            ## process each video stream
+                            # process each video stream
                             processed_video = media_data["data"]
                             original_video_size = video_audio_dict[stream_index]["original_size"]
                             # flatten the frames into tiles
@@ -455,7 +460,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                                 self.image_token.token_id
                             ] * processed_video.shape[0]
                         else:
-                            ## process each audio stream
+                            # process each audio stream
                             processed_audio = media_data["data"]
                             audios.append(processed_audio)
                             audio_lengths.append(processed_audio.shape[0])
@@ -519,7 +524,6 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
         Returns:
         AVLMSample:
         """
-        logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
         # tokenize prompt
         media_dict = self.tokenize(input_sample)
         tokens = media_dict["tokens"]
@@ -545,6 +549,9 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
 
 
 class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
+    '''
+    AVLM sample encoder for question answering sample
+    '''
     def __init__(
         self,
         tokenizer=None,
@@ -649,7 +656,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                     media_data = video_audio_dict[stream_index]
 
                     if media_data["media_type"] == "video":
-                        ## process each video stream
+                        # process each video stream
                         processed_video = media_data["data"]
                         original_video_size = video_audio_dict[stream_index]["original_size"]
                         # flatten the frames into tiles
@@ -663,7 +670,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                             self.image_token.token_id
                         ] * processed_video.shape[0]
                     else:
-                        ## process each audio stream
+                        # process each audio stream
                         processed_audio = media_data["data"]
                         processed_audios.append(processed_audio)
                         processed_audio_lengths.append(processed_audio.shape[0])
