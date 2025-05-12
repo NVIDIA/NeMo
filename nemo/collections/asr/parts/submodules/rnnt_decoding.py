@@ -1207,7 +1207,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     previous_word_index = i
                     continue
 
-            elif word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens:
+            elif len(word) and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
                 segment_words.append(word)
                 if segment_words:
                     segment_offsets.append(
