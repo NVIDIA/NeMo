@@ -224,9 +224,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     model_is_tdt = hasattr(asr_model.loss, '_loss') and type(asr_model.loss._loss).__name__ == 'TDTLossNumba'
     if cfg.merge_algo is None:
         cfg.merge_algo = "tdt" if model_is_tdt else "middle"
-        logging.info(
-            f"merge_algo not specified. We use the default algorithm (middle for rnnt and tdt for tdt)."
-        )
+        logging.info(f"merge_algo not specified. We use the default algorithm (middle for rnnt and tdt for tdt).")
 
     if model_is_tdt and cfg.merge_algo != "tdt":
         raise ValueError("merge_algo must be 'tdt' for TDT models")
