@@ -66,6 +66,11 @@ from nemo.collections.vlm.qwen2vl.data import Qwen2VLDataConfig, Qwen2VLMockData
 from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
 from nemo.collections.vlm.qwen2vl.model.qwen2vl import Qwen2VLConfig2B, Qwen2VLConfig7B
 
+# Gemma3
+from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
+from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLVisionConfig, Gemma3VLMultimodalProjectorConfig
+from nemo.collections.vlm.gemma3vl.model.gemma3vl import Gemma3VLConfig4B, Gemma3VLConfig12B, Gemma3VLConfig27B
+
 # RECIPES
 from nemo.collections.vlm.recipes import *
 
@@ -119,6 +124,13 @@ __all__ = [
     "Qwen2VLVisionConfig",
     "Qwen2VLModel",
     "Qwen2VLDataConfig",
+    "Gemma3VLConfig",
+    "Gemma3VLConfig4B",
+    "Gemma3VLConfig12B",
+    "Gemma3VLConfig27B",
+    "Gemma3VLVisionConfig",
+    "Gemma3VLMultimodalProjectorConfig",
+    "Gemma3VLModel",
     "LlavaNextTaskEncoder",
     "MLlamaModel",
     "MLlamaModelConfig",
