@@ -242,5 +242,5 @@ if __name__ == "__main__":
             optim=optim,
             log=logger,
             resume=resume,
-            tokenizer="data",  # use chat dataset's tokenizer
+            tokenizer="data" if args.use_chat_data else "model",
         )
