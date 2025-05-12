@@ -10,7 +10,7 @@ name: "FastConformer-Transducer-BPE-Streaming-EOU"
 model:
   token_init_method: "min"  # choices=['min', 'max', 'mean', 'constant']
   token_init_weight_value: 0.01  # only applicable when token_init_method='constant'
-  token_init_bias_value: -500.0  # only applicable when token_init_method='constant'
+  token_init_bias_value: -800.0  # only applicable when token_init_method='constant'
 
   sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
