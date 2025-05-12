@@ -85,7 +85,6 @@ except (ImportError, ModuleNotFoundError):
     )
     from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 
 __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 
@@ -933,7 +932,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             cfg: input yaml config, with trainer, model, exp_manager, etc.
             trainer: trainer object
         """
-        CallbackGroup.get_instance().on_load_checkpoint_start()
         if (
             cfg.model.get("pretrained_audio_model", None) is None
             and cfg.model.perception.get("encoders", None) is None
@@ -980,7 +978,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         if 'inference' in cfg:
             inference_cfg = OmegaConf.to_container(cfg.inference, resolve=True)
             model.set_inference_config(inference_cfg)
-        CallbackGroup.get_instance().on_load_checkpoint_end()
         return model
 
     @classmethod

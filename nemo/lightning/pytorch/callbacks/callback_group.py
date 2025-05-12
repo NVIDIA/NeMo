@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Callable
+import functools
 
 from lightning.pytorch.callbacks import Callback
 
@@ -43,13 +44,18 @@ class CallbackGroup:
             cls._instance = CallbackGroup()
         return cls._instance
 
-    def __init__(self, callbacks: list[Callback] | None) -> None:
+    def __init__(self) -> None:
         """Initializes the list of callback objects.
+        """
+        self._callbacks = []
+
+    def register(self, callback: Callback) -> None:
+        """Register a callback to the callback group.
 
         Args:
-            callbacks (list[Callback]): List of callbacks.
+            callback (Callback): The callback to register.
         """
-        self._callbacks = callbacks or []
+        self._callbacks.append(callback)
 
     def __getattr__(self, method_name: str) -> Callable:
         """Loops through the callback objects to call the corresponding callback function.
@@ -114,3 +120,89 @@ class Callback(Callback):
 
     def on_save_checkpoint_success(self, iteration: int = 0) -> None:
         """Called when checkpoint is saved successfully."""
+
+
+CB_WRAP_RULES = {
+    # The function name is the name of the method to wrap.
+    # The start_hook and end_hook are the names of the methods to call before and after the original method.
+    # The callback_method_name is the name of the method to call in the callback group.
+    # Example:
+    # function name: {
+    #     "start_hook": callback_method_name,
+    #     "end_hook": callback_method_name
+    # }
+    "setup_training_data": {
+        "start_hook": "on_dataloader_init_start",
+        "end_hook": "on_dataloader_init_end"
+    },
+    "setup_optimization": {
+        "start_hook": "on_optimizer_init_start",
+        "end_hook": "on_optimizer_init_end"
+    },
+    "restore_from_pretrained_models": {
+        "start_hook": "on_load_checkpoint_start",
+        "end_hook": "on_load_checkpoint_end"
+    },
+    "__init__": {
+        "start_hook": "on_model_init_start",
+        "end_hook": "on_model_init_end"
+    },
+    "configure_optimizers": {
+        "start_hook": "on_optimizer_init_start",
+        "end_hook": "on_optimizer_init_end"
+    },
+    "setup_training_dataloader": {
+        "start_hook": "on_dataloader_init_start",
+        "end_hook": "on_dataloader_init_end"
+    }
+}
+
+def _make_callback_wrapped_method(original_method):
+    """Wrap a method with the start and end hooks of the callback group.
+
+    Args:
+        original_method (Callable): The original method to wrap.
+        hooks (dict): The hooks to call.
+    """
+    callback_group = CallbackGroup.get_instance()
+    hooks = CB_WRAP_RULES.get(original_method.__name__)
+
+    is_classmethod = isinstance(original_method, classmethod)
+
+    if not hooks:
+        return original_method
+
+    @functools.wraps(original_method)
+    def wrapped_instance_method(self, *args, **kwargs):
+        if hasattr(callback_group, hooks["start_hook"]):
+            getattr(callback_group, hooks["start_hook"])()
+        result = original_method(self, *args, **kwargs)
+        if hasattr(callback_group, hooks["end_hook"]):
+            getattr(callback_group, hooks["end_hook"])()
+        return result
+
+    @functools.wraps(original_method)
+    def wrapped_class_method(*args, **kwargs):
+        if hasattr(callback_group, hooks["start_hook"]):
+            getattr(callback_group, hooks["start_hook"])()
+        result = original_method(*args, **kwargs)
+        if hasattr(callback_group, hooks["end_hook"]):
+            getattr(callback_group, hooks["end_hook"])()
+        return result
+
+    if is_classmethod:
+        return classmethod(wrapped_class_method)
+    else:
+        return wrapped_instance_method
+
+
+def wrap_methods_with_callbacks(cls) -> None:
+    """Wrap class/instance methods with the start and end hooks of the callback group.
+
+    Args:
+        cls (type): The class to wrap the methods of.
+    """
+    for method_name in CB_WRAP_RULES.keys():
+        if method_name in cls.__dict__:
+            original_method = cls.__dict__[method_name]
+            cls.__dict__[method_name] = _make_callback_wrapped_method(original_method)

@@ -741,6 +741,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         Returns:
             A model instance of a particular model class or its underlying config (if return_config is set).
         """
+        CallbackGroup.get_instance().on_load_checkpoint_start()
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
@@ -774,6 +775,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             trainer=trainer,
             save_restore_connector=save_restore_connector,
         )
+        CallbackGroup.get_instance().on_load_checkpoint_end()
         return instance
 
     @classmethod

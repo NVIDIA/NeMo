@@ -200,6 +200,7 @@ class MegatronTrainerBuilder:
         precision = self.cfg.trainer.precision
         strategy = self._training_strategy()
         plugins = self._plugins()
+        callbacks.extend(CallbackGroup.get_instance().callbacks)
         callbacks = self._callbacks(callbacks)
         trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
         # Restore the precision value after Trainer is built.
