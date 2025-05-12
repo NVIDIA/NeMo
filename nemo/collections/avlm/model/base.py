@@ -1020,6 +1020,9 @@ class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
 @contextmanager
 def temporary_model_parallel_size(app_state, temp_value):
+    """
+    Context manager to temporarily set the model parallel size.
+    """
     original_value = app_state.model_parallel_size
     app_state.model_parallel_size = temp_value
     try:

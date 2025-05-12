@@ -21,8 +21,6 @@ from megatron.energon import Sample
 from megatron.core.packed_seq_params import PackedSeqParams
 
 from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
-from nemo.collections.asr.parts.preprocessing.perturb import perturbation_types as audio_perturbation_types
-
 
 @dataclass
 class AudioSize:
