@@ -19,7 +19,7 @@ it's properly initialized for multiprocessing contexts.
 
 import multiprocessing
 import threading
-from typing import Optional, List
+from typing import List, Optional
 
 from nemo.utils import logging
 
@@ -29,6 +29,7 @@ class HeteronymModelSingleton:
     Singleton class for HeteronymClassificationModel to ensure proper initialization
     in multiprocessing contexts.
     """
+
     _instance = None
     _lock = threading.Lock()
     _initialized = False
@@ -37,11 +38,11 @@ class HeteronymModelSingleton:
     def get_instance(cls, model=None, wordid_to_phonemes_file: Optional[str] = None):
         """
         Get or create the singleton instance of the HeteronymClassificationModel.
-        
+
         Args:
             model: The HeteronymClassificationModel instance to use.
             wordid_to_phonemes_file: Optional path to the wordid to phonemes mapping file.
-            
+
         Returns:
             The singleton instance of the HeteronymClassificationModel.
         """
@@ -55,19 +56,19 @@ class HeteronymModelSingleton:
                     except RuntimeError:
                         multiprocessing.set_start_method('spawn', force=True)
                         logging.info("Multiprocessing start method set to 'spawn' for HeteronymClassificationModel")
-                    
+
                     if model is not None:
                         cls._instance = model
                         cls._initialized = True
-                        
+
                         # Set wordid_to_phonemes if provided
                         if wordid_to_phonemes_file is not None:
                             cls._instance.set_wordid_to_phonemes(wordid_to_phonemes_file)
-                            
+
                         logging.info("HeteronymClassificationModel singleton initialized")
                     else:
                         logging.warning("No model provided to HeteronymModelSingleton")
-        
+
         return cls._instance
 
     @classmethod
@@ -81,25 +82,21 @@ class HeteronymModelSingleton:
     def disambiguate(cls, sentences: List[str], batch_size: int = 4, num_workers: int = 0) -> tuple:
         """
         Wrapper for the HeteronymClassificationModel's disambiguate method.
-        
+
         Args:
             sentences: List of sentences to disambiguate.
             batch_size: Batch size for inference.
             num_workers: Number of workers for data loading.
-            
+
         Returns:
             Tuple of (input_texts, output_texts, all_predictions) from the model.
             If no model is initialized, returns the input sentences unchanged.
         """
         instance = cls.get_instance()
-        
+
         if instance is not None and cls._initialized:
             try:
-                return instance.disambiguate(
-                    sentences=sentences, 
-                    batch_size=batch_size, 
-                    num_workers=num_workers
-                )
+                return instance.disambiguate(sentences=sentences, batch_size=batch_size, num_workers=num_workers)
             except Exception as e:
                 logging.warning(f"HeteronymClassificationModel disambiguation failed: {e}")
                 # Return the original sentences as fallback

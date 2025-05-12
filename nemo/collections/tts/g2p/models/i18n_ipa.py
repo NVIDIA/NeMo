@@ -455,7 +455,7 @@ class IpaG2p(BaseG2p):
         # This ensures the model is properly handled in multiprocessing contexts
         try:
             from nemo.collections.tts.g2p.models.heteronym_classification_singleton import HeteronymModelSingleton
-            
+
             # Use the singleton's disambiguate method which handles errors internally
             _, disambiguated_texts, _ = HeteronymModelSingleton.disambiguate(sentences=[text])
             if disambiguated_texts and len(disambiguated_texts) > 0:

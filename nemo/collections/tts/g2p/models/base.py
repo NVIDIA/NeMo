@@ -67,8 +67,10 @@ class BaseG2p(ABC):
             from nemo.collections.tts.g2p.models.heteronym_classification_singleton import HeteronymModelSingleton
 
             # Initialize the singleton with the heteronym model
-            HeteronymModelSingleton.get_instance(model=heteronym_model, wordid_to_phonemes_file=wordid_to_phonemes_file)
-            
+            HeteronymModelSingleton.get_instance(
+                model=heteronym_model, wordid_to_phonemes_file=wordid_to_phonemes_file
+            )
+
             # Store a reference to the singleton for backward compatibility
             self.heteronym_model = heteronym_model
         except ImportError as e:

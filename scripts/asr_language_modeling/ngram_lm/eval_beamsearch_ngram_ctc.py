@@ -326,7 +326,9 @@ def main(cfg: EvalBeamSearchNGramConfig):
                 else:
                     # For ASR models with classification capabilities that support the logprobs parameter
                     # This includes models like EncDecClassificationModel and EncDecRegressionModel
-                    all_logits = asr_model.transcribe(audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True)
+                    all_logits = asr_model.transcribe(
+                        audio_file_paths, batch_size=cfg.acoustic_batch_size, logprobs=True
+                    )
 
         all_probs = all_logits
         if cfg.probs_cache_file:
