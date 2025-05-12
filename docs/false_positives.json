@@ -102,3 +102,43 @@
   "uri": "https://github.com/NVIDIA/NeMo/tree/stable/nemo/collections/nlp/data/language_modeling/sentence_dataset.py#L35",
   "info": "Anchor 'L35' not found"
 }
+{
+  "filename": "features/optimizations/activation_recomputation.rst",
+  "lineno": 12,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_config.py#L25",
+  "info": "Anchor 'L25' not found"
+}
+{
+  "filename": "features/optimizations/communication_overlap.rst",
+  "lineno": 52,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/tp_overlap_configs/userbuffers.py#L64",
+  "info": "Anchor 'L64' not found"
+}
+{
+  "filename": "features/optimizations/communication_overlap.rst",
+  "lineno": 52,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://github.com/NVIDIA/NeMo/blob/main/nemo/lightning/pytorch/callbacks/megatron_comm_overlap.py#L61",
+  "info": "Anchor 'L61' not found"
+}
+{
+  "filename": "features/optimizations/attention_optimizations.rst",
+  "lineno": 96,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L89",
+  "info": "Anchor 'L89' not found"
+}
+{
+  "filename": "features/parallelisms.rst",
+  "lineno": 319,
+  "status": "broken",
+  "code": 0,
+  "uri": "https://github.com/NVIDIA/Megatron-LM/blob/e2ec14ab5690fead7e33760b0f8fb20c83b4fd1f/megatron/core/transformer/moe/moe_layer.py#L29",
+  "info": "Anchor 'L29' not found"
+}

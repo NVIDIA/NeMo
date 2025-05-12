@@ -314,7 +314,7 @@ Set expert tensor parallelism directly from CLI:
 Expert Parallelism Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The NeMo Framework implementation of EP uses functionality from Megatron Core. Please consult the `Megatron Core MoE layer <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/moe/moe_layer.py>`_ for more MoE implementation details.
+The NeMo Framework implementation of EP uses functionality from Megatron Core. Please consult the `Megatron Core MoE layer <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/moe/moe_layer.py#L42>`_ for more MoE implementation details.
 
 
 
