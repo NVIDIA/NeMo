@@ -69,4 +69,4 @@ if __name__ == '__main__':
         deploy_proc.send_signal(signal.SIGINT)
     else:
         deploy_proc.send_signal(signal.SIGINT)
-        raise ("Server is not ready. Please look the deploy process log for the error")
+        raise RuntimeError("Server is not ready. Please look the deploy process log for the error")
