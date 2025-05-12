@@ -64,11 +64,12 @@ if __name__ == '__main__':
         # Run eval with just 1 sample from gsm8k
         eval_params = ConfigParams(limit_samples=args.limit)
         eval_config = EvaluationConfig(type=args.eval_type, params=eval_params)
-
+deploy_proc.send_signal(signal.SIGINT)
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logging.info("Evaluation completed.")
     else:
-        logging.error("Server is not ready.")
+        deploy_proc.send_signal(signal.SIGINT)
+        raise("Server is not ready. Please look the deploy process log for the error")
     # After evaluation, terminate deploy_proc
     deploy_proc.send_signal(signal.SIGINT)
 
