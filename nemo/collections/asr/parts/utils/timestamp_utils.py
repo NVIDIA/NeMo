@@ -16,7 +16,6 @@ import re
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.utils import logging
 
 
 def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):

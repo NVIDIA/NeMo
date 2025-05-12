@@ -389,6 +389,7 @@ class TestTranscriptionMixin:
         assert all(isinstance(output, list) for output in outputs)
         assert all(isinstance(hyp, Hypothesis) for output in outputs for hyp in output)
         
+        # Reset the decoding strategy to original
         fast_conformer_transducer_model.change_decoding_strategy(orig_decoding_config)
         
     @pytest.mark.unit
