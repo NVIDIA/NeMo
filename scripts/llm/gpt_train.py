@@ -11,13 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Script for training GPT models. Supports 4 modes, with different required arguments:
-1. Pretrain: --model_config required
-2. SFT: --model_config --tokenizer and --use-chat-data required
-3. Distillation: --teacher_path required
-4. SFT Distillation: --tokenizer --use-chat-data --teacher_path required
-"""
 
 import os
 from argparse import ArgumentParser
@@ -163,7 +156,6 @@ if __name__ == "__main__":
         chat_template = read_chat_template(args.chat_template_path)
         tokenizer = get_tokenizer(args.tokenizer, chat_template=chat_template)
         if '{% generation %}' not in tokenizer.tokenizer.chat_template:
-            # raise error or log warning?
             raise ValueError(
                 "Please ensure the chat template includes a '{% generation %}' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
             )
