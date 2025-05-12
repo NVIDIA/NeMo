@@ -420,8 +420,9 @@ def find_framework(eval_task: str) -> str:
     if len(frameworks) == 0:
         raise ValueError(f"Framework for task {eval_task} not found!")
     elif len(frameworks) > 1:
+        frameworks_names = [f[len('core_evals.'):].replace('_', '-') for f in frameworks]
         raise ValueError(
-            f"Multiple frameworks found for task {eval_task}: {[f[len('core_evals.'):] for f in frameworks]}. "
+            f"Multiple frameworks found for task {eval_task}: {frameworks_names}. "
             "Please indicate which version should be used by passing <framework>.<task>"
         )
     return frameworks[0]
