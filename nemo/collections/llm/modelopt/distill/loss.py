@@ -275,18 +275,16 @@ class LogitsAndIntermediatesLossBalancer(mtd.DistillationLossBalancer):
         if intermediate_loss > 0:
             dynamic_scale = logits_loss.item() / intermediate_loss.item()
             intermediate_loss_scaled = intermediate_loss * dynamic_scale
-            kd_loss_scale = self._kd_loss_scale / 2.0
         else:
-            kd_loss_scale = self._kd_loss_scale
             intermediate_loss = logits_loss.new_tensor(intermediate_loss)
             intermediate_loss_scaled = intermediate_loss
 
         if self._skip_original_loss:
             total_loss = logits_loss + intermediate_loss_scaled
         else:
-            kd_loss = (logits_loss + intermediate_loss_scaled) * kd_loss_scale
-            dynamic_scale = original_loss.item() / kd_loss.item()
-            total_loss = original_loss + kd_loss * dynamic_scale
+            kd_loss = logits_loss + intermediate_loss_scaled
+            kd_loss *= original_loss.item() / kd_loss.item()
+            total_loss = original_loss + kd_loss * self._kd_loss_scale
 
         out_dict = {
             "kd_loss": total_loss,
