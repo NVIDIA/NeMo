@@ -1,5 +1,8 @@
 .. _glue_benchmark:
 
+> [!IMPORTANT]
+> GLUE Benchmark tutorial is no longer supported in NeMo Framework.
+
 GLUE Benchmark
 ==============
 

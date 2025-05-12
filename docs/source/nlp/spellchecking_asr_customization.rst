@@ -1,5 +1,8 @@
 .. _spellchecking_asr_customization:
 
+> [!IMPORTANT]
+> Spellchecking tutorial is no longer supported in NeMo Framework.
+
 SpellMapper (Spellchecking ASR Customization) Model
 =====================================================
 
