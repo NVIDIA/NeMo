@@ -17,6 +17,7 @@ import json
 import math
 import os
 import shutil
+import uuid
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from string import punctuation
@@ -166,6 +167,24 @@ class AlignmentConfig:
     remove_tmp_dir: bool = False
     clean_text: bool = True
 
+    # For multi-node multi-gpu processing
+    num_nodes: int = 1  # total num of nodes/machines
+    num_gpus: int = 1  # num of GPUs per node/machine
+    node_idx: int = 0  # current node index
+    gpu_idx: int = 0  # current GPU index
+
+
+def drop_pnc(text):
+    """
+    Clean the text by removing invalid characters and converting to lowercase.
+
+    :param text: Input text.
+    :return: Cleaned text.
+    """
+    valid_chars = "abcdefghijklmnopqrstuvwxyz'"
+    text = text.lower()
+    return ''.join([c for c in text if c in valid_chars or c.isspace() or c == "'"])
+
 
 def clean_text(manifest: List[dict]):
     punctuations = punctuation.replace("'", "")
@@ -173,21 +192,46 @@ def clean_text(manifest: List[dict]):
     replace_with_blank = [char for char in '`¨´‘’“”`ʻ‘’“"‘”']
     replace_with_apos = [char for char in '‘’ʻ‘’‘']
 
-    valid_chars = "abcdefghijklmnopqrstuvwxyz'"
     for i in range(len(manifest)):
         text = manifest[i]["text"].strip().lower()  # type: str
         text = text.translate(str.maketrans("", "", punctuations))
-        new_text = ""
-        for c in text:
-            if c in valid_chars:
-                new_text += c
-        text = new_text
+        text = drop_pnc(text)
         for c in replace_with_blank:
             text = text.replace(c, "")
         for c in replace_with_apos:
             text = text.replace(c, "'")
         manifest[i]["text"] = text
     return manifest
+
+
+def get_manifests_for_this_rank(manifest_list, num_nodes, num_gpus, node_idx, gpu_idx):
+    """
+    Get the manifest files for this rank.
+    """
+    if len(manifest_list) == 0:
+        return manifest_list
+
+    assert num_nodes > 0, "num_nodes must be greater than 0"
+    assert num_gpus > 0, "num_gpus must be greater than 0"
+    assert 0 <= node_idx < num_nodes, f"node_idx {node_idx} must be between 0 and {num_nodes - 1}"
+    assert 0 <= gpu_idx < num_gpus, f"gpu_idx {gpu_idx} must be between 0 and {num_gpus - 1}"
+
+    manifests_this_node = []
+    for i, manifest_file in enumerate(manifest_list):
+        if num_nodes > 1:
+            if i % num_nodes == node_idx:
+                manifests_this_node.append(manifest_file)
+        else:
+            manifests_this_node.append(manifest_file)
+
+    manifests_this_gpu = []
+    for i, manifest_file in enumerate(manifests_this_node):
+        if num_gpus > 1:
+            if i % num_gpus == gpu_idx:
+                manifests_this_gpu.append(manifest_file)
+        else:
+            manifests_this_gpu.append(manifest_file)
+    return manifests_this_gpu
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -208,8 +252,8 @@ def main(cfg: AlignmentConfig):
     if cfg.manifest_filepath is None:
         raise ValueError("cfg.manifest_filepath must be specified")
 
-    if cfg.output_dir is None:
-        raise ValueError("cfg.output_dir must be specified")
+    if cfg.output_dir is None and not cfg.remove_tmp_dir:
+        raise ValueError("cfg.output_dir must be specified if cfg.remove_tmp_dir is False")
 
     if cfg.batch_size < 1:
         raise ValueError("cfg.batch_size cannot be zero or a negative number")
@@ -330,6 +374,8 @@ def main(cfg: AlignmentConfig):
         )
 
     origin_output_manifest_filepath = cfg.output_manifest_filepath
+
+    manifest_list = get_manifests_for_this_rank(manifest_list, cfg.num_nodes, cfg.num_gpus, cfg.node_idx, cfg.gpu_idx)
     logging.info(f"Found {len(manifest_list)} manifest files to process.")
     # process each manifest file
     for manifest_filepath in manifest_list:
@@ -337,9 +383,8 @@ def main(cfg: AlignmentConfig):
         cfg.manifest_filepath = str(manifest_filepath)
 
         if origin_output_manifest_filepath is None:
-            cfg.output_manifest_filepath = str(
-                Path(manifest_filepath).parent / f"{Path(manifest_filepath).stem}-aligned.json"
-            )
+            manifest_stem = Path(manifest_filepath).stem.replace("-aligned", "")
+            cfg.output_manifest_filepath = str(Path(manifest_filepath).parent / f"{manifest_stem}-aligned.json")
         elif len(manifest_list) > 1 and origin_output_manifest_filepath is not None:
             raise ValueError(
                 "cfg.output_manifest_filepath must be None when processing multiple manifest files. "
@@ -356,7 +401,7 @@ def main(cfg: AlignmentConfig):
     logging.info("All manifest files processed successfully.")
 
 
-def process_single_manifest(cfg, model, buffered_chunk_params, viterbi_device):
+def process_single_manifest(cfg: AlignmentConfig, model, buffered_chunk_params, viterbi_device):
     # Validate manifest contents
     if not is_entry_in_all_lines(cfg.manifest_filepath, "audio_filepath"):
         raise RuntimeError(
@@ -383,6 +428,9 @@ def process_single_manifest(cfg, model, buffered_chunk_params, viterbi_device):
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
+
+    if cfg.remove_tmp_dir and cfg.output_dir is None:
+        cfg.output_dir = f"alignment-{uuid.uuid4()}"
 
     # init f_manifest_out
     os.makedirs(cfg.output_dir, exist_ok=True)
@@ -466,7 +514,7 @@ def process_single_manifest(cfg, model, buffered_chunk_params, viterbi_device):
         for item in output_manifest_lines:
             f.write(json.dumps(item) + '\n')
 
-    if cfg.remove_tmp_dir:  # savely removing tmp dir after alignment
+    if cfg.remove_tmp_dir:  # safely removing tmp dir after alignment
         for file_or_folder in [
             tgt_manifest_filepath,
             os.path.join(cfg.output_dir, 'ctm'),

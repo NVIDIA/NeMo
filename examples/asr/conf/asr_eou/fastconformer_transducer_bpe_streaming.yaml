@@ -8,6 +8,10 @@
 name: "FastConformer-Transducer-BPE-Streaming-EOU"
 
 model:
+  token_init_method: "min"  # choices=['min', 'max', 'mean', 'constant']
+  token_init_weight_value: 0.01  # only applicable when token_init_method='constant'
+  token_init_bias_value: -500.0  # only applicable when token_init_method='constant'
+
   sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
   log_prediction: true # enables logging sample predictions in the output during training
@@ -25,8 +29,8 @@ model:
     max_duration: 30 # you may need to update it for your dataset
     min_duration: 0.1
     defer_setup: true
-    batch_duration: 300  # you may disable batch_duration by setting it to `null`
-    batch_size: null 
+    batch_duration: null  # you may disable batch_duration by setting it to `null`
+    batch_size: 16 
     shuffle: true
     num_workers: 8
     pin_memory: true
@@ -37,12 +41,12 @@ model:
     shuffle_buffer_size: 10000
 
     random_padding:
-      prob: 0.5
+      prob: 0.9
       min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
-      max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
+      max_total_duration: 35.0  # maximum total duration of the padded audio in seconds
       pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
-      normal_mean: 0.5  # mean of normal distribution for padding duration
-      normal_std: 2.0  # standard deviation of normal distribution for padding duration
+      normal_mean: 0.5  # mean of normal distribution used when pad_distribution='normal'
+      normal_std: 2.0  # standard deviation of normal distribution  used when pad_distribution='normal'
   
     augmentor:
       white_noise:
@@ -67,8 +71,8 @@ model:
     max_duration: 30 # you may need to update it for your dataset
     min_duration: 0.1
     defer_setup: true
-    batch_duration: 300  # you may disable batch_duration by setting it to `null`
-    batch_size: null 
+    batch_duration: null  # you may disable batch_duration by setting it to `null`
+    batch_size: 16 
     shuffle: false
     num_workers: 8
     pin_memory: true
@@ -85,8 +89,8 @@ model:
     max_duration: 30 # you may need to update it for your dataset
     min_duration: 0.1
     defer_setup: true
-    batch_duration: 300  # you may disable batch_duration by setting it to `null`
-    batch_size: null 
+    batch_duration: null  # you may disable batch_duration by setting it to `null`
+    batch_size: 16 
     shuffle: false
     num_workers: 8
     pin_memory: true

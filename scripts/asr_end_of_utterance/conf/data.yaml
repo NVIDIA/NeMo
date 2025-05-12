@@ -2,6 +2,7 @@
 output_dir: ???
 
 data:
+  pattern: "*.json"
   manifest_filepath: ???
   tarred_audio_filepaths: null
   sample_rate: 16000

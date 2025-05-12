@@ -27,6 +27,7 @@ python generate_noisy_eval_data.py \
 
 """
 
+from copy import deepcopy
 from pathlib import Path
 from shutil import rmtree
 
@@ -46,7 +47,7 @@ from nemo.collections.common.parts.preprocessing import parsers
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
-# Dummy labels for the tokenizer
+# Dummy labels for the dummy tokenizer
 labels = [
     " ",
     "a",
@@ -94,31 +95,6 @@ def main(cfg):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # Make output directory
-    output_dir = Path(cfg.output_dir)
-    if output_dir.exists():
-        logging.info(f'Removing existing output directory: {output_dir}')
-        rmtree(output_dir)
-    logging.info(f'Creating output directory: {output_dir}')
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Dump the config to the output directory
-    config = OmegaConf.to_container(cfg, resolve=True)
-    with open(output_dir / 'config.yaml', 'w') as f:
-        yaml.dump(config, f)
-    logging.info(f'Config dumped to {output_dir / "config.yaml"}')
-
-    # Load the input manifest
-    input_manifest = read_manifest(cfg.data.manifest_filepath)
-    logging.info(f'Found {len(input_manifest)} items in input manifest: {cfg.data.manifest_filepath}')
-    manifest_parent_dir = Path(cfg.data.manifest_filepath).parent
-    if Path(input_manifest[0]["audio_filepath"]).is_absolute():
-        output_audio_dir = output_dir / 'wav'
-        flatten_audio_path = True
-    else:
-        output_audio_dir = output_dir
-        flatten_audio_path = False
-
     # Patch data config
     with open_dict(cfg.data):
         cfg.data.force_finite = True
@@ -126,12 +102,57 @@ def main(cfg):
         cfg.data.shuffle = False
         cfg.data.check_tokenizer = False  # No need to check tokenizer in LhotseSpeechToTextBpeEOUDataset
 
+    # Make output directory
+    output_dir = Path(cfg.output_dir)
+    if output_dir.exists() and cfg.get('overwrite', False):
+        logging.info(f'Removing existing output directory: {output_dir}')
+        rmtree(output_dir)
+    if not output_dir.exists():
+        logging.info(f'Creating output directory: {output_dir}')
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Dump the config to the output directory
+    config = OmegaConf.to_container(cfg, resolve=True)
+    with open(output_dir / 'config.yaml', 'w') as f:
+        yaml.dump(config, f)
+    logging.info(f'Config dumped to {output_dir / "config.yaml"}')
+
+    input_manifest_file = Path(cfg.data.manifest_filepath)
+    if input_manifest_file.is_dir():
+        pattern = cfg.data.get('pattern', '*.json')
+        manifest_list = list(input_manifest_file.glob(pattern))
+        if not manifest_list:
+            raise ValueError(f"No files found in {input_manifest_file} matching pattern `{pattern}`")
+    else:
+        manifest_list = [Path(x) for x in str(input_manifest_file).split(",")]
+
+    logging.info(f'Found {len(manifest_list)} manifest files to process...')
+
+    for i, manifest_file in enumerate(manifest_list):
+        logging.info(f'[{i+1}/{len(manifest_list)}] Processing {manifest_file}...')
+        data_cfg = deepcopy(cfg.data)
+        data_cfg.manifest_filepath = str(manifest_file)
+        process_manifest(data_cfg, output_dir)
+
+
+def process_manifest(data_cfg, output_dir):
+    # Load the input manifest
+    input_manifest = read_manifest(data_cfg.manifest_filepath)
+    logging.info(f'Found {len(input_manifest)} items in input manifest: {data_cfg.manifest_filepath}')
+    manifest_parent_dir = Path(data_cfg.manifest_filepath).parent
+    if Path(input_manifest[0]["audio_filepath"]).is_absolute():
+        output_audio_dir = output_dir / 'wav'
+        flatten_audio_path = True
+    else:
+        output_audio_dir = output_dir
+        flatten_audio_path = False
+
     # Load the dataset
     tokenizer = parsers.make_parser(labels)  # dummy tokenizer
-    dataset = LhotseSpeechToTextBpeEOUDataset(cfg=cfg.data, tokenizer=tokenizer, return_cuts=True)
+    dataset = LhotseSpeechToTextBpeEOUDataset(cfg=data_cfg, tokenizer=tokenizer, return_cuts=True)
 
     dataloader = get_lhotse_dataloader_from_config(
-        config=cfg.data,
+        config=data_cfg,
         global_rank=0,
         world_size=1,
         dataset=dataset,
@@ -160,9 +181,9 @@ def main(cfg):
             audio_file = cut.recording.sources[0].source
 
             if flatten_audio_path:
-                output_audio_file = output_audio_dir / str(audio_file).replace('/', '_')[:255]
+                output_audio_file = output_audio_dir / str(audio_file).replace('/', '_')[:255]  # type: Path
             else:
-                output_audio_file = output_audio_dir / Path(audio_file).relative_to(manifest_parent_dir)
+                output_audio_file = output_audio_dir / Path(audio_file).relative_to(manifest_parent_dir)  # type: Path
 
             output_audio_file.parent.mkdir(parents=True, exist_ok=True)
             sf.write(output_audio_file, audio, dataset.sample_rate)
@@ -174,7 +195,7 @@ def main(cfg):
             manifest.append(manifest_item)
 
     # Write the output manifest
-    output_manifest_file = output_dir / Path(cfg.data.manifest_filepath).name
+    output_manifest_file = output_dir / Path(data_cfg.manifest_filepath).name
     write_manifest(output_manifest_file, manifest)
     logging.info(f'Output manifest written to {output_manifest_file}')
 

@@ -104,7 +104,7 @@ def get_pretrained_model_name(cfg: DictConfig) -> Optional[str]:
         return pretrained_name
 
 
-def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_path: str):
+def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_path: str, cfg: DictConfig):
     """
     load the pretrained model from a .nemo file, taking into account the joint network
     """
@@ -170,15 +170,52 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     pretrained_joint_clf_weight = pretrained_joint_state['2.weight']  # shape: [num_classes, hid_dim]
     pretrained_joint_clf_bias = pretrained_joint_state['2.bias'] if '2.bias' in pretrained_joint_state else None
 
+    token_init_method = cfg.model.get('token_init_method', 'constant')
     # Copy the weights and biases from the pretrained model to the new model
     # shape: [num_classes+2, hid_dim]
     joint_state['2.weight'][:-3, :] = pretrained_joint_clf_weight[:-1, :]  # everything except EOU, EOB and blank
     joint_state['2.weight'][-1, :] = pretrained_joint_clf_weight[-1, :]  # blank class
+
+    value = None
+    if token_init_method == 'min':
+        # set the EOU and EOB class to the minimum value of the pretrained model
+        value = pretrained_joint_clf_weight.min(dim=0)[0]
+    elif token_init_method == 'max':
+        # set the EOU and EOB class to the maximum value of the pretrained model
+        value = pretrained_joint_clf_weight.max(dim=0)[0]
+    elif token_init_method == 'mean':
+        # set the EOU and EOB class to the mean value of the pretrained model
+        value = pretrained_joint_clf_weight.mean(dim=0)
+    elif token_init_method == 'constant':
+        value = cfg.model.get('token_init_weight_value', 0.01)
+    elif token_init_method:
+        raise ValueError(f"Unknown token_init_method: {token_init_method}.")
+
+    if value is not None:
+        joint_state['2.weight'][-2, :] = value  # EOB class
+        joint_state['2.weight'][-3, :] = value  # EOU class
+
     if pretrained_joint_clf_bias is not None and '2.bias' in joint_state:
         joint_state['2.bias'][:-3] = pretrained_joint_clf_bias[:-1]  # everything except EOU, EOB and blank
         joint_state['2.bias'][-1] = pretrained_joint_clf_bias[-1]  # blank class
-        joint_state['2.bias'][-2] = -1000.0  # EOB class
-        joint_state['2.bias'][-3] = -1000.0  # EOU class
+        value = None
+        if token_init_method == 'constant':
+            value = cfg.model.get('token_init_bias_value', -600.0)
+        elif token_init_method == 'min':
+            # set the EOU and EOB class to the minimum value of the pretrained model
+            value = pretrained_joint_clf_bias.min()
+        elif token_init_method == 'max':
+            # set the EOU and EOB class to the maximum value of the pretrained model
+            value = pretrained_joint_clf_bias.max()
+        elif token_init_method == 'mean':
+            # set the EOU and EOB class to the mean value of the pretrained model
+            value = pretrained_joint_clf_bias.mean()
+        elif token_init_method:
+            raise ValueError(f"Unknown token_init_method: {token_init_method}.")
+
+        if value is not None:
+            joint_state['2.bias'][-2] = value  # EOB class
+            joint_state['2.bias'][-3] = value  # EOU class
 
     # Load the joint network weights
     joint_network.joint_net.load_state_dict(joint_state, strict=True)
@@ -196,7 +233,7 @@ def main(cfg):
 
     init_from_model = get_pretrained_model_name(cfg)
     if init_from_model:
-        init_from_pretrained_nemo(asr_model, init_from_model)
+        init_from_pretrained_nemo(asr_model, init_from_model, cfg)
 
     trainer.fit(asr_model)
 

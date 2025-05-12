@@ -285,7 +285,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if not isinstance(is_backchannel, list):
                 is_backchannel = [is_backchannel]
             assert len(sou_time) == len(
-                cut.custom["is_backchannel"]
+                is_backchannel
             ), f"Number of SOU and backchannel do not match: SOU ({len(sou_time)}) vs backchannel ({len(is_backchannel)})"
         else:
             is_backchannel = [False] * len(sou_time)
@@ -322,7 +322,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if not isinstance(is_backchannel, list):
                 is_backchannel = [is_backchannel]
             assert len(utterances) == len(
-                cut.custom["is_backchannel"]
+                is_backchannel
             ), f"Number of utterances and backchannel do not match: utterance ({len(utterances)}) vs backchannel ({len(is_backchannel)})"
         else:
             is_backchannel = [False] * len(utterances)
