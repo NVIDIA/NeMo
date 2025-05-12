@@ -120,8 +120,6 @@ except (ImportError, ModuleNotFoundError):
         update_num_microbatches,
     )
 
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
-
 transformer_engine, HAVE_TE = safe_import("transformer_engine")
 te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
 get_gpt_layer_with_te_and_hyena_spec, HAVE_HYENA_SPEC = safe_import_from(
@@ -627,7 +625,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # by calling model_module.broadcast_params() if the model is randomly initialized.
 
     def configure_optimizers(self):
-        CallbackGroup.get_instance().on_optimizer_init_start()
         if self.with_distributed_adam and not self.use_mcore_dist_optim:
 
             # Special handling for embedding grads
@@ -710,7 +707,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             used_params = set(itertools.chain.from_iterable(buckets))
             buckets[-1].extend(p for p in self.parameters() if p not in used_params and p.requires_grad)
             self.distributed_adam_buckets = buckets
-        CallbackGroup.get_instance().on_optimizer_init_end()
 
         return super().configure_optimizers()
 
