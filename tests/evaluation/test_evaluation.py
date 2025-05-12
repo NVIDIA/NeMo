@@ -15,7 +15,6 @@
 import argparse
 import signal
 import subprocess
-import sys
 
 from nemo.collections.llm import evaluate
 from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
