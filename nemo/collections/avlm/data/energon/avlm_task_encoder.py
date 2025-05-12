@@ -108,8 +108,8 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             self.concate_audio_video_tokens = self.concate_audio_video_tokens_interleaved_optimal
         else:
             raise ValueError(
-                f"Unsupported method in audio_video_tokens_concatenate_pattern: "
-                "{self.multimodal_sample_config.audio_video_tokens_concatenate_pattern}"
+                "Unsupported method in audio_video_tokens_concatenate_pattern: "
+                f"{self.multimodal_sample_config.audio_video_tokens_concatenate_pattern}"
             )
 
     @staticmethod
