@@ -77,12 +77,14 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
         if timestamp is not None:
             if len(hyp.timestamp) == 0:
                 hyp.timestamp = {}
-            
-            hyp.timestamp.update({
-                'word': timestamp,
-                'segment': [],
-                'char': [],  # not supported for AED
-            })    
+
+            hyp.timestamp.update(
+                {
+                    'word': timestamp,
+                    'segment': [],
+                    'char': [],  # not supported for AED
+                }
+            )
 
             segments = AbstractCTCDecoding._get_segment_offsets(timestamp, segment_delimiter_tokens=['.', '?', '!'])
             hyp.timestamp['segment'] = segments_offset_to_time(segments, window_stride, subsampling_factor)
@@ -92,7 +94,7 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
                 'segment': [],
                 'char': [],
             }
-                
+
         return hyp
 
     if outputs is None:
@@ -106,12 +108,13 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
     elif isinstance(outputs, list) and isinstance(outputs[0], list) and isinstance(outputs[0][0], Hypothesis):
         # list of list of Hypothesis (for beam decoding)
         return [
-            [
-                process_hypothesis(hyp, subsampling_factor, window_stride) for hyp in hyps_list
-            ] for hyps_list in outputs
+            [process_hypothesis(hyp, subsampling_factor, window_stride) for hyp in hyps_list] for hyps_list in outputs
         ]
     else:
-        raise ValueError(f"Expected Hypothesis, list of Hypothesis or list of list of Hypothesis object, got {type(outputs)}")
+        raise ValueError(
+            f"Expected Hypothesis, list of Hypothesis or list of list of Hypothesis object, got {type(outputs)}"
+        )
+
 
 def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
     """
