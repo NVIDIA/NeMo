@@ -47,13 +47,12 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup, wrap_methods_with_callbacks
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
-from nemo.lightning.pytorch.callbacks.callback_group import wrap_methods_with_callbacks
 
 __all__ = ['ModelPT']
 
@@ -66,6 +65,7 @@ class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Base class from which all NeMo models should inherit
@@ -222,7 +222,7 @@ class ModelPT(LightningModule, Model):
 
         # A flag for the profile generation
         self._chakra_profile_in_progress = False
-        
+
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
         wrap_methods_with_callbacks(cls)
@@ -2128,5 +2128,6 @@ class ModelPT(LightningModule, Model):
             return copy.deepcopy(optim_config)
         else:
             return OmegaConf.create(optim_config)
+
 
 ModelPT = wrap_setup_training_data(ModelPT)
