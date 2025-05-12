@@ -374,4 +374,4 @@ def fast_conformer_hybrid_model():
 
 @pytest.fixture(scope='session')
 def canary_1b_flash():
-    return ASRModel.restore_from("/home/TestData/asr/canary/models/canary-1b-flash_HF_20250318.nemo")
+    return ASRModel.from_pretrained("nvidia/canary-1b-flash")
