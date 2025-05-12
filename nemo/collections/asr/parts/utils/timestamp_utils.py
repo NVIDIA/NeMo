@@ -99,7 +99,7 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
         return outputs
 
     if isinstance(outputs, Hypothesis):
-        return process_hypothesis(outputs, subsampling_factor, window_stride)
+        return [process_hypothesis(outputs, subsampling_factor, window_stride)]
     elif isinstance(outputs, list) and isinstance(outputs[0], Hypothesis):
         # list of Hypothesis
         return [process_hypothesis(hyp, subsampling_factor, window_stride) for hyp in outputs]
