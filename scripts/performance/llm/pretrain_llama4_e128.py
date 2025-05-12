@@ -18,7 +18,8 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.llama4_e128 import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -72,7 +73,13 @@ def override_recipe_configs(
     )
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
+    if args.use_hf_tokenizer:
+        recipe.data.tokenizer = hf_tokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
+    else:
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=202048
+        )
+        recipe.model.tokenizer = recipe.data.tokenizer
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
@@ -129,6 +136,9 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

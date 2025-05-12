@@ -18,10 +18,11 @@ from typing import List, Optional
 import nemo_run as run
 
 from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -123,7 +124,12 @@ def override_recipe_configs(
     )
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    if args.use_hf_tokenizer:
+        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    else:
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=129280
+        )
     recipe.model.tokenizer = recipe.data.tokenizer
 
     # compute dtype configs
@@ -200,6 +206,9 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
