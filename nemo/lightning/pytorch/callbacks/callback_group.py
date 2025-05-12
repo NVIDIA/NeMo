@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable
 import functools
+from typing import Callable
 
 from lightning.pytorch.callbacks import Callback
 
@@ -45,8 +45,7 @@ class CallbackGroup:
         return cls._instance
 
     def __init__(self) -> None:
-        """Initializes the list of callback objects.
-        """
+        """Initializes the list of callback objects."""
         self._callbacks = []
 
     def register(self, callback: Callback) -> None:
@@ -131,31 +130,14 @@ CB_WRAP_RULES = {
     #     "start_hook": callback_method_name,
     #     "end_hook": callback_method_name
     # }
-    "setup_training_data": {
-        "start_hook": "on_dataloader_init_start",
-        "end_hook": "on_dataloader_init_end"
-    },
-    "setup_optimization": {
-        "start_hook": "on_optimizer_init_start",
-        "end_hook": "on_optimizer_init_end"
-    },
-    "restore_from_pretrained_models": {
-        "start_hook": "on_load_checkpoint_start",
-        "end_hook": "on_load_checkpoint_end"
-    },
-    "__init__": {
-        "start_hook": "on_model_init_start",
-        "end_hook": "on_model_init_end"
-    },
-    "configure_optimizers": {
-        "start_hook": "on_optimizer_init_start",
-        "end_hook": "on_optimizer_init_end"
-    },
-    "setup_training_dataloader": {
-        "start_hook": "on_dataloader_init_start",
-        "end_hook": "on_dataloader_init_end"
-    }
+    "setup_training_data": {"start_hook": "on_dataloader_init_start", "end_hook": "on_dataloader_init_end"},
+    "setup_optimization": {"start_hook": "on_optimizer_init_start", "end_hook": "on_optimizer_init_end"},
+    "restore_from_pretrained_models": {"start_hook": "on_load_checkpoint_start", "end_hook": "on_load_checkpoint_end"},
+    "__init__": {"start_hook": "on_model_init_start", "end_hook": "on_model_init_end"},
+    "configure_optimizers": {"start_hook": "on_optimizer_init_start", "end_hook": "on_optimizer_init_end"},
+    "setup_training_dataloader": {"start_hook": "on_dataloader_init_start", "end_hook": "on_dataloader_init_end"},
 }
+
 
 def _make_callback_wrapped_method(original_method):
     """Wrap a method with the start and end hooks of the callback group.
