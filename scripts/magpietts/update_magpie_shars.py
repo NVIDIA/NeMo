@@ -116,12 +116,15 @@ class CodecExtractor(pl.LightningModule):
         self.batch_size = batch_size
         self.shar_root = shar_root
         self.num_workers = num_workers
+        self.total_cuts = 0
 
     def setup(self, stage=None):
         if self._dataloader is None:
             world_size, rank = ddp_info()
             print("In model.setup - world size:", world_size, "rank:", rank)
             cuts = CutSet.from_shar(in_dir=self.shar_root)
+            self.total_cuts = len(cuts)
+            self.approx_total_batches = self.total_cuts // (self.batch_size * world_size)
             sampler = SimpleCutSampler(
                 cuts, shuffle=False, max_cuts=self.batch_size,
                 world_size=world_size, rank=rank,
@@ -143,8 +146,7 @@ class CodecExtractor(pl.LightningModule):
         audio_lens = batch["audio_lens"].to(device=self.device)
         context_audio_lens = batch["context_audio_lens"].to(device=self.device)
         cuts = batch["cuts"]
-
-        mt = time.time()
+        print("Total Steps", self.approx_total_batches)
         with torch.no_grad():
             codes, lengths = self.codec_model.encode(
                 audio=audio_stacked, audio_len=audio_lens
@@ -153,12 +155,9 @@ class CodecExtractor(pl.LightningModule):
                 audio=context_audio_stacked, audio_len=context_audio_lens
             )
 
-        print("Time to encode:", time.time() - mt)
-        
-        mt = time.time()
         codes = [c[:, :L].cpu().type(torch.int16) for c, L in zip(codes, lengths)]
         context_codes = [c[:, :L].cpu().type(torch.int16) for c, L in zip(context_codes, context_lengths)]
-        print("Time to process:", time.time() - mt)
+        
         return {"cuts": cuts, "codes": codes, "context_codes": context_codes}
 
 class SimpleCutDataset(torch.utils.data.Dataset):
