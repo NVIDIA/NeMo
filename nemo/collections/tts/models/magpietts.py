@@ -17,7 +17,6 @@ import random
 import string
 import time
 from typing import List
-from enum import Enum, verify, CONTINUOUS, UNIQUE
 
 import librosa
 import numpy as np
@@ -39,6 +38,7 @@ from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
+from nemo.collections.tts.modules.magpietts_modules import SpecialAudioToken, LocalTransformerType, cosine_schedule
 from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel,
     get_mask_from_lengths,
@@ -61,7 +61,6 @@ def worker_init_fn(worker_id):
     )
     dataset.text_tokenizer = tokenizer
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
-
 
 class MagpieTTSModel(ModelPT):
     """
@@ -98,32 +97,19 @@ class MagpieTTSModel(ModelPT):
         # del codec discriminator to free memory
         del codec_model.discriminator
 
-        # Reserve special tokens (appended at the end of the codebook after the actual audio codec tokens)
-        # (the actual index is this value plus the number of codec tokens - do not use the Enum directy)
-        @verify(CONTINUOUS, UNIQUE)
-        class SpecialAudioToken(Enum):
-            AUDIO_BOS = 0
-            AUDIO_EOS = 1
-            AUDIO_CONTEXT_BOS = 2
-            AUDIO_CONTEXT_EOS = 3
-            MASK_TOKEN = 4
-            # Reserved so that if we need to add more special tokens in the future the codebook size will remain the same
-            RESERVED_1 = 5
-            RESERVED_2 = 6
-            RESERVED_3 = 7
-
         # Set up codebook configuration
         self.num_audio_codebooks = codec_model.num_codebooks
         self.codec_model_samples_per_frame = codec_model.samples_per_frame
-        # Our codebooks start with actual audio codec tokens, followed by special tokens. 
+        # Our codebooks start with actual audio codec tokens, followed by special tokens.
         # The `forced_*` options are for backward compatibility for models trained with older code.
         num_audio_tokens = codec_model.codebook_size
-        self.audio_bos_id = cfg.get('forced_audio_bos_id',num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
+        self.audio_bos_id = cfg.get('forced_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
         self.audio_eos_id = cfg.get('forced_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_EOS.value)
         self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_BOS.value)
         self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
-
+        self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
+    
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models
@@ -155,7 +141,7 @@ class MagpieTTSModel(ModelPT):
 
         if self.use_text_conditioning_encoder:
             self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
-        
+
         # This needs to happen after super().__init__()
         self._codec_model = codec_model
         self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
@@ -172,7 +158,10 @@ class MagpieTTSModel(ModelPT):
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
-        if cfg.get('use_local_transformer', False):
+
+        self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
+        logging.info(f"Local transformer type: {self.local_transformer_type}")
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
             local_transformer_hidden_dim = cfg.get('local_transformer_hidden_dim', 256)
             if local_transformer_hidden_dim != cfg.decoder.d_model:
                 self.local_transformer_in_projection = nn.Linear(cfg.decoder.d_model, local_transformer_hidden_dim)
@@ -184,7 +173,7 @@ class MagpieTTSModel(ModelPT):
                 d_ffn=local_transformer_hidden_dim*4,
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
-                is_causal=True,
+                is_causal=self.local_transformer_type == LocalTransformerType.AR,
                 max_length_causal_mask=self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
@@ -240,7 +229,13 @@ class MagpieTTSModel(ModelPT):
         if alignment_encoder_loss_scale > 0.0:
             self.alignment_encoder_loss = ForwardSumLoss(loss_scale=alignment_encoder_loss_scale)
 
+
+
     def state_dict(self, destination=None, prefix='', keep_vars=False):
+        """
+        Only used for saving checkpoints. On save, we remove _speaker_verification_model and _codec_model
+        from the checkpoint. The codec model is saved in a separate checkpoint.
+        """
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
             return {}
         # Don't save the speaker verification and codec model in the state dict
@@ -250,10 +245,28 @@ class MagpieTTSModel(ModelPT):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
-
+    
     def load_state_dict(self, state_dict, strict=True):
-        # Override to load all the keys except _speaker_verification_model and _codec_model
-        super().load_state_dict(state_dict, strict=False)
+        """
+        Modify load_state_dict so that we don't restore weights to _speaker_verification_model and _codec_model when
+        strict is True.
+        When strict is False, we can call pytorch's load_state_dict.
+        When strict is True, we loop through all parameters and rename them to enable loading.
+        """
+        if strict == False:
+            super().load_state_dict(state_dict, strict=False)
+        for name, child in self.named_children():
+            if name in ['_speaker_verification_model', '_codec_model']:
+                continue
+            if any(param.numel() > 0 for param in child.parameters()):
+                # If the module has parameters, we want to change the default mapping so that the state_dict gets
+                # loaded.
+                # Ex: state_dict[encoder.position_embeddings.weight] -> new_state_dict[position_embeddings.weight]
+                new_state_dict = {}
+                for key in state_dict.keys():
+                    if key.startswith(name):
+                        new_state_dict[key[len(name)+1:]] = state_dict[key]  # +1 for '.'
+                child.load_state_dict(new_state_dict)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
         # audio: (B, T)
@@ -325,12 +338,28 @@ class MagpieTTSModel(ModelPT):
             )
             return speaker_embeddings
 
-    def compute_local_transformer_logits(self, dec_out, audio_codes_target):
+    def compute_local_transformer_logits(self, dec_out, audio_codes_target, targets_offset_by_one=False):
         """
-        Loss from the autoregressive codebook predictor (used per frame)
+        Predicts the logits for all codebooks using the local transformer. Used in both autoregressive (AR) and MaskGit (MG) modes.
+        This function is used in training and validation, not inference/sampling.
+        The sequence layout is slightly different between AR and MG modes, as shown in the diagram below,
+        (using an 8-codebook setup as an example):
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        | AR target  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |   none  |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        | MG target  |  none   |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        |   Input    | Magpie  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
+        |            | Latent  | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        | Seq. Index |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |    8    |
+        +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
+        
+        dec_out: (B, T', E)
+        audio_codes_target: (B, C, T')
+        targets_offset_by_one: bool, if False, the target for index 0 is codebook 0, for index 1 is codebook 1, etc. (autoregressive)
+                                     if True,  the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
         """
-        # dec_out: (B, T', E)
-        # audio_codes: (B, C, T')
         dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
         local_transformer_input = [dec_out_all]
         for codebook_num in range(audio_codes_target.size(1)):
@@ -343,7 +372,12 @@ class MagpieTTSModel(ModelPT):
         local_transformer_input = self.local_transformer_in_projection(local_transformer_input) # (B*T', C+1, 128)
         _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
         local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B*T', C+1, E)
-        local_transformer_output = local_transformer_output[:, :-1, :] # (B*T', C, E)
+        if not targets_offset_by_one:
+            # for autoregressive local transformer the target for index 0 is codebook 0, for index 1 is codebook 1, etc.
+            local_transformer_output = local_transformer_output[:, :-1, :] # (B*T', C, E)
+        else:
+            # for MaskGit the target for index **1** is codebook 0, for index 2 is codebook 1, etc.
+            local_transformer_output = local_transformer_output[:, 1:, :] # (B*T', C, E)
         all_code_logits = []
         for codebook_num in range(audio_codes_target.size(1)):
             # Using a separate projection layer for each codebook (to distinguish between them)
@@ -358,11 +392,73 @@ class MagpieTTSModel(ModelPT):
 
         return all_code_logits
 
-    def compute_loss(self, logits, audio_codes, audio_codes_lens):
-        # logits: (B, T', num_codebooks * num_tokens_per_codebook)
-        # audio_codes: (B, C, T')
-        # audio_codes_lens: (B,)
+    def maskgit_create_random_mask(self, codes):
+        """
+        Creates a mask where True indicates the positions that should be replaced with a MASK_TOKEN.
+        """
+        # Codes: (B, C, T)
+        B,C,T = codes.shape
+        # get a uniform random vector uniformly sampled from [0,1) ## Todo does it need to be inclusive on the right?
+        rand_values = torch.rand(B,T, device=codes.device)
+        # apply the cosine schedule 
+        frac_masked = cosine_schedule(rand_values)
+        # how many positions to mask
+        n_masked = torch.ceil(frac_masked * C).long() # B,T
+        # start from all unmasked
+        mask = torch.zeros_like(codes, dtype=torch.bool)
+        # The code further below is the vectorized version of this:
+        #  for b in range(B):
+        #      for t in range(T):
+        #          if n_masked[b,t] > 0:
+        #              # get a random permutation of the codebook indices
+        #              perm = torch.randperm(C)
+        #              # mask the top n_masked positions
+        #              mask[b, perm[:n_masked[b,t]], t] = True
+        #
+        # Create random permutations 
+        random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)        
+        # Create a mask tensor where each position indicates if it should be masked        
+        mask_indices = torch.arange(C, device=codes.device).view(1, C, 1)
+        mask = mask_indices < n_masked.view(B, 1, T) # (B, C, T)
+        # Apply the random permutations to the mask
+        mask = torch.gather(mask, 1, random_permutations)
+    
+        return mask # (B, C, T)
+    
+    def maskgit_apply_random_mask(self, codes):
+        # Randomly replaces some codes with the MASK_TOKEN with a proportion following the cosine schedule.
+        # Codes: (B, C, T)        
+        mask = self.maskgit_create_random_mask(codes)
+        ## replace some tokens with MASK_TOKEN
+        codes_with_mask = torch.where(mask, self.mask_token_id, codes)
+        return codes_with_mask, mask
+
+    def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None):
+        """
+        Computes the audio codebook loss. Used by
+        (1) The main Magpie-TTS transformer
+        (2) The local transformer, for both autoregressive and MaskGit methods
+        
+        logits: (B, T', num_codebooks * num_tokens_per_codebook)
+        audio_codes: (B, C, T')
+        audio_codes_lens: (B,)
+        mask_tokens_mask: (B, C, T') True for tokens that were replaced with the MASK_TOKEN and should
+                                     therefore be the only ones included in the loss computation.
+        """
         loss_mask = get_mask_from_lengths(audio_codes_lens)
+        if mask_tokens_mask is not None:
+            # For MaskGit we only compute loss for the masked tokens.
+            # *Both* conditions must be true:
+            # 1. the token is masked
+            # 2. the token is not padding
+            loss_mask = loss_mask.unsqueeze(1) * mask_tokens_mask
+            if not loss_mask.any():
+                # Without this we were very rarely getting NaNs in the loss
+                logging.warning("No tokens valid were found in compute_loss()!")
+                return torch.tensor(0.0, device=loss_mask.device), loss_mask 
+        else:            
+            # repeat loss mask for each codebook to simplify code below
+            loss_mask = loss_mask.unsqueeze(1).repeat(1, audio_codes.size(1), 1)
         total_codebook_loss = None
         for codebook in range(audio_codes.size(1)):
             si = codebook * self.num_all_tokens_per_codebook
@@ -372,8 +468,8 @@ class MagpieTTSModel(ModelPT):
             codebook_loss = self.cross_entropy_loss(
                 codebook_logits.permute(0, 2, 1), codebook_targets  # (B, num_tokens_per_codebook, T')
             )  # (B, T')
-            codebook_loss = codebook_loss * loss_mask
-            codebook_loss = codebook_loss.sum() / loss_mask.sum()
+            codebook_loss = codebook_loss * loss_mask[:, codebook, :]
+            codebook_loss = codebook_loss.sum() / loss_mask[:, codebook, :].sum()
             if total_codebook_loss is None:
                 total_codebook_loss = codebook_loss
             else:
@@ -414,7 +510,99 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    def sample_codes_from_local_transformer(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
+        """
+        Sample codes for one timestep from the local transformer using MaskGit.
+        """
+        # dec_output: (B, E)
+        device = dec_output.device
+        # disable KV cache since our transformer is not causal
+        self.local_transformer.reset_cache(use_cache=False)
+        dec_output = dec_output.unsqueeze(1) # (B, 1, E)
+        local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
+        C = self.num_audio_codebooks
+        B = dec_output.size(0)
+
+        min_confidence = float("-inf")
+        max_confidence = 10000 # this needs to be large enough that unmasked items will always remain unmasked. # TODO @rfejgin: use float('inf')?
+        confidences = min_confidence * torch.ones(B, C, device=device)
+        # initialize to all masked
+        codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
+        sampled_codes = codes.clone()
+        for step in range(n_steps):
+            # get mask fraction
+            frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
+            # how many codebooks to mask
+            n_masked = torch.ceil(C * frac_masked).long() # TODO @rfejgin: should we force this to be initialized to exactly `C` (to avoid numerical issues)?
+            n_unmasked = C - n_masked
+            # pick top-confidence codebooks up to n_unmasked
+            _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
+
+            # replace masks of the top-k confident codebooks with the the codes that were sampled for them
+            unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
+            codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
+            
+            # build transformer input 
+            local_transformer_input = local_transformer_input_init
+            for codebook_num in range(C):
+                next_local_transformer_input = self.audio_embeddings[codebook_num](codes[:, codebook_num]).unsqueeze(1) # (B, 1, 768)
+                next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, d_local)
+                local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, codebook_num+1, d_local)
+
+            # run transformer
+            _mask = torch.ones(B, C+1, device=device)
+            local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, C+1, d_local)
+            
+            # get logits
+            logits = []
+            for codebook_num in range(C):
+                # The `codebook_num+1` is to drop first position which corresponds to the magpie latent
+                codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num+1, :]) # (B, num_audio_tokens_per_codebook)
+                logits.append(codebook_logits)
+            logits = torch.stack(logits, dim=1) # (B, C, num_audio_tokens_per_codebook)
+
+            # apply CFG
+            if use_cfg:
+                actual_batch_size = logits.size(0) // 2
+                conditional_logits = logits[:actual_batch_size]
+                unconditional_logits = logits[actual_batch_size:]
+                cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+                logits[:actual_batch_size] = cfg_logits
+
+            # handle unfinished and finished items
+            for item_idx in unfinished_items:
+                logits[item_idx, self.audio_eos_id] = float('-inf')
+            for item_idx in finished_items:
+                logits[item_idx, :, :] = float('-inf')
+                logits[item_idx, :, self.audio_eos_id] = 0.0
+            
+            # sample with top-k
+            logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
+            indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1) # (B, C, num_audio_tokens_per_codebook)
+            logits_rescored = logits.clone()
+            logits_rescored[indices_to_remove] = float('-inf')
+            probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
+            sampled_codes = torch.multinomial(probs.view(B*C, -1), 1).view(B, C)
+            if use_cfg:
+                # TODO @rfejgin: why do we need to keep second half of the batch? can probably optimize this
+                sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
+                probs[actual_batch_size:] = probs[:actual_batch_size]
+            confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
+
+            # set confidence to max for unmasked codebooks so that they will remain unmasked
+            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+
+            # replace entries in sampled_codes with previously unmasked codebooks
+            sampled_codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
+            # optionally: add noise to confidences here (as in token-critic paper) (not implemented)
+        
+        codes = sampled_codes
+        assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
+        if use_cfg:
+            codes = codes[:actual_batch_size]
+        return codes
+
+    def local_transformer_sample_autoregressive(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
         # dec_output: (B, E)
         self.local_transformer.reset_cache(use_cache=True)
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
@@ -979,9 +1167,18 @@ class MagpieTTSModel(ModelPT):
 
         local_transformer_loss = None
         local_transformer_logits = None
-        if self.cfg.get('use_local_transformer', False):
-            local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target)
-            local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target)
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
+            if self.local_transformer_type == LocalTransformerType.MASKGIT:
+                # randomly replace some positions with MASK_TOKEN
+                audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
+                #audio_codes_masked = audio_codes_masked[:, 1:, :]
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
+            else:
+                # autoregressive
+                assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
             local_transformer_loss_scale = self.cfg.get('local_transformer_loss_scale', 1.0)
             loss = loss + local_transformer_loss_scale * local_transformer_loss
 
@@ -1281,6 +1478,7 @@ class MagpieTTSModel(ModelPT):
             start_prior_after_n_audio_steps=10,
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
+            maskgit_n_steps=3
         ):
         with torch.no_grad():
             start_time = time.time()
@@ -1430,18 +1628,35 @@ class MagpieTTSModel(ModelPT):
                 unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                if self.cfg.get('use_local_transformer', False) and use_local_transformer_for_inference:
-                    audio_codes_next = self.sample_codes_from_local_transformer(
-                        dec_output=dec_out[:,-1,:],
-                        temperature=temperature,
-                        topk=topk,
-                        unfinished_items=unifinished_items,
-                        finished_items=finished_items,
-                        use_cfg=use_cfg,
-                        cfg_scale=cfg_scale
-                    )
+                if use_local_transformer_for_inference:
+                    if self.local_transformer_type == LocalTransformerType.AR :
+                        # Autoregressive sampling with local transformer
+                        audio_codes_next = self.local_transformer_sample_autoregressive(
+                            dec_output=dec_out[:,-1,:],
+                            temperature=temperature,
+                            topk=topk,
+                            unfinished_items=unifinished_items,
+                            finished_items=finished_items,
+                            use_cfg=use_cfg,
+                            cfg_scale=cfg_scale
+                        )
+                    elif self.local_transformer_type == LocalTransformerType.MASKGIT:
+                        audio_codes_next = self.local_transformer_sample_maskgit(
+                            dec_output=dec_out[:,-1,:],
+                            temperature=temperature,
+                            topk=topk,
+                            unfinished_items=unifinished_items,
+                            finished_items=finished_items,
+                            use_cfg=use_cfg,
+                            cfg_scale=cfg_scale,
+                            n_steps=maskgit_n_steps
+                        )
+                    else:
+                        raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
+                    # TODO @rfejgin: should we add argmax sampling for EOS here too?
                     all_codes_next_argmax = audio_codes_next
                 else:
+                    # Parallel sampling from all codebooks
                     audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
                     all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
 
@@ -1554,7 +1769,7 @@ class MagpieTTSModel(ModelPT):
         self.log("val/codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
         self.log("val/alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.log("val/aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
-        if self.cfg.get('use_local_transformer', False):
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
             val_local_transformer_loss = collect("val_local_transformer_loss")
             self.log("val/local_transformer_loss", val_local_transformer_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()  # free memory
@@ -1590,7 +1805,7 @@ class MagpieTTSModel(ModelPT):
         dataset = MagpieTTSLhotseDataset(
             sample_rate=self.cfg.sample_rate,
             volume_norm=dataset_cfg.volume_norm,
-            codec_model_samples_per_frame=self.codec_model_samples_per_framed,
+            codec_model_samples_per_frame=self.codec_model_samples_per_frame,
             codec_model_name=self.cfg.codec_model_name,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
