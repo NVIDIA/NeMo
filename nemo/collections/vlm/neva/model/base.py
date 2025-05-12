@@ -27,13 +27,13 @@ from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVA
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import chunkify_cu_seqlens, chunkify, pad_zeros_for_chunked_attention
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
-from nemo.collections.llm.gpt.model.llama4_utils import chunkify_cu_seqlens, chunkify
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -778,6 +778,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
                 ), "TP Comm overlap either requires Vision+Text token length \
                 == language_max_sequence_length"
+
+        # padding for chunked attention needs to happen before CP sharding
+        if self.pre_process and self.config.attention_chunk_size is not None:
+            combined_embeddings = pad_zeros_for_chunked_attention(
+                combined_embeddings.transpose(0, 1), self.config.attention_chunk_size
+            )  # [B, S, H]
+            combined_embeddings = combined_embeddings.transpose(0, 1)
+        if self.post_process and self.config.attention_chunk_size is not None:
+            new_labels = pad_zeros_for_chunked_attention(new_labels, self.config.attention_chunk_size)
+            new_loss_mask = pad_zeros_for_chunked_attention(new_loss_mask, self.config.attention_chunk_size)
 
         if self.context_parallel_lm > 1:
             batch = dict()

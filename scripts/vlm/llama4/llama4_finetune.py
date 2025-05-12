@@ -58,6 +58,9 @@ def main(args):
         llama4_config.vision_transformer_config.num_layers = 2
         llama4_config.language_transformer_config.num_layers = 2
         llama4_config.language_transformer_config.num_moe_experts = 2
+        llama4_config.language_transformer_config.attention_chunk_size = 1024
+        llama4_config.language_transformer_config.no_rope_freq = [0, 1]
+
         num_workers = 0
 
     if args.data_type == "llava":
