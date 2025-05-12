@@ -68,6 +68,7 @@ install_requires = req_file("requirements.txt")
 extras_require = {
     # User packages
     'test': req_file("requirements_test.txt"),
+    'run': req_file("requirements_run.txt"),
     # Lightning Collections Packages
     'core': req_file(["requirements_lightning.txt", "requirements_automodel.txt"]),
     'common': req_file('requirements_common.txt'),
@@ -111,6 +112,12 @@ extras_require['nlp'] = list(
         extras_require['nlp'],
         extras_require['eval'],
         extras_require['common'],
+    )
+)
+extras_require['deploy'] = list(
+    chain(
+        extras_require['nlp'],
+        extras_require['deploy'],
     )
 )
 extras_require['llm'] = extras_require['nlp']

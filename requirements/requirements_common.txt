@@ -2,7 +2,6 @@ datasets
 einops
 inflect
 mediapy==1.1.6
-nemo_run
 pandas
 sacremoses>=0.0.43
 sentencepiece<1.0.0
