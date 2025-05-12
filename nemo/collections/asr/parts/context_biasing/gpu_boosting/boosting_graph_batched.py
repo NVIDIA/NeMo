@@ -598,10 +598,11 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         Returns:
             tuple with next states and scores
         """
-        self.use_triton = False
         if self.use_triton and states.device.type == "cuda":
+            # raise NotImplementedError("Triton implementation is not available yet")
             scores, next_states = self._advance_triton(states=states)
         else:
+            # raise NotImplementedError("Pytorch implementation is not available yet")
             scores, next_states = self._advance_pytorch(states=states)
 
         # replace weight corresponding to eos_id with final state weight

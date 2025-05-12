@@ -89,6 +89,10 @@ class LoopLabelsState:
     lm_scores: Optional[torch.Tensor] = None
     batch_lm_states_candidates: Optional[torch.Tensor] = None
 
+    batch_btree_states: Optional[torch.Tensor] = None
+    btree_scores: Optional[torch.Tensor] = None
+    batch_btree_states_candidates: Optional[torch.Tensor] = None
+
     def __init__(
         self,
         batch_size: int,
@@ -756,6 +760,21 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             )
             self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
+        #############################
+        if self.btree_model_batch is not None:
+            device = encoder_output_projected.device
+            float_dtype = encoder_output_projected.dtype
+            vocab_size = self.btree_model_batch.vocab_size
+            self.btree_model_batch.to(device)  # ngram_lm_batch is nn.Module, but self is not; need to move manually
+            self.state.batch_btree_states = self.btree_model_batch.get_init_states(
+                batch_size=self.state.batch_size, bos=False
+            )
+            self.state.batch_btree_states_candidates = torch.zeros(
+                [batch_size, vocab_size], dtype=torch.long, device=device
+            )
+            self.state.btree_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
+        #############################
+
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -874,6 +893,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
             )
 
+        # initial state - btree
+        if self.btree_model_batch is not None:
+            self.state.batch_btree_states.copy_(
+                self.btree_model_batch.get_init_states(batch_size=self.state.batch_size, bos=False)
+            )
+
         # last found labels - initially <SOS> (<blank>) symbol
         self.state.labels.fill_(self._SOS)
         self.state.scores.fill_(0.0)
@@ -910,6 +935,14 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
             self.state.lm_scores.copy_(lm_scores.to(dtype=self.state.float_dtype))
 
+        # get btree scores/states
+        if self.btree_model_batch is not None:
+            btree_scores, batch_btree_states_candidates = self.btree_model_batch.advance(
+                states=self.state.batch_btree_states
+            )  # vocab_size_no_blank
+            self.state.batch_btree_states_candidates.copy_(batch_btree_states_candidates)
+            self.state.btree_scores.copy_(btree_scores.to(dtype=self.state.float_dtype))
+
     def _before_inner_loop_get_joint_output(self):
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
         # stage 2: get joint output, iteratively seeking for non-blank labels
@@ -933,6 +966,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             # preserve "blank" / "non-blank" category
             torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_lm, out=self.state.labels)
             torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_lm, out=self.state.scores)
+
+        if self.btree_model_batch is not None:
+            # combined scores with btree - without blank
+            scores_w_btree, labels_w_btree = (logits[:, :-1] + self.btree_alpha * self.state.btree_scores).max(dim=-1)
+            # preserve "blank" / "non-blank" category
+            torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_btree, out=self.state.labels)
+            torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_btree, out=self.state.scores)
 
         # search for non-blank labels using joint, advancing time indices for blank labels
         # checking max_symbols is not needed, since we already forced advancing time indices for such cases
@@ -995,6 +1035,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             # preserve "blank" / "non-blank" category
             torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
             torch.where(more_labels == self._blank_index, more_scores, more_scores_w_lm, out=more_scores)
+
+        if self.btree_model_batch is not None:
+            # combined scores with LM - without blank
+            more_scores_w_btree, more_labels_w_btree = (logits[:, :-1] + self.btree_alpha * self.state.btree_scores).max(
+                dim=-1
+            )
+            # preserve "blank" / "non-blank" category
+            torch.where(more_labels == self._blank_index, more_labels, more_labels_w_btree, out=more_labels)
+            torch.where(more_labels == self._blank_index, more_scores, more_scores_w_btree, out=more_scores)
+
         # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
         torch.where(self.state.advance_mask, more_labels, self.state.labels, out=self.state.labels)
         # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
@@ -1052,6 +1102,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 ],
                 self.state.batch_lm_states,
                 out=self.state.batch_lm_states,
+            )
+
+        if self.btree_model_batch is not None:
+            # select necessary LM states based on chosen labels
+            torch.where(
+                self.state.active_mask,
+                self.state.batch_btree_states_candidates[
+                    self.state.batch_indices, self.state.labels * self.state.active_mask
+                ],
+                self.state.batch_btree_states,
+                out=self.state.batch_btree_states,
             )
 
         # stage 4: to avoid looping, go to next frame after max_symbols emission

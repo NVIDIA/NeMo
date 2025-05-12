@@ -50,6 +50,8 @@ class BuildWordBoostingTreeConfig:
     unk_score: float = 0.5  # The score for unknown tokens (tokens that are not in the beginning of context-biasing phrases)
     score_per_phrase: float = 0.0  # Custom score for each phrase in the context graph.
 
+    use_triton: bool = False  # Whether to use Triton for inference.
+
     # alternative transcription generation
     use_bpe_dropout: bool = False # Whether to use BPE dropout for generating alternative transcriptions.
     num_of_transcriptions: int = 5  # The number of alternative transcriptions to generate for each context-biasing phrase.
@@ -124,9 +126,9 @@ def main(cfg: BuildWordBoostingTreeConfig):
     vocab_size = len(asr_model.tokenizer.vocab)
     # import ipdb; ipdb.set_trace()
     if not is_aggregate_tokenizer:
-        gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, use_triton=False)
+        gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, use_triton=cfg.use_triton)
     else:
-        gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, eos_id=asr_model.tokenizer.eos_id, use_triton=False)
+        gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(context_graph, vocab_size=vocab_size, unk_score=cfg.unk_score, eos_id=asr_model.tokenizer.eos_id, use_triton=cfg.use_triton)
 
     # 5. save gpu boosting tree to nemo file
     gpu_boosting_model.save_to(cfg.path_to_save_btree)
@@ -134,7 +136,7 @@ def main(cfg: BuildWordBoostingTreeConfig):
     # 6. test gpu boosting tree model
     logging.info("testing gpu boosting tree model...")
     if cfg.test_btree_model:
-        gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(cfg.path_to_save_btree, vocab_size=vocab_size, use_triton=False)
+        gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(cfg.path_to_save_btree, vocab_size=vocab_size, use_triton=cfg.use_triton)
         device = torch.device("cuda")
         gpu_boosting_model_loaded = gpu_boosting_model_loaded.cuda()
 
