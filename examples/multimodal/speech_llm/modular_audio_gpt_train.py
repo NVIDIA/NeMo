@@ -14,12 +14,15 @@
 
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
+from one_logger_utils.nemo import OneLoggerNeMoCallback
 
 from nemo.collections.multimodal.speech_llm.models.modular_models import ModularAudioGPTModel
 from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
+from nemo.utils.callback_group import init_global_callback_group
+from nemo.utils.meta_info_manager import MetaInfoManager
 
 mp.set_start_method("spawn", force=True)
 
@@ -52,6 +55,9 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
+
+    one_logger_cb = OneLoggerNeMoCallback(callback_config=MetaInfoManager(cfg).get_metadata())
+    init_global_callback_group(callbacks=[one_logger_cb])
 
     precision = cfg.trainer.precision
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
