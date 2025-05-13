@@ -254,8 +254,8 @@ def set_primary_perf_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    num_layers: int,
-    hidden_size: int,
+    num_layers: Optional[int] = None,
+    hidden_size: Optional[int] = None,
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
@@ -293,8 +293,10 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
 
     # other parameters to make them explicit in yaml configs
-    recipe.model.config.num_layers = num_layers
-    recipe.model.config.hidden_size = hidden_size
+    if num_layers:
+        recipe.model.config.num_layers = num_layers
+    if hidden_size:
+        recipe.model.config.hidden_size = hidden_size
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
