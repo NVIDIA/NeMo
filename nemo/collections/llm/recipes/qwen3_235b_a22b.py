@@ -17,6 +17,7 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -56,13 +57,14 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     # Trainer
-    tensor_parallelism: int = 8,  # Default increased for 235B-A22B model
-    pipeline_parallelism: int = 1,
+    tensor_parallelism: int = 4,
+    pipeline_parallelism: int = 16,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
-    context_parallelism: int = 1,
-    sequence_parallelism: bool = True,  # Enable by default for very large model
-    num_nodes: int = 1,
+    context_parallelism: int = 2,
+    sequence_parallelism: bool = True,
+    expert_parallelism: Optional[int] = 8,
+    num_nodes: int = 16,
     num_gpus_per_node: int = 8,
     max_steps: int = 300000,
     precision: str = "bf16-mixed",
@@ -100,6 +102,7 @@ def pretrain_recipe(
         virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
         context_parallelism (int): Degree of context parallelism.
         sequence_parallelism (bool): Whether to use sequence parallelism.
+        expert_parallelism (Optional[int]): Degree of expert parallelism.
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
@@ -144,6 +147,9 @@ def pretrain_recipe(
             virtual_pipeline_parallelism=virtual_pipeline_parallelism,
             context_parallelism=context_parallelism,
             sequence_parallelism=sequence_parallelism,
+            expert_parallelism=expert_parallelism,
+            account_for_embedding_in_pipeline_split=True,
+            account_for_loss_in_pipeline_split=True,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             max_steps=max_steps,
@@ -160,6 +166,7 @@ def pretrain_recipe(
             seq_length=seq_length,
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
+            tokenizer=run.Config(AutoTokenizer, "Qwen/Qwen3-235B-A22B"),
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
@@ -218,12 +225,12 @@ def finetune_recipe(
     recipe = default_finetune_recipe(
         model(), "Qwen/Qwen3-235B-A22B", dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
+    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
+    recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.expert_model_parallel_size = 4
-        recipe.trainer.strategy.pipeline_model_parallel_size = 8
-        recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
-        recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
+        recipe.trainer.strategy.pipeline_model_parallel_size = 16
         recipe.trainer.strategy.expert_tensor_parallel_size = 1
         recipe.trainer.strategy.sequence_parallel = True
         recipe.optim.config.lr = 5e-6
@@ -231,8 +238,6 @@ def finetune_recipe(
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.trainer.strategy.expert_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
-        recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
-        recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
         recipe.trainer.strategy.expert_tensor_parallel_size = 1
         recipe.trainer.strategy.sequence_parallel = True
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])

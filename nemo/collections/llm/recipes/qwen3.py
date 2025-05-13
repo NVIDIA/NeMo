@@ -74,7 +74,9 @@ def qwen3_trainer(
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
     sequence_parallelism: bool = False,
-    expert_parallelism: Optional[int] = None,
+    expert_parallelism: int = 1,
+    account_for_embedding_in_pipeline_split: bool = False,
+    account_for_loss_in_pipeline_split: bool = False,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 1168251,
@@ -98,6 +100,12 @@ def qwen3_trainer(
         virtual_pipeline_parallelism (Optional[int]): Size of virtual pipeline parallelism.
         context_parallelism (int): Degree of context parallelism.
         sequence_parallelism (bool): Whether to use sequence parallelism.
+        expert_parallelism (Optional[int]): Degree of expert parallelism.
+        account_for_embedding_in_pipeline_split (bool): Whether to treat input embedding layer as a standard
+            transformer layer in the context of partition and placement for pipeline parallelism.
+        account_for_loss_in_pipeline_split (bool): Whether to treat loss layer as a standard transformer
+            layer in the context of partition and placement for pipeline parallelism.
+        account_for_loss_in_pipeline_split (bool): = False,
         num_nodes (int): Number of compute nodes to use.
         num_gpus_per_node (int): Number of GPUs per node.
         max_steps (int): Maximum number of training steps.
@@ -122,6 +130,8 @@ def qwen3_trainer(
         sequence_parallel=sequence_parallelism,
         expert_model_parallel_size=expert_parallelism,
         expert_tensor_parallel_size=1,
+        account_for_embedding_in_pipeline_split=account_for_embedding_in_pipeline_split,
+        account_for_loss_in_pipeline_split=account_for_loss_in_pipeline_split,
         gradient_as_bucket_view=True,
         ckpt_include_optimizer=True,
         ckpt_async_save=True,

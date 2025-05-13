@@ -17,6 +17,7 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -158,6 +159,7 @@ def pretrain_recipe(
             seq_length=seq_length,
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
+            tokenizer=run.Config(AutoTokenizer, "Qwen/Qwen3-4B"),
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
