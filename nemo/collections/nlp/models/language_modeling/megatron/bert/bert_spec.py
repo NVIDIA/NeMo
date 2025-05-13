@@ -35,7 +35,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
-    TransformerConfig = ApexGuardDefaults
+    ModuleSpec = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
