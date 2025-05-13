@@ -386,7 +386,6 @@ class PromptFormatter(ABC):
                         f"The following slots are supported for {role=}: {expected_slots}"
                     )
 
-
 def _mangled(slot: str) -> str:
     if not (slot[0] == "|" and slot[-1] == "|"):
         return f"|{slot}|"

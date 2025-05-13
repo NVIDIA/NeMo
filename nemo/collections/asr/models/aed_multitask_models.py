@@ -382,6 +382,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             tokenizer=self.tokenizer,
         )
 
+        # Update metrics to use the new decoding object
+        self.wer = WER(self.decoding, log_prediction=self.cfg.get("log_prediction"))
+        self.bleu = BLEU(
+            self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=False
+        )  # Wer is handling logging
+
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
@@ -766,29 +772,75 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         self.val_loss(loss=transf_loss, num_measurements=num_measurements)
         output_dict = {f'{eval_mode}_loss': transf_loss}
 
-        self.wer.update(
-            predictions=enc_states,
-            predictions_lengths=encoded_len,
-            targets=batch.transcript,
-            targets_lengths=batch.transcript_lens,
-            predictions_mask=enc_mask,
-            input_ids=batch.prompt,
-        )
-        wer, wer_num, wer_denom = self.wer.compute()
-        output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
-        self.wer.reset()
+        # Determine ASR vs AST samples
+        asr_indices = []
+        ast_indices = []
 
-        self.bleu.update(
-            predictions=enc_states,
-            predictions_lengths=encoded_len,
-            targets=batch.transcript,
-            targets_lengths=batch.transcript_lens,
-            predictions_mask=enc_mask,
-            input_ids=batch.prompt,
-        )
-        bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
-        output_dict.update(bleu_metrics)
-        self.bleu.reset()
+        for i in range(batch.prompt.size(0)):
+            current_prompt_len = batch.prompt_lens[i].item()
+            # Ensure prompt tokens are correctly sliced according to their actual length
+            current_prompt_tokens = batch.prompt[i, :current_prompt_len].tolist()
+            
+            if hasattr(self.prompt, 'is_translation_task') and \
+               self.prompt.is_translation_task(current_prompt_tokens):
+                ast_indices.append(i)
+            else:
+                # Default to ASR if method is not available or returns False
+                asr_indices.append(i)
+        
+        device = enc_states.device
+        asr_indices_tensor = torch.tensor(asr_indices, device=device, dtype=torch.long)
+        ast_indices_tensor = torch.tensor(ast_indices, device=device, dtype=torch.long)
+
+        # Compute WER for ASR tasks
+        if len(asr_indices) > 0:
+            asr_enc_states = enc_states[asr_indices_tensor]
+            asr_encoded_len = encoded_len[asr_indices_tensor]
+            # Targets for WER are from batch.transcript
+            asr_targets = batch.transcript[asr_indices_tensor]
+            asr_targets_lengths = batch.transcript_lens[asr_indices_tensor]
+            asr_enc_mask = enc_mask[asr_indices_tensor]
+            # Prompts for decoding are from batch.prompt
+            asr_prompts = batch.prompt[asr_indices_tensor]
+
+            self.wer.update(
+                predictions=asr_enc_states,
+                predictions_lengths=asr_encoded_len,
+                targets=asr_targets,
+                targets_lengths=asr_targets_lengths,
+                predictions_mask=asr_enc_mask,
+                input_ids=asr_prompts,
+            )
+            wer, wer_num, wer_denom = self.wer.compute()
+            output_dict.update({
+                f"{eval_mode}_wer": wer,
+                f"{eval_mode}_wer_num": wer_num,
+                f"{eval_mode}_wer_denom": wer_denom,
+            })
+            self.wer.reset()
+
+        # Compute BLEU for AST tasks
+        if len(ast_indices) > 0:
+            ast_enc_states = enc_states[ast_indices_tensor]
+            ast_encoded_len = encoded_len[ast_indices_tensor]
+            # Targets for BLEU are from batch.transcript
+            ast_targets = batch.transcript[ast_indices_tensor]
+            ast_targets_lengths = batch.transcript_lens[ast_indices_tensor]
+            ast_enc_mask = enc_mask[ast_indices_tensor]
+            # Prompts for decoding are from batch.prompt
+            ast_prompts = batch.prompt[ast_indices_tensor]
+
+            self.bleu.update(
+                predictions=ast_enc_states,
+                predictions_lengths=ast_encoded_len,
+                targets=ast_targets,
+                targets_lengths=ast_targets_lengths,
+                predictions_mask=ast_enc_mask,
+                input_ids=ast_prompts,
+            )
+            bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
+            output_dict.update(bleu_metrics)
+            self.bleu.reset()
 
         return output_dict
 

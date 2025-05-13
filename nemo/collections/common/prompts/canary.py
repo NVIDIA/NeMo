@@ -72,6 +72,26 @@ class CanaryPromptFormatter(PromptFormatter):
             prompt_template=prompt_template, expected_slots=expected_slots, slot_values=slot_values
         )
 
+    def template_text_to_slot_at_index(self, template_text: str, index: int) -> str:
+        # <|startoftranscript|><|en|><|transcribe|><|en|><|pnc|>
+        slots = template_text.split("|")[1::2]
+        return slots[index]
+    
+
+    def is_translation_task(self, prompt_tokens: list[int]) -> bool:
+        # for use in choosing the metric according to the prompt
+        template_text = self.tokenizer.ids_to_text(prompt_tokens)
+        source_lang = self.template_text_to_slot_at_index(template_text, 1)
+        target_lang = self.template_text_to_slot_at_index(template_text, 3)
+
+        # source and target should be two letter language codes
+        assert len(source_lang) == 2 and len(target_lang) == 2, f"Invalid language codes: {source_lang} and {target_lang}"
+
+        if source_lang == target_lang:
+            return False
+        else:
+            return True
+
 
 def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[str, str]:
     slot_values = slot_values.copy()
