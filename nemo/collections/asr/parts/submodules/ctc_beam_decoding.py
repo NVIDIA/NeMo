@@ -880,9 +880,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
 
 
 class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
-    """A batched beam CTC decoder.
-
-    Provides a common abstraction for sample level and batch level greedy decoding.
+    """
+    A batched beam CTC decoder.
 
     Args:
         blank_index: int index of the blank token. Can be 0 or len(vocabulary).
