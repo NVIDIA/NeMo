@@ -19,7 +19,7 @@ from typing import Any, Optional
 import torch
 from lhotse.dataset.collation import collate_vectors
 from lightning import LightningModule
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig
 from peft import PeftModel
 from torch import Tensor
 from torch.distributed.fsdp import fully_shard
@@ -34,14 +34,12 @@ from torch.distributed.tensor.parallel import (
 )
 from transformers import GenerationConfig
 
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.speechlm2.modules import AudioPerceptionModule
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
-from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo, move_embedding
+from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, move_embedding, setup_speech_encoder
 from nemo.utils import logging
 
 
@@ -66,13 +64,7 @@ class SALM(LightningModule, HFHubMixin):
         maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr).eval()
-        with open_dict(self.cfg):
-            self.cfg.perception.preprocessor = asr.cfg.preprocessor
-            self.cfg.perception.encoder = asr.cfg.encoder
-            self.cfg.perception.output_dim = self.llm.config.hidden_size
-        self.perception = AudioPerceptionModule(self.cfg.perception).train()
-        self.perception.load_state_dict(asr.state_dict(), strict=False)
+        setup_speech_encoder(self)
 
         self._use_fsdp = False
         self._use_tp = False

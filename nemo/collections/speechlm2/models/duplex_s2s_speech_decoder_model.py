@@ -14,7 +14,7 @@
 import torch
 import torch.distributed as dist
 from lightning import LightningModule
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 from peft import PeftModel
 from torch import Tensor
 from torch.distributed.fsdp import fully_shard
@@ -29,20 +29,18 @@ from torch.distributed.tensor.parallel import (
 )
 from transformers import DynamicCache
 
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.audio.parts.utils.resampling import resample
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
 from nemo.collections.speechlm2.models.duplex_s2s_model import replace_control_speech_codes, tokens_to_str
-from nemo.collections.speechlm2.modules import AudioPerceptionModule, TransformerARSpeechDecoder
+from nemo.collections.speechlm2.modules import TransformerARSpeechDecoder
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.metrics.asr_bleu import ASRBLEU
 from nemo.collections.speechlm2.parts.metrics.bleu import BLEU
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.speechlm2.parts.precision import fp32_precision
-from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
-from nemo.collections.tts.models import AudioCodecModel
+from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, setup_audio_codec, setup_speech_encoder
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
@@ -57,7 +55,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         self.save_hyperparameters()
         self.cfg = DictConfig(cfg)
 
-        self.setup_audio_codec()
+        setup_audio_codec(self)
         self._codebook_size = self.audio_codec.vector_quantizer.codebook_size_per_group
         self._num_codebooks = self.audio_codec.vector_quantizer.num_groups
 
@@ -76,13 +74,7 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
         maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        asr = load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr).eval()
-        with open_dict(self.cfg):
-            self.cfg.perception.preprocessor = asr.cfg.preprocessor
-            self.cfg.perception.encoder = asr.cfg.encoder
-            self.cfg.perception.output_dim = self.llm.config.hidden_size
-        self.perception = AudioPerceptionModule(self.cfg.perception).train()
-        self.perception.load_state_dict(asr.state_dict(), strict=False)
+        setup_speech_encoder(self)
 
         self.speech_generation = TransformerARSpeechDecoder(
             speech_decoder_parms=OmegaConf.to_container(self.cfg.speech_decoder),
@@ -107,16 +99,6 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
 
         self._use_fsdp = False
         self._use_tp = False
-
-    def setup_audio_codec(self):
-        """Workaround for PTL auto-downcasting the codec model to bf16 with bf16-true precision."""
-        if hasattr(self, "audio_codec") and next(self.audio_codec.parameters()).dtype == torch.float:
-            return  # skip if already set up and has the right dtype
-        with fp32_precision():
-            self.audio_codec = load_pretrained_nemo(AudioCodecModel, self.cfg.pretrained_audio_codec).eval()
-        for p in self.audio_codec.parameters():
-            p.requires_grad = False
-        del self.audio_codec.discriminator  # free up some memory
 
     @property
     def speech_vocab_size(self):

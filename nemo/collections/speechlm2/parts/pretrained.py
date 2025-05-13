@@ -15,8 +15,15 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import torch
+from omegaconf import open_dict
 from peft import PeftModel
 from transformers import AutoConfig, AutoModelForCausalLM
+
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.speechlm2.modules import AudioPerceptionModule
+
+from nemo.collections.speechlm2.parts.precision import fp32_precision
+from nemo.collections.tts.models import AudioCodecModel
 
 
 def load_pretrained_nemo(cls, model_path_or_name: str):
@@ -58,3 +65,34 @@ def move_embedding(model):
         del model.llm.base_model.model.model.embed_tokens
     else:
         del model.llm.model.embed_tokens
+
+
+def setup_audio_codec(model: torch.nn.Module):
+    """
+    Sets up an ``AudioCodecModel``, initializing it from pretrained weights.
+    The result is assigned to ``model.audio_codec`` attribute.
+
+    Includes a workaround for PTL auto-downcasting the codec model to bf16 with bf16-true precision.
+    """
+    if hasattr(model, "audio_codec") and next(model.audio_codec.parameters()).dtype == torch.float:
+        return  # skip if already set up and has the right dtype
+    with fp32_precision():
+        model.audio_codec = load_pretrained_nemo(AudioCodecModel, model.cfg.pretrained_audio_codec).eval()
+    for p in model.audio_codec.parameters():
+        p.requires_grad = False
+    del model.audio_codec.discriminator  # free up some memory
+
+
+def setup_speech_encoder(model: torch.nn.Module):
+    """
+    Sets up an ``AudioPerceptionModule``, initializing its ``encoder`` and ``preprocessor``
+    with a pretrained NeMo ``ASRModel``.
+    The result is assigned to ``model.perception`` attribute and is trainable.
+    """
+    asr = load_pretrained_nemo(ASRModel, model.cfg.pretrained_asr).eval()
+    with open_dict(model.cfg):
+        model.cfg.perception.preprocessor = asr.cfg.preprocessor
+        model.cfg.perception.encoder = asr.cfg.encoder
+        model.cfg.perception.output_dim = model.llm.config.hidden_size
+    model.perception = AudioPerceptionModule(model.cfg.perception).train()
+    model.perception.load_state_dict(asr.state_dict(), strict=False)
