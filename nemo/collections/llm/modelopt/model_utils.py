@@ -198,17 +198,25 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     )
 
     model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
-    _set_gpt_mamba_modelopt_spec(model.config)
+
+    if hasattr(model.config, 'language_transformer_config'):
+        # VLM model - work on language_transformer_config
+        target_config = model.config.language_transformer_config
+    else:
+        # LLM model - work on config directly
+        target_config = model.config
+
+    _set_gpt_modelopt_spec(target_config)
     for k, v in model_config_overrides.items():
-        logging.info(f"Overriding model.config.{k} to {v}")
-        setattr(model.config, k, v)
+        logging.info(f"Overriding model config {k} to {v}")
+        setattr(target_config, k, v)
 
     if inference_only:
         del model.optim
     if num_layers_in_first_pipeline_stage:
-        model.config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
+        target_config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
     if num_layers_in_last_pipeline_stage:
-        model.config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
+        target_config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
 
     tokenizer = None
     if tokenizer_path:
