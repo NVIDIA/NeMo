@@ -187,7 +187,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
         # set the EOU and EOB class to the mean value of the pretrained model
         value = pretrained_joint_clf_weight.mean(dim=0)
     elif token_init_method == 'constant':
-        value = cfg.model.get('token_init_weight_value', 0.01)
+        value = cfg.model.get('token_init_weight_value', None)
     elif token_init_method:
         raise ValueError(f"Unknown token_init_method: {token_init_method}.")
 
@@ -200,7 +200,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
         joint_state['2.bias'][-1] = pretrained_joint_clf_bias[-1]  # blank class
         value = None
         if token_init_method == 'constant':
-            value = cfg.model.get('token_init_bias_value', -600.0)
+            value = cfg.model.get('token_init_bias_value', None)
         elif token_init_method == 'min':
             # set the EOU and EOB class to the minimum value of the pretrained model
             value = pretrained_joint_clf_bias.min()
