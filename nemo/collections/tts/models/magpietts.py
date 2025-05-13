@@ -100,7 +100,7 @@ class MagpieTTSModel(ModelPT):
         # Set up codebook configuration
         self.num_audio_codebooks = codec_model.num_codebooks
         self.codec_model_samples_per_frame = codec_model.samples_per_frame
-        # Our codebooks start with actual audio codec tokens, followed by special tokens. 
+        # Our codebooks start with actual audio codec tokens, followed by special tokens.
         # The `forced_*` options are for backward compatibility for models trained with older code.
         num_audio_tokens = codec_model.codebook_size
         self.audio_bos_id = cfg.get('forced_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
@@ -141,7 +141,7 @@ class MagpieTTSModel(ModelPT):
 
         if self.use_text_conditioning_encoder:
             self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
-        
+
         # This needs to happen after super().__init__()
         self._codec_model = codec_model
         self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
@@ -232,6 +232,10 @@ class MagpieTTSModel(ModelPT):
 
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
+        """
+        Only used for saving checkpoints. On save, we remove _speaker_verification_model and _codec_model
+        from the checkpoint. The codec model is saved in a separate checkpoint.
+        """
         if hasattr(self, '_no_state_dict') and self._no_state_dict:
             return {}
         # Don't save the speaker verification and codec model in the state dict
@@ -243,8 +247,26 @@ class MagpieTTSModel(ModelPT):
         return state_dict
     
     def load_state_dict(self, state_dict, strict=True):
-        # Override to load all the keys except _speaker_verification_model and _codec_model
-        super().load_state_dict(state_dict, strict=False)
+        """
+        Modify load_state_dict so that we don't restore weights to _speaker_verification_model and _codec_model when
+        strict is True.
+        When strict is False, we can call pytorch's load_state_dict.
+        When strict is True, we loop through all parameters and rename them to enable loading.
+        """
+        if strict == False:
+            super().load_state_dict(state_dict, strict=False)
+        for name, child in self.named_children():
+            if name in ['_speaker_verification_model', '_codec_model']:
+                continue
+            if any(param.numel() > 0 for param in child.parameters()):
+                # If the module has parameters, we want to change the default mapping so that the state_dict gets
+                # loaded.
+                # Ex: state_dict[encoder.position_embeddings.weight] -> new_state_dict[position_embeddings.weight]
+                new_state_dict = {}
+                for key in state_dict.keys():
+                    if key.startswith(name):
+                        new_state_dict[key[len(name)+1:]] = state_dict[key]  # +1 for '.'
+                child.load_state_dict(new_state_dict)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
         # audio: (B, T)
