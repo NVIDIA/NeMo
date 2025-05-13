@@ -52,6 +52,7 @@ except (ImportError, ModuleNotFoundError):
     ModuleSpec = ApexGuardDefaults
     IdentityFuncOp = ApexGuardDefaults
     IdentityOp = ApexGuardDefaults
+    TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
 from nemo.collections.common.parts.utils import activation_registry
