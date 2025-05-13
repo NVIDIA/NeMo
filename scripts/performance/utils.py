@@ -18,6 +18,7 @@ from typing import List
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
 
+import nemo.lightning as nl
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel

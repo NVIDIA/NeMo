@@ -101,7 +101,7 @@ def parse_cli_args():
     parser.add_argument(
         "-en",
         "--enable_nsys",
-        help="Enable Nsys profiling. Diabled by default",
+        help="Enable Nsys profiling. Disabled by default",
         action="store_true",
     )
     parser.add_argument(
@@ -274,7 +274,7 @@ def parse_cli_args():
         type=int,
         help="Number of train steps. Defaults to 100",
         required=False,
-        default=100,
+        default=50,
     )
 
     def bool_arg(arg):
@@ -338,6 +338,45 @@ def parse_cli_args():
         "--nccl_communicator_config_path",
         type=str,
         help="Path to NCCL communicator config yaml file",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-nlay",
+        "--num_layers",
+        type=int,
+        help="Sets number of model layers.",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-hs",
+        "--hidden_size",
+        type=int,
+        help="Sets hidden model size",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-pss", "--profiling_start_step", type=int, help="Defines start step for profiling", required=False, default=46
+    )
+    parser.add_argument(
+        "-pso", "--profiling_stop_step", type=int, help="Defines start step for profiling", required=False, default=50
+    )
+
+    parser.add_argument(
+        "-cps",
+        "--checkpoint_save",
+        type=bool_arg,
+        help="When enabled will trigger checkpoint save operation at the end of training",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-cpl",
+        "--checkpoint_load_path",
+        type=str,
+        help="Path to checkpoint to load prior to training start",
         required=False,
         default=None,
     )

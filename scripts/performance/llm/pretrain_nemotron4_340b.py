@@ -42,6 +42,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -66,6 +68,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
@@ -75,6 +79,8 @@ def override_recipe_configs(
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        save_checkpoint=args.checkpoint_save,
+        load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -119,12 +125,14 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         _,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+    ) = kwargs[:15]
 
     recipe = override_recipe_configs(
         args,
@@ -136,13 +144,15 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
@@ -172,8 +182,15 @@ if __name__ == "__main__":
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
         )
     ]
+
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=45, end_step=50, ranks=list(range(num_nodes * args.gpus_per_node))))
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+            )
+        )
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))

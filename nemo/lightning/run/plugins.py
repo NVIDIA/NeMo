@@ -158,6 +158,7 @@ class NsysPlugin(run.Plugin):
     end_step: int
     ranks: Optional[list[int]] = None
     nsys_trace: Optional[list[str]] = None
+    nsys_extra_args: Optional[list[str]] = None
     gen_shape: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
@@ -179,7 +180,7 @@ class NsysPlugin(run.Plugin):
         if isinstance(executor, run.SlurmExecutor):
             # NOTE: DO NOT change to f-string, `%q{}` is Slurm placeholder
             launcher.nsys_filename = "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
-            launcher.nsys_extra_args = [
+            launcher.nsys_extra_args = self.nsys_extra_args or [
             "--force-overwrite=true",
             "--capture-range=cudaProfilerApi",
             "--capture-range-end=stop",
