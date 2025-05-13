@@ -153,7 +153,7 @@ if __name__ == "__main__":
     )
 
     # Set up dataset
-    if not args.use_mock_data and len(args.data_paths) == 0:
+    if not args.use_mock_data and not args.data_paths:
         raise ValueError("Must provide either custom dataset(s) in --data_paths or set --use_mock_data.")
 
     if args.use_mock_data:
