@@ -264,8 +264,9 @@ class MagpieTTSModel(ModelPT):
                 # Ex: state_dict[encoder.position_embeddings.weight] -> new_state_dict[position_embeddings.weight]
                 new_state_dict = {}
                 for key in state_dict.keys():
-                    if key.startswith(f"{name}."):
-                        new_state_dict[key[len(name)+1:]] = state_dict[key]  # +1 for '.'
+                    name_with_dot = f"{name}."
+                    if key.startswith(name_with_dot):
+                        new_state_dict[key[len(name_with_dot):]] = state_dict[key]
                 child.load_state_dict(new_state_dict)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
