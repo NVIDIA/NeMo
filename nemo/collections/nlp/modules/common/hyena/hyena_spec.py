@@ -42,6 +42,10 @@ from nemo.collections.nlp.modules.common.hyena.hyena_filter import (
 
 
 def get_hyena_layer_with_transformer_engine_spec(hyena_cfg):
+    if not HAVE_MEGATRON_CORE:
+        raise ImportError(
+            "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        )
     return ModuleSpec(
         module=HyenaOperator,
         params=hyena_cfg,
