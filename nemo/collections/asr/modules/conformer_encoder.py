@@ -331,6 +331,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         use_pytorch_sdpa_backends=None,
         sync_max_audio_length: bool = True,
         use_convolution: bool = True,
+        use_pre_mlp: bool = True,
+        ffn_activation_name: str = 'swish',
     ):
         super().__init__()
         d_ff = d_model * ff_expansion_factor
@@ -475,6 +477,8 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 use_pytorch_sdpa=self.use_pytorch_sdpa,
                 use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                 use_convolution=use_convolution,
+                use_pre_mlp=use_pre_mlp,
+                ffn_activation_name=ffn_activation_name,
             )
             self.layers.append(layer)
 

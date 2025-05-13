@@ -60,6 +60,7 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         use_bias (bool): Apply bias to all Linear and Conv1d layers from each ConformerLayer to improve activation flow and stabilize training of huge models.
             Defaults to True.
         use_convolution (bool): Whether to use the convolution module. Defaults to True.
+        ffn_activation_name (str): activation name for the feed-forward module
     """
 
     def __init__(
@@ -84,6 +85,8 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         use_pytorch_sdpa=False,
         use_pytorch_sdpa_backends=None,
         use_convolution=True,
+        use_pre_mlp=True,
+        ffn_activation_name='swish',
     ):
         super(ConformerLayer, self).__init__()
 
@@ -97,13 +100,21 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
         self.ff_norm_type = ff_norm_type
         self.conv_norm_type = conv_norm_type
         self.use_convolution = use_convolution
+        self.use_pre_mlp = use_pre_mlp
+        self.ffn_activation_name = ffn_activation_name
 
         # first feed forward module
-        if ff_norm_type == 'rms_norm':
-            self.norm_feed_forward1 = RMSNorm(d_model)
+        if self.use_pre_mlp:
+            if ff_norm_type == 'rms_norm':
+                self.norm_feed_forward1 = RMSNorm(d_model)
+            else:
+                self.norm_feed_forward1 = LayerNorm(d_model)
+            self.feed_forward1 = ConformerFeedForward(
+                d_model=d_model, d_ff=d_ff, dropout=dropout, activation_name=self.ffn_activation_name, use_bias=use_bias
+            )
         else:
-            self.norm_feed_forward1 = LayerNorm(d_model)
-        self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
+            self.norm_feed_forward1 = None
+            self.feed_forward1 = None
 
         # convolution module (conditional)
         if self.use_convolution:
@@ -176,7 +187,9 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
             self.norm_feed_forward2 = RMSNorm(d_model)
         else:
             self.norm_feed_forward2 = LayerNorm(d_model)
-        self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout, use_bias=use_bias)
+        self.feed_forward2 = ConformerFeedForward(
+            d_model=d_model, d_ff=d_ff, dropout=dropout, activation_name=self.ffn_activation_name, use_bias=use_bias
+        )
 
         self.dropout = nn.Dropout(dropout)
         if ff_norm_type == 'rms_norm':
@@ -198,54 +211,67 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
             cache_last_channel (torch.tensor) : next cache for MHA layers (B, T_cache, d_model)
             cache_last_time (torch.tensor) : next cache for convolutional layers (B, d_model, T_cache)
         """
-        residual = x
-        x = self.norm_feed_forward1(x)
-        x = self.feed_forward1(x)
-        residual = residual + self.dropout(x) * self.fc_factor
+        current_input = x
 
-        x = self.norm_self_att(residual)
+        # First FFN module
+        if self.use_pre_mlp:
+            residual = current_input
+            x_ffn1 = self.norm_feed_forward1(current_input)
+            x_ffn1 = self.feed_forward1(x_ffn1)
+            current_input = residual + self.dropout(x_ffn1) * self.fc_factor
+        # If not self.use_pre_mlp, current_input remains the original x
+
+        # Self-attention module
+        residual = current_input
+        x_attn = self.norm_self_att(current_input)
+
         if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb, cache=cache_last_channel)
+            x_attn = self.self_attn(query=x_attn, key=x_attn, value=x_attn, mask=att_mask, pos_emb=pos_emb, cache=cache_last_channel)
         elif self.self_attention_model == 'rel_pos_local_attn':
-            x = self.self_attn(query=x, key=x, value=x, pad_mask=pad_mask, pos_emb=pos_emb, cache=cache_last_channel)
+            x_attn = self.self_attn(query=x_attn, key=x_attn, value=x_attn, pad_mask=pad_mask, pos_emb=pos_emb, cache=cache_last_channel)
         elif self.self_attention_model == 'abs_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel)
-        else:
-            x = None
+            x_attn = self.self_attn(query=x_attn, key=x_attn, value=x_attn, mask=att_mask, cache=cache_last_channel)
+        # self_attention_model is validated in __init__, so no else needed.
 
-        if x is not None and cache_last_channel is not None:
-            (x, cache_last_channel) = x
+        if x_attn is not None and cache_last_channel is not None and isinstance(x_attn, tuple): # MHA returned (output, cache)
+             x_attn, cache_last_channel = x_attn
+        elif isinstance(x_attn, tuple): # MHA returned a tuple but no cache was expected/returned
+             x_attn = x_attn[0]
 
-        residual = residual + self.dropout(x)
+
+        current_input = residual + self.dropout(x_attn)
 
         if self.is_adapter_available():
-            # Call the MHA adapters
             pack_input = {
-                'x': residual,
+                'x': current_input,
                 'loc': 'mha',
                 'att_mask': att_mask,
                 'pos_emb': pos_emb,
             }
             pack_input = self.forward_enabled_adapters(pack_input)
-            residual = pack_input['x']
+            current_input = pack_input['x']
 
-        # Conditionally apply convolution module
+        # Convolution module
         if self.use_convolution:
-            x = self.norm_conv(residual)
-            x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
-            if cache_last_time is not None:
-                (x, cache_last_time) = x
-            residual = residual + self.dropout(x)
-        # If no convolution, residual connection is skipped for this block
+            residual = current_input
+            x_conv = self.norm_conv(current_input)
+            x_conv = self.conv(x_conv, pad_mask=pad_mask, cache=cache_last_time)
+            if cache_last_time is not None and isinstance(x_conv, tuple): # Conv returned (output, cache)
+                x_conv, cache_last_time = x_conv
+            elif isinstance(x_conv, tuple): # Conv returned a tuple but no cache was expected/returned
+                x_conv = x_conv[0]
+            current_input = residual + self.dropout(x_conv)
+        # If no convolution, current_input passes through.
 
-        x = self.norm_feed_forward2(residual)
-        x = self.feed_forward2(x)
-        residual = residual + self.dropout(x) * self.fc_factor
+        # Second FFN module
+        residual = current_input
+        x_ffn2 = self.norm_feed_forward2(current_input)
+        x_ffn2 = self.feed_forward2(x_ffn2)
+        current_input = residual + self.dropout(x_ffn2) * self.fc_factor
 
-        x = self.norm_out(residual)
+        x = self.norm_out(current_input)
 
         if self.is_adapter_available():
-            # Call the adapters
             pack_input = {
                 'x': x,
                 'loc': 'post',
@@ -257,10 +283,16 @@ class ConformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMixin):
             'save_encoder_tensors', False
         ):
             self.register_accessible_tensor(name='encoder', tensor=x)
-        if cache_last_channel is None:
+
+        if cache_last_channel is None and cache_last_time is None:
             return x
-        else:
-            return x, cache_last_channel, cache_last_time
+        else: # Need to return cache(s)
+            if cache_last_channel is not None and cache_last_time is not None:
+                return x, cache_last_channel, cache_last_time
+            elif cache_last_channel is not None:
+                return x, cache_last_channel
+            else: # cache_last_time is not None
+                return x, cache_last_time # This case might need specific handling based on expected return signature
 
 
 class ConformerConvolution(nn.Module):
@@ -401,21 +433,38 @@ class ConformerFeedForward(nn.Module):
     use_bias (bool): Apply bias to all Linear and Conv1d layers improve activation flow and stabilize training of huge models.
     """
 
-    def __init__(self, d_model, d_ff, dropout, activation=Swish(), use_bias=True):
+    def __init__(self, d_model, d_ff, dropout, activation_name='swish', use_bias=True):
         super(ConformerFeedForward, self).__init__()
         self.d_model = d_model
         self.d_ff = d_ff
         self.use_bias = use_bias
-        self.linear1 = nn.Linear(d_model, d_ff, bias=self.use_bias)
-        self.activation = activation
-        self.dropout = nn.Dropout(p=dropout)
-        self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias)
+        self.activation_name = activation_name.lower()
+
+        if self.activation_name == 'swiglu':
+            self.linear1 = nn.Linear(d_model, d_ff * 2, bias=self.use_bias)  # Projects to 2x for SwiGLU
+            self.activation = nn.SiLU()  # PyTorch's nn.SiLU is Swish with beta=1
+            self.dropout = nn.Dropout(p=dropout)
+            self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias) # Takes d_ff after SwiGLU
+        elif self.activation_name == 'swish':
+            self.linear1 = nn.Linear(d_model, d_ff, bias=self.use_bias)
+            self.activation = Swish()
+            self.dropout = nn.Dropout(p=dropout)
+            self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias)
+        else:
+            raise ValueError(f"Unsupported activation: {self.activation_name}. Choose 'swish' or 'swiglu'.")
 
     def forward(self, x):
-        x = self.linear1(x)
-        x = self.activation(x)
-        x = self.dropout(x)
-        x = self.linear2(x)
+        if self.activation_name == 'swiglu':
+            x = self.linear1(x)
+            x_gate, x_val = x.chunk(2, dim=-1)
+            x = self.activation(x_gate) * x_val  # This is the SwiGLU operation
+            x = self.dropout(x)
+            x = self.linear2(x)
+        elif self.activation_name == 'swish':
+            x = self.linear1(x)
+            x = self.activation(x)
+            x = self.dropout(x)
+            x = self.linear2(x)
         return x
 
     def reset_parameters_ff(self):
