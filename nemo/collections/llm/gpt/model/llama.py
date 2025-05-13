@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -401,6 +401,8 @@ class Llama4Config(Llama3Config):
     moe_token_dispatcher_type: str = "alltoall"
     moe_router_dtype: Optional[str] = None
     moe_apply_probs_on_input: bool = True
+    moe_shared_expert_overlap: bool = True
+    moe_permute_fusion: bool = False
     # Configs that are overwritten in subclass models
     qk_l2_norm: bool = True
     rope_scaling: bool = True

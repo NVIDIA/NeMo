@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -556,15 +556,15 @@ def ptq(
 
 @run.cli.entrypoint(namespace="llm")
 def deploy(
-    nemo_checkpoint: AnyPath = None,
+    nemo_checkpoint: Optional[AnyPath] = None,
     backend: str = "in-framework",
-    model_type: str = "llama",
+    model_type: Optional[str] = None,
     triton_model_name: str = "triton_model",
     triton_model_version: Optional[int] = 1,
     triton_http_port: int = 8000,
     triton_grpc_port: int = 8001,
     triton_http_address: str = "0.0.0.0",
-    triton_model_repository: AnyPath = None,
+    triton_model_repository: Optional[AnyPath] = None,
     start_fastapi_server: bool = True,
     fastapi_http_address: str = "0.0.0.0",
     fastapi_port: int = 8080,
@@ -575,12 +575,13 @@ def deploy(
     context_parallel_size: int = 1,
     expert_model_parallel_size: int = 1,
     expert_tensor_parallel_size: int = 1,
-    dtype: str = "bfloat16",
+    dtype: Optional[str] = None,
     max_input_len: int = 4096,
     max_output_len: int = 256,
     max_batch_size: int = 8,
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
+    enable_flash_decode: bool = True,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
@@ -588,42 +589,45 @@ def deploy(
 
     Args:
         nemo_checkpoint (Path): Path for nemo checkpoint.
-        backend (str): options: "in-framework" or "trtllm". Deploys nemo2 checkpoint directly on Pytriton server wo any
-        conversion if "in-framework". If "trtllm", exports nemo2 model to trtllm and deploys on PyTriton.
-        Default: "in-framework".
-        model_type (str): Type of the model. Choices: gpt, llama, falcon, starcoder. Default: llama.
+        backend (str): options: "in-framework" or "trtllm". Deploys nemo2 checkpoint directly on Pytriton server w/o
+            any conversion if "in-framework". If "trtllm", exports nemo2 model to trtllm and deploys on PyTriton.
+            Default: "in-framework".
+        model_type (str): Type of the model for the "trtllm" backend option. Autodetected from the given nemo
+            checkpoint by default.
         triton_model_name (str): Name for the model that gets deployed on PyTriton. Please ensure that the same model
-        name is passed to the evalute method for the model to be accessible while sending evalution requests.
-        Default: 'triton_model'.
+            name is passed to the evalute method for the model to be accessible while sending evalution requests.
+            Default: 'triton_model'.
         triton_model_version (Optional[int]): Version for the triton model. Default: 1.
         triton_http_port (int): HTTP port for the PyTriton server. Default: 8000.
         triton_grpc_port (int): gRPC Port for the PyTriton server. Default: 8001.
         triton_http_address (str): HTTP address for the PyTriton server. Default:  "0.0.0.0".
         triton_model_repository (Path): Folder for the trt-llm conversion, trt-llm engine gets saved in this specified
-        path. If None, saves it in /tmp dir. Default: None.
+            path. If None, saves it in /tmp dir. Default: None.
         start_fastapi_server (bool): Starts FastAPI server which acts as a proxy in between to expose the
-        v1/completions and v1/chat/completions OpenAI (OAI) compatible endpoints as PyTriton does not expose a
-        standard HTTP/REST API. Only supported for "in-framework" deployment and not with "trtllm" backend.
-        Default: True.
+            v1/completions and v1/chat/completions OpenAI (OAI) compatible endpoints as PyTriton does not expose a
+            standard HTTP/REST API. Only supported for "in-framework" deployment and not with "trtllm" backend.
+            Default: True.
         fastapi_http_address (str): HTTP address for FastAPI interface/server.  Default: "0.0.0.0". OAI endpoints via
-        FastAPI interface are only supported for "in-framework" backend.
+            FastAPI interface are only supported for "in-framework" backend.
         fastapi_port (int): Port for FastAPI interface/server. Applicable only for "in-framework" backend.
-        Default: 8080.
+            Default: 8080.
         num_gpus (int): Number of GPUs per node for export to trtllm and deploy. Default: 1.
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
         pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.
-        dtype (str): dtype of the TensorRT-LLM model. Default: "bfloat16".
+        dtype (str): dtype of the TensorRT-LLM model. Autodetected from the model weights dtype by default.
         max_input_len (int): Max input length of the model. Default: 4096.
         max_output_len (int): Max output length of the model. Default: 256.
         max_batch_size (int): Max batch size of the model. Default: 8.
-        openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format. Needs to
-        be True while running evaluation. Default: True.
+        openai_format_response (bool): Return the response from PyTriton server in OpenAI compatible format.
+            Needs to be True while running evaluation. Default: True.
         output_context_logits (bool): If True builds trtllm engine with 'gather_context_logits=True'. Default: True.
         context_logits are used to compute the logProb of the output token in multi-token prediction benchmarks.
-        Used only with "trtllm" backend.
+            Used only with "trtllm" backend.
         output_generation_logits (bool): If True builds trtllm engine with gather_generation_logits set to True.
         generation_logits are used to compute the logProb of the output token in case of single token prediction
-        benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
+            benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
+        enable_flash_decode (bool): If True runs in-framework deployment with flash decode enabled (not supported for
+            the trtllm backend).
     """
     import os
     import uvicorn
@@ -660,6 +664,8 @@ def deploy(
             expert_model_parallel_size=expert_model_parallel_size,
             expert_tensor_parallel_size=expert_tensor_parallel_size,
             inference_max_seq_length=max_input_len,
+            enable_flash_decode=enable_flash_decode,
+            max_batch_size=max_batch_size,
         )
 
         if torch.distributed.is_initialized():
@@ -752,6 +758,8 @@ def deploy(
 
         logging.info("Model serving will be stopped.")
         nm.stop()
+    else:
+        raise ValueError(f"Invalid backend '{backend}'. Supported backends are 'in-framework' and 'trtllm'.")
 
 
 @run.cli.entrypoint(namespace="llm")
@@ -961,11 +969,15 @@ def export_ckpt(
     Raises:
         ValueError: If the model does not implement ConnectorMixin, indicating a lack of
             necessary exporter functionality.
+        FileExistsError: If the output path is provided (that is, when not using models cache)
+            and it exists and overwrite is not set to True.
     """
     if not isinstance(path, Path):
         path = Path(path)
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
+        if output_path.exists() and not overwrite:
+            raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
     output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
@@ -990,6 +1002,7 @@ def generate(
     inference_params: Optional["CommonInferenceParams"] = None,
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
+    enable_flash_decode: bool = True,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -1056,6 +1069,7 @@ def generate(
         text_only (bool, optional): Whether to return only the generated text as a string. Defaults to False.
         output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
             predictions. Defaults to None.
+        enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
@@ -1078,6 +1092,7 @@ def generate(
         trainer=trainer,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        enable_flash_decode=enable_flash_decode,
     )
 
     max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,9 +62,9 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "image_sizes",
         )
     )
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.update(("position_ids", "attention_mask"))
-    if parallel_state.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
         required_keys.update(("labels", "loss_mask", "attention_mask"))
 
     packed_seq_params = _batch.get("packed_seq_params", None)
@@ -143,6 +143,7 @@ class LlavaNextConfig(NevaConfig):
             MCoreLlavaNextModel: An instance of the LLaVA Next model.
         """
 
+        self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -164,11 +165,11 @@ class LlavaNextConfig(NevaConfig):
         model = MCoreLlavaNextModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage()
+            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False)
             or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
-            post_process=ps.is_pipeline_last_stage(),
-            add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage()
+            post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
+            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
+            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )

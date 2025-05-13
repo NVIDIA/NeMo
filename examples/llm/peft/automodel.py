@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
@@ -34,6 +34,7 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
+@FirstRankPerNode()
 def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -77,6 +78,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
         offload_policy = None

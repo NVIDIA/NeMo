@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import torch
 import torch.distributed as dist
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import masked_cross_entropy
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -28,6 +29,36 @@ from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
+
+
+@torch.no_grad()
+def count_tail_padding(labels, ignore_label=-100):
+    """Counts the total number of padding token in the tail of labels
+
+    e.g.
+        labels = torch.tensor([
+            [-100, 1, 1, -100, -100],   # 2 tail -100s
+            [-100, -100, 2, 3, 4],      # 0 tail -100s
+            [5, 6, -100, -100, -100],   # 3 tail -100s
+        ])
+        count_tail_padding will return 5. Please do note there's more than 5 ignore labels.
+    Args:
+        labels (torch.Tensor): the labels
+        ignore_label (int, optional): ignore label index. Defaults to -100.
+
+    Returns:
+        int: total number of ignored tokens in the `labels` input.
+    """
+
+    # Flip along the last dimension (seq_len)
+    flipped = labels.flip(dims=[1])
+    tail_mask = flipped == ignore_label
+
+    # Compute cumulative product to "break" on first non ignore_label
+    prod_mask = torch.cumprod(tail_mask.int(), dim=1)
+
+    # Count tail -100s by summing cumprod mask along the sequence dimension
+    return prod_mask.view(-1).sum().item()
 
 
 class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
@@ -195,6 +226,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 attn_implementation=attn_implementation,
             )
 
+    @FirstRankPerNode()
     def configure_model(self):
         """
         Configure and initialize the Hugging Face model.
@@ -232,6 +264,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
+
+        if self.use_linear_ce_loss:
+            # scan the model for fp8 layers, if found disable lce
+            for module in self.model.modules():
+                if hasattr(module, 'fp8'):
+                    logging.warning("LCE does not support FP8, switching to regular CE.")
+                    self.use_linear_ce_loss = False
+                    break
 
         if self.enable_grad_ckpt:
             if getattr(self.model, 'supports_gradient_checkpointing', False):
@@ -339,10 +379,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 labels = labels.view(-1)
                 assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
                 loss = self.loss_fn(logits, labels, loss_mask)
-
-                self.loss_buffer.append(loss.item())
-                self.n_tok += labels.numel()
-
         else:
             batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
 
@@ -375,7 +411,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     logit_softcapping=logit_softcapping,
                 )
         self.loss_buffer.append(loss.item())
-        self.n_tok += labels.numel()
+        self.n_tok += labels.numel() - count_tail_padding(labels.view_as(batch['input_ids']))
 
         return loss
 

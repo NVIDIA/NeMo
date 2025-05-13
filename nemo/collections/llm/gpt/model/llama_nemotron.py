@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,9 +99,9 @@ class Llama33NemotronSuper49BConfig(Llama31Config70B, HeterogeneousTransformerCo
 class Llama31NemotronUltra253BConfig(Llama31Config405B, HeterogeneousTransformerConfig):
     """Configuration for an Llama31-Nemotron-Ultra model."""
 
-    hidden_size: int = 8192
-    num_attention_heads: int = 64
-    num_layers: int = 126
+    hidden_size: int = 16384
+    num_attention_heads: int = 128
+    num_layers: int = 162
     heterogeneous_layers_config_path: str = None
     heterogeneous_layers_config_encoded_json: str = LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = heterogeneous_layer_spec
@@ -339,7 +339,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         Raises:
             AssertionError: If model_name is not provided for heterogeneous models
         """
-        from transformers import AutoModelForCausalLM
+        from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
@@ -348,8 +348,12 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
                 return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
             # Llama-Nemotron Super/Ultra
             assert model_name is not None
-            hf_model = AutoModelForCausalLM.from_pretrained(
-                model_name,
+            # Since Llama-Nemotron Super/Ultra is not importable from transformers, we can only initialize the HF model
+            # from a known checkpoint folder containing the config file and modeling files.
+            # The model_name will need to be passed in.
+            config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+            hf_model = AutoModelForCausalLM.from_config(
+                config,
                 trust_remote_code=True,
                 torch_dtype=dtype,
             )
