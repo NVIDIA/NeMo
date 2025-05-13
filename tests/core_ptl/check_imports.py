@@ -60,9 +60,12 @@ def _get_class_from_path(domain, subdomains, imp):
                 class_ = class_.__wrapped__
 
             # Subclass tests
-            print(f"path: {path}, class: {class_}")
-            if issubclass(class_, (Model, torch.nn.Module)):
-                result = class_
+            try:
+                result_issubclass = issubclass(class_, (Model, torch.nn.Module))
+                if result_issubclass:
+                    result = class_
+            except nemo.utils.import_utils.UnavailableError as e:
+                raise Exception(f"Error: {e}, path: {path}, class: {class_}")
         else:
             class_ = None
 
