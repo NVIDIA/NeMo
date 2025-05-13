@@ -79,7 +79,7 @@ class BatchedBeamHyps:
         device: torch.device = None,
         float_dtype: torch.dtype = None,
         store_prefix_hashes: Optional[bool] = False,
-        is_tdt: Optional[bool] = False,
+        model_type: str = "rnnt",
     ):
         """
         Initializes the batched beam hypotheses utility for Transducer decoding (RNN-T and TDT models).
@@ -91,7 +91,7 @@ class BatchedBeamHyps:
             device (torch.device): The device on which tensors will be allocated. Defaults to None.
             float_dtype (torch.dtype): The floating-point data type. Defaults to None.
             store_prefix_hashes (bool, optional): Whether to store prefix hashes for hypotheses. Defaults to False.
-            is_tdt: (bool, optional): Whether will be used for TDT models. Defaults to false.
+            model_type: (str, optional): Model type, either 'rnnt', 'tdt' or 'ctc'. Defaults to 'rnnt'.
         """
 
         if beam_size <= 0:
@@ -105,7 +105,7 @@ class BatchedBeamHyps:
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
         self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
 
-        self.is_tdt = is_tdt
+        self.model_type = model_type
         self.store_prefix_hashes = store_prefix_hashes
         self._max_length = init_length
         self.beam_size = beam_size
@@ -208,11 +208,11 @@ class BatchedBeamHyps:
             next_indices (torch.Tensor): Indices of the hypotheses to be updated.
             next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
-            next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `is_tdt=True`.
+            next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `model_type='tdt'`.
         """
 
-        if self.is_tdt and next_label_durations is None:
-            raise ValueError("`next_label_durations` is required when `self.is_tdt` is True.")
+        if self.model_type == 'tdt' and next_label_durations is None:
+            raise ValueError("`next_label_durations` is required when model type is TDT.")
 
         if (self.current_lengths_wb + 1).max() >= self._max_length:
             self._allocate_more()
@@ -237,10 +237,10 @@ class BatchedBeamHyps:
             hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
             next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
-            next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `is_tdt=True`.
+            next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `model_type='tdt'`.
         """
-        if self.is_tdt and next_label_durations is None:
-            raise ValueError("`next_label_durations` is required when `self.is_tdt` is True.")
+        if self.model_type == 'tdt' and next_label_durations is None:
+            raise ValueError("`next_label_durations` is required when model type is TDT.")
 
         timesteps = torch.gather(self.next_timestamp, dim=-1, index=next_indices)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
@@ -252,7 +252,7 @@ class BatchedBeamHyps:
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (~extended_with_blank) & (is_extended)
 
-        if not self.is_tdt:
+        if self.model_type == 'rnnt':
             self.timestamps.scatter_(
                 dim=-1,
                 index=self.current_lengths_wb.unsqueeze(-1),
@@ -265,7 +265,7 @@ class BatchedBeamHyps:
                 torch.gather(self.last_timestamp_lasts, dim=-1, index=next_indices) + extended_with_label,
                 out=self.last_timestamp_lasts,
             )
-        else:
+        elif self.model_type == 'tdt':
             next_label_durations = torch.where(is_extended, next_label_durations, 0)
             self.timestamps.scatter_(
                 dim=-1,
@@ -327,7 +327,7 @@ class BatchedBeamHyps:
             & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
         )
 
-        if self.is_tdt:
+        if self.model_type == 'tdt':
             hyps_equal &= self.next_timestamp[:, :, None] == self.next_timestamp[:, None, :]
 
         scores_matrix = torch.where(

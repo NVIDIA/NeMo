@@ -272,31 +272,31 @@ class TestBatchedBeamHyps:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_instantiate(self, device: torch.device):
-        _ = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=4, device=device, blank_index=1024, is_tdt=True)
+        _ = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=4, device=device, blank_index=1024, model_type='tdt')
 
     @pytest.mark.unit
     @pytest.mark.parametrize("batch_size", [-1, 0])
     def test_tdt_instantiate_incorrect_batch_size(self, batch_size: Literal[-1] | Literal[0]):
         with pytest.raises(ValueError):
-            _ = BatchedBeamHyps(batch_size=batch_size, beam_size=4, init_length=3, blank_index=1024, is_tdt=True)
+            _ = BatchedBeamHyps(batch_size=batch_size, beam_size=4, init_length=3, blank_index=1024, model_type='tdt')
 
     @pytest.mark.unit
     @pytest.mark.parametrize("beam_size", [-1, 0])
     def test_tdt_instantiate_incorrect_beam_size(self, beam_size: Literal[-1] | Literal[0]):
         with pytest.raises(ValueError):
-            _ = BatchedBeamHyps(batch_size=2, beam_size=beam_size, init_length=3, blank_index=1024, is_tdt=True)
+            _ = BatchedBeamHyps(batch_size=2, beam_size=beam_size, init_length=3, blank_index=1024, model_type='tdt')
 
     @pytest.mark.unit
     @pytest.mark.parametrize("init_length", [-1, 0])
     def test_tdt_instantiate_incorrect_init_length(self, init_length: Literal[-1] | Literal[0]):
         with pytest.raises(ValueError):
-            _ = BatchedBeamHyps(batch_size=1, beam_size=4, init_length=init_length, blank_index=1024, is_tdt=True)
+            _ = BatchedBeamHyps(batch_size=1, beam_size=4, init_length=init_length, blank_index=1024, model_type='tdt')
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_add_results(self, device: torch.device):
         # batch of size 2, add label for first utterance
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
         assert hyps._max_length == 1
         hyps.add_results_(
             next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
@@ -322,7 +322,7 @@ class TestBatchedBeamHyps:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_add_multiple_results(self, device: torch.device):
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
         assert hyps._max_length == 1
 
         hyps.add_results_(
@@ -376,7 +376,7 @@ class TestBatchedBeamHyps:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_add_with_invalid_results(self, device: torch.device):
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
         assert hyps._max_length == 1
 
         hyps.add_results_(
@@ -646,7 +646,7 @@ class TestConvertToHypotheses:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_flatten_sort(self, device: torch.device):
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
 
         hyps.add_results_(
             next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
@@ -699,7 +699,7 @@ class TestConvertToHypotheses:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_flatten_sort_norm(self, device: torch.device):
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
 
         hyps.add_results_(
             next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
@@ -752,7 +752,7 @@ class TestConvertToHypotheses:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_to_hyps_list(self, device: torch.device):
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
 
         hyps.add_results_(
             next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
@@ -795,7 +795,7 @@ class TestConvertToHypotheses:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_tdt_to_nbest_hyps_list(self, device: torch.device):
-        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, is_tdt=True)
+        hyps = BatchedBeamHyps(batch_size=2, beam_size=3, init_length=1, device=device, blank_index=1024, model_type='tdt')
 
         hyps.add_results_(
             next_indices=torch.tensor([[0, 1, 2], [0, 1, 2]], device=device),
