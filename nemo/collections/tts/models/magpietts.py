@@ -264,7 +264,7 @@ class MagpieTTSModel(ModelPT):
                 # Ex: state_dict[encoder.position_embeddings.weight] -> new_state_dict[position_embeddings.weight]
                 new_state_dict = {}
                 for key in state_dict.keys():
-                    if key.startswith(name):
+                    if key.startswith(f"{name}."):
                         new_state_dict[key[len(name)+1:]] = state_dict[key]  # +1 for '.'
                 child.load_state_dict(new_state_dict)
 
