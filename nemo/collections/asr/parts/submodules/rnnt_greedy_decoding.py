@@ -2786,6 +2786,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         use_cuda_graph_decoder: bool = True,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2819,6 +2821,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 allow_cuda_graphs=use_cuda_graph_decoder,
                 ngram_lm_model=ngram_lm_model,
                 ngram_lm_alpha=ngram_lm_alpha,
+                btree_model=btree_model,
+                btree_alpha=btree_alpha,
             )
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:

@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
     INACTIVE_SCORE,
@@ -247,6 +248,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         preserve_alignments=False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = None,
         pruning_mode: Optional[str | PruningMode] = None,
         allow_cuda_graphs: bool = False,
@@ -306,6 +309,28 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             self.ngram_lm_batch = None
             self.blank_lm_score_mode = None
         self.ngram_lm_alpha = ngram_lm_alpha
+
+        # init btree model as ngram_lm class
+        if btree_model is not None:
+            expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            if self._blank_index != expected_blank_index:
+                raise ValueError(f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}")
+
+            self.ngram_lm_batch = GPUBoostingTreeModel.from_nemo(lm_path=btree_model, vocab_size=self._blank_index)
+
+            self.pruning_mode = PruningMode.EARLY if pruning_mode is None else PruningMode(pruning_mode)
+            self.blank_lm_score_mode = (
+                BlankLMScoreMode.LM_WEIGHTED_FULL
+                if blank_lm_score_mode is None
+                else BlankLMScoreMode(blank_lm_score_mode)
+            )
+            self.ngram_lm_alpha = btree_alpha
+            self.BOS = False  
+        else:
+            self.ngram_lm_batch = None
+            self.blank_lm_score_mode = None
+            self.BOS = True     
+
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -417,7 +442,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         if self.ngram_lm_batch is not None:
             self.ngram_lm_batch.to(device)
 
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=self.BOS)
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                 states=batch_lm_states
             )  # vocab_size_no_blank
