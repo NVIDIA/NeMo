@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+
 import pytest
 import torch
 from lhotse import CutSet, SupervisionSegment
@@ -20,13 +22,29 @@ from nemo.collections.speechlm2.data import DuplexS2SDataset
 from nemo.collections.speechlm2.models import DuplexS2SSpeechDecoderModel
 
 
+def resolve_pretrained_models():
+    if os.path.exists("/home/TestData/speechlm/pretrained_models"):
+        # CI pre-cached paths:
+        return {
+            "pretrained_llm": "/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1",
+            "pretrained_audio_codec": "/home/TestData/speechlm/pretrained_models/Low_Frame-rate_Speech_Codec++_bf16.nemo",
+            "pretrained_asr": "/home/TestData/speechlm/pretrained_models/stt_en_fastconformer_hybrid_large_streaming_80ms.nemo",
+            "scoring_asr": "/home/TestData/speechlm/pretrained_models/stt_en_fastconformer_transducer_large.nemo",
+        }
+    else:
+        # HF URLs:
+        return {
+            "pretrained_asr": "stt_en_fastconformer_hybrid_large_streaming_80ms",
+            "scoring_asr": "stt_en_fastconformer_transducer_large",
+            "pretrained_llm": "TinyLlama/TinyLlama_v1.1",
+            "pretrained_audio_codec": "nvidia/low-frame-rate-speech-codec-22khz",
+        }
+
+
 @pytest.fixture(scope="session")
 def model():
     cfg = {
-        "pretrained_asr": "stt_en_fastconformer_hybrid_large_streaming_80ms",
-        "scoring_asr": "stt_en_fastconformer_transducer_large",
-        "pretrained_llm": "TinyLlama/TinyLlama_v1.1",
-        "pretrained_audio_codec": "nvidia/low-frame-rate-speech-codec-22khz",
+        **resolve_pretrained_models(),
         "pretrained_weights": False,
         "freeze_params": ["^audio_codec\\..+$"],
         "audio_loss_weight": 1,

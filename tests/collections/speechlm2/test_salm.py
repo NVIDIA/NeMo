@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+
 import pytest
 import torch
 from lhotse import CutSet, SupervisionSegment
@@ -24,6 +26,21 @@ from nemo.collections.speechlm2.data import SALMDataset
 from nemo.collections.speechlm2.models import SALM
 
 
+def resolve_pretrained_models():
+    if os.path.exists("/home/TestData/speechlm/pretrained_models"):
+        # CI pre-cached paths:
+        return {
+            "pretrained_llm": "/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1",
+            "pretrained_asr": "/home/TestData/speechlm/pretrained_models/canary-1b-flash.nemo",
+        }
+    else:
+        # HF URLs:
+        return {
+            "pretrained_asr": "nvidia/canary-1b-flash",
+            "pretrained_llm": "TinyLlama/TinyLlama_v1.1",
+        }
+
+
 AUDIO_LOCATOR_TAG = "<|audioplaceholder|>"
 PROMPT = "llama2"
 
@@ -31,8 +48,7 @@ PROMPT = "llama2"
 @pytest.fixture(scope="session")
 def model():
     cfg = {
-        "pretrained_asr": "nvidia/canary-1b-flash",
-        "pretrained_llm": "TinyLlama/TinyLlama_v1.1",
+        **resolve_pretrained_models(),
         "pretrained_weights": False,
         "prompt_format": PROMPT,
         "audio_locator_tag": AUDIO_LOCATOR_TAG,
