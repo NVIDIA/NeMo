@@ -48,7 +48,7 @@ from nemo.utils import logging
 class SALM(LightningModule, HFHubMixin):
     def __init__(self, cfg) -> None:
         assert isinstance(cfg, dict), (
-            "You must pass the config to DuplexS2SModel as a Python dict to support hyperparameter serialization "
+            "You must pass the config to SALM as a Python dict to support hyperparameter serialization "
             f"in PTL checkpoints (we got: '{type(cfg)=}')."
         )
         super().__init__()
@@ -56,10 +56,6 @@ class SALM(LightningModule, HFHubMixin):
         self.cfg = DictConfig(cfg)
         self.audio_locator_tag = self.cfg.audio_locator_tag
 
-        # We load the pretrained HF LLM using "ForCausalLM" variant so that we can obtain the
-        # pretrained LM head weights.
-        # However, for S2S we need to access the activations before LM head directly
-        # to feed them to the audio codec head.
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.tokenizer.add_special_tokens({"additional_special_tokens": [self.audio_locator_tag]})
         self.llm = load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)

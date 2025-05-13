@@ -12,37 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from contextlib import contextmanager
-from typing import Any
 
 import torch
-from lightning.pytorch.plugins import HalfPrecision
-from typing_extensions import override
-
-
-class HalfPrecisionForAudio(HalfPrecision):
-    """
-    Adjusted Pytorch Lightning plugin for training with half precision.
-    It avoids downcasting audio in bfloat16.
-    """
-
-    @override
-    def convert_input(self, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return super().convert_input(data)
-
-        def _convert(v):
-            if isinstance(v, dict):
-                ans = {}
-                for k, v in v.items():
-                    if "audio" not in k or not torch.is_tensor(v):
-                        v = _convert(v)
-                    ans[k] = v
-                return ans
-            if isinstance(v, torch.Tensor) and torch.is_floating_point(v):
-                return v.to(self._desired_input_dtype)
-            return v  # any other type
-
-        return _convert(data)
 
 
 @contextmanager

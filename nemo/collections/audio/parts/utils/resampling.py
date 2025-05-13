@@ -17,7 +17,8 @@
 #       The modifications applied are mostly cosmetic.
 #       The inclusion of this code in NeMo allows us to avoid
 #       a dependency with a problematic build process.
-#       This code is licensed under the BSD 2-Clause License as seen below:
+#       This code is licensed under the BSD 2-Clause License,
+#       included verbatim from the torchaudio repository below:
 #
 # BSD 2-Clause License
 #
