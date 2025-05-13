@@ -27,6 +27,37 @@ from nemo.collections.speechlm2.data.utils import get_pad_id
 
 
 class SALMDataset(torch.utils.data.Dataset):
+    """
+    A dataset for Speech-Augmented Language Models (SALM) that processes multimodal conversations
+    containing both text and audio turns.
+
+    This dataset handles NeMoMultimodalConversation objects which combine text messages
+    and audio segments in a conversational format. It uses audio_locator_tag in the text,
+    where each such placeholder corresponds to an entire audio segment.
+
+    Args:
+        tokenizer (AutoTokenizer):
+            Tokenizer for converting text to token IDs and vice versa. Must have a special
+            audio_locator_tag token that will be replaced with audio embeddings during model's
+            training step.
+
+    Returns:
+        A dictionary with the following keys:
+            - audios: Tensor of audio waveform samples [B_audio, T_samples]
+            - audio_lens: Tensor of audio lengths [B_audio]
+            - input_ids: Tensor of text token IDs [B, T_tokens], including audio_locator_tag tokens
+            - loss_mask: Boolean tensor [B, T_tokens] indicating which tokens are part of the
+                assistant's responses (True) and should be used for computing loss
+
+    Notes:
+        - Each audio_locator_tag token in input_ids corresponds to an audio segment in audios
+        - The SALM model later replaces these audio_locator_tag tokens with encoded audio embeddings
+        - The loss_mask identifies which tokens are part of the target sequences (assistant responses)
+          and which are part of the source sequences (user prompts)
+        - The input_ids and loss_mask will be expanded during model forward pass to account for
+          the variable-length audio segments that replace each audio_locator_tag token
+    """
+
     def __init__(self, tokenizer: AutoTokenizer) -> None:
         self.tokenizer = tokenizer
         self.pad_id = get_pad_id(tokenizer)

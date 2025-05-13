@@ -26,6 +26,60 @@ from nemo.utils import logging
 
 
 class DuplexS2SDataset(torch.utils.data.Dataset):
+    """
+    A dataset for duplex speech-to-speech models that handles bidirectional conversations.
+
+    This dataset processes Lhotse CutSet objects containing recordings with supervision segments
+    from different speakers (roles). It creates aligned representations of audio and text for
+    both source (input) and target (output) channels, preserving temporal alignment between
+    audio frames and text tokens.
+
+    Args:
+        tokenizer (TokenizerSpec):
+            Tokenizer for converting text to token IDs and vice versa. Must support BOS and EOS tokens.
+            It's expected to support PAD token as well, otherwise we will use 0 as the pad token
+            and emit a warning.
+
+        frame_length (Seconds):
+            Duration of a single frame in seconds. Used to calculate frame positions for token alignment.
+
+        source_sample_rate (int):
+            Sample rate for source audio (e.g., 16000 Hz).
+
+        target_sample_rate (int):
+            Sample rate for target audio (e.g., 22050 Hz).
+
+        input_roles (list[str], optional):
+            List of speaker roles (cut.supervisions[:].speaker) to consider as inputs. Defaults to ["user"].
+
+        output_roles (list[str], optional):
+            List of speaker roles (cut.supervisions[:].speaker) to consider as outputs. Defaults to ["agent"].
+
+    Returns:
+        A dictionary with the following keys:
+            - source_audio: Tensor of source waveform samples [B, T]
+            - source_audio_lens: Tensor of source audio lengths [B]
+            - target_audio: Tensor of target waveform samples [B, T]
+            - target_audio_lens: Tensor of target audio lengths [B]
+            - target_tokens: Tensor of target text tokens [B, T], with special tokens (BOS/EOS/PAD)
+                at positions aligned with audio frames
+            - target_token_lens: Tensor of target token sequence lengths [B]
+            - source_tokens: Tensor of source text tokens [B, T], with special tokens (BOS/EOS/PAD)
+                at positions aligned with audio frames
+            - source_token_lens: Tensor of source token sequence lengths [B]
+            - target_texts: List of full target texts joined from output_roles supervisions [B]
+
+    Notes:
+        - The dataset ensures frame-level alignment between audio and text by inserting tokens at
+          specific frame positions based on the timing of supervision segments.
+        - PAD tokens (typically 0) are used to fill gaps where there's no text.
+        - BOS tokens mark the beginning of each speech segment.
+        - EOS tokens mark the end of each speech segment.
+        - Text tokens from each speaker are placed at frame positions corresponding to their
+          timestamp in the original recording, preserving the temporal relationship.
+          This is a segment-level alignment only, not word-level alignment.
+    """
+
     def __init__(
         self,
         tokenizer: TokenizerSpec,

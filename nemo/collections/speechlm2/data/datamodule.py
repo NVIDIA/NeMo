@@ -26,6 +26,29 @@ class DataModule(LightningDataModule):
     It takes care of setting up the proper DP ranks for dataloaders, and instantiating them.
     Keep in mind the actual dataset paths and blend are defined by the YAML config, not Python code.
 
+    The typical structure of the YAML config used to initialize this module looks like the following:
+
+    .. code-block:: yaml
+
+        data:
+          train_ds:
+            input_cfg: path/to/input_cfg.yaml
+            num_workers: 2
+            batch_size: 4
+            # ... Other settings, see nemo/collections/common/data/lhotse/dataloader.py
+
+          validation_ds:
+            # The entries under 'datasets' are a list of separate dataloaders.
+            # The structure is <dataset-name>: {<dataloader-dict-config>}
+            # They inherit all settings from validation_ds, but can individually override them.
+            datasets:
+              val_set_0:  # rename to your dataset name, add more as needed
+                cuts_path: ???  # needs to be specified
+            batch_size: 4
+            # ... Other settings, see nemo/collections/common/data/lhotse/dataloader.py
+
+    See also the examples in ``examples/speechlm2/conf``.
+
     Args:
         cfg: a DictConfig instance, typically corresponding to `data` namespace in YAML configs.
         tokenizer: a tokenizer instance, typically NeMo's AutoTokenizer wrapping HF's AutoTokenizer.

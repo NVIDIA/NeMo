@@ -12,7 +12,7 @@ SALM (Speech-Augmented Language Model)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 SALM is a speech-augmented language model that integrates an audio perception module with a pre-trained LLM. The model is designed to understand speech input and generate text responses.
-This is an implementation of the `SALM <https://arxiv.org/abs/2310.09424>`_ paper.
+This is an implementation of the `SALM paper<https://arxiv.org/abs/2310.09424>`_.
 
 Key components:
 

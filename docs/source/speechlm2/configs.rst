@@ -1,12 +1,13 @@
 Configuration Files
-==================
+===================
 
-The Duplex Speech-to-Speech (S2S) models use YAML configuration files to define model architecture, training parameters, and data settings. This page describes the configuration structure and important parameters for each model type in the collection.
+The SpeechLM2 models use YAML configuration files to define model architecture, training parameters, and data settings.
+This page describes the configuration structure and important parameters for each model type in the collection.
 
 Configuration Structure
----------------------
+-----------------------
 
-Duplex S2S configuration files typically have the following high-level structure:
+SpeechLM2 configuration files typically have the following high-level structure:
 
 .. code-block:: yaml
 
@@ -27,9 +28,10 @@ Duplex S2S configuration files typically have the following high-level structure
       ...
 
 SALM Configuration
-----------------
+------------------
 
-The SALM (Speech-Augmented Language Model) configuration includes settings for the pretrained LLM, audio perception module, and training parameters:
+The SALM (Speech-Augmented Language Model) configuration includes settings for the pretrained LLM, audio perception module, and training parameters.
+See the `SALM paper<https://arxiv.org/abs/2310.09424>`_ for more details.
 
 .. code-block:: yaml
 
@@ -117,7 +119,7 @@ The DuplexS2SModel adds speech generation capabilities to the configuration:
 DuplexS2SSpeechDecoderModel Configuration
 --------------------------------------
 
-The speech decoder model focuses on speech generation components:
+The DuplexS2SSpeechDecoderModel is similar to DuplexS2SModel, but focuses on an additional speech generation transformer decoder:
 
 .. code-block:: yaml
 
@@ -200,12 +202,6 @@ The data section defines dataset paths, preprocessing, and data loading paramete
 .. code-block:: yaml
 
     data:
-      frame_length: 0.08
-      source_sample_rate: 16000
-      target_sample_rate: 22050
-      input_roles: ["user", "User"]
-      output_roles: ["agent", "Assistant"]
-    
       train_ds:
         sample_rate: ${data.target_sample_rate}
         input_cfg:
@@ -230,6 +226,20 @@ The data section defines dataset paths, preprocessing, and data loading paramete
         batch_size: 1
         seed: 42
         shard_seed: "randomized"
+
+Depending on the model, there may be additional options available under ``data`` namespace that are passed to the corresponding Dataset class.
+For example, S2S models have:
+
+.. code-block:: yaml
+
+    data:
+      frame_length: 0.08
+      source_sample_rate: 16000
+      target_sample_rate: 22050
+      input_roles: ["user", "User"]
+      output_roles: ["agent", "Assistant"]
+
+      train_ds: ...
 
 Important Configuration Parameters
 -------------------------------
