@@ -15,10 +15,10 @@ import argparse
 import glob
 import json
 import os
-from filelock import FileLock
 from typing import List
 
 import torch.distributed as dist
+from filelock import FileLock
 
 from nemo.utils import logging
 
@@ -201,7 +201,7 @@ def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
             for line in f:
                 data_entry = json.loads(line)
                 all_data_entries.append(data_entry)
-                
+
         output_filename = os.path.join(prediction_filepath, f"transcribed_manifest.json")
         with open(output_filename, 'w') as f:
             for data_entry in all_data_entries:
@@ -221,7 +221,6 @@ def write_sampled_transcriptions(manifest_filepaths: List[str]) -> List[str]:
     return all_manifest_filepaths
 
 
-
 if __name__ == "__main__":
     rank = int(os.environ.get("RANK", 0))  # Default to 0 if not set
 
@@ -233,18 +232,18 @@ if __name__ == "__main__":
         type=str,
         nargs='+',  # Accepts one or more values as a list
         required=True,
-        help="Paths to one or more inference config YAML files."
+        help="Paths to one or more inference config YAML files.",
     )
-    
+
     args = parser.parse_args()
 
     lock_dir = os.path.dirname(args.prediction_filepaths[0])
-    lock_file = lock_dir + "/my_script.lock" 
+    lock_file = lock_dir + "/my_script.lock"
 
     with FileLock(lock_file):
         if rank == 0:
             if args.is_tarred:
-                result = ( 
+                result = (
                     write_sampled_shard_transcriptions(args.prediction_filepaths)
                     if not args.full_pass
                     else create_transcribed_shard_manifests(args.prediction_filepaths)

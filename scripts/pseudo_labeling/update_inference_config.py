@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-from filelock import FileLock
 import glob
+import math
 import os
 from typing import List, Union
-import math
 
 import torch.distributed as dist
+from filelock import FileLock
 from omegaconf import ListConfig, OmegaConf
 
 
@@ -73,7 +73,7 @@ def export_limit_predict_batches(inference_configs: List[str], p_cache: float, n
     """
     for config_path in inference_configs:
         config = OmegaConf.load(config_path)
-        tarred_audio_filepaths = config.predict_ds.get("tarred_audio_filepaths",None)
+        tarred_audio_filepaths = config.predict_ds.get("tarred_audio_filepaths", None)
         manifest_filepaths = config.predict_ds.manifest_filepath
 
         if tarred_audio_filepaths:
@@ -81,7 +81,7 @@ def export_limit_predict_batches(inference_configs: List[str], p_cache: float, n
         else:
             number_of_files = count_files_for_pseudo_labeling(manifest_filepaths)
 
-        if hasattr(config.predict_ds, "batch_size"):    
+        if hasattr(config.predict_ds, "batch_size"):
             batch_size = config.predict_ds.batch_size
             limit_predict_batches = math.ceil((number_of_files * p_cache) / (batch_size * num_gpus))
             OmegaConf.update(config, "trainer.limit_predict_batches", limit_predict_batches)
@@ -89,7 +89,9 @@ def export_limit_predict_batches(inference_configs: List[str], p_cache: float, n
         elif hasattr(config.predict_ds, "batch_duration"):
             batch_duration = config.predict_ds.batch_duration
             average_audio_len = 10
-            limit_predict_batches = math.ceil((number_of_files * average_audio_len * p_cache) / (batch_duration * num_gpus))
+            limit_predict_batches = math.ceil(
+                (number_of_files * average_audio_len * p_cache) / (batch_duration * num_gpus)
+            )
             OmegaConf.update(config, "trainer.limit_predict_batches", limit_predict_batches)
             OmegaConf.save(config, config_path)
         else:
@@ -119,7 +121,7 @@ def main():
     lock_file = lock_dir + "/my_script.lock"
     # Code executed by all processes
 
-#     # Code executed by a single process
+    #     # Code executed by a single process
     with FileLock(lock_file):
         if rank == 0:
             export_limit_predict_batches(
