@@ -150,7 +150,7 @@ class SALM(LightningModule, HFHubMixin):
             padding_id=self.text_pad_id,
             placeholder_id=self.audio_locator_tag_id,
             replacements=audio_embs,
-            target_ids=batch["input_ids"].where(batch["loss_mask"], -100),
+            target_ids=batch["input_ids"].where(batch["loss_mask"], -100),  # CrossEntropyLoss().ignore_index
         )
         input_embs = input_embs[:, :-1]
         attention_mask = attention_mask[:, :-1]
