@@ -289,8 +289,6 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
             make_vocab_size_divisible_by=1187,
             rotary_base=source.rope_theta,
             share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
-            # vocab_size=source.vocab_size,
-            # seq_length=source.max_position_embeddings,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -300,108 +298,125 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
         return output
 
 
-# @io.model_exporter(Qwen3Model, "hf")
-# class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
-#     # pylint: disable=C0115,C0116
-#     def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
-#         from transformers import AutoModelForCausalLM
-#         from transformers.modeling_utils import no_init_weights
-#
-#         with no_init_weights(True):
-#             return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True, torch_dtype=dtype)
-#
-#     def apply(self, output_path: Path) -> Path:
-#         source, _ = self.nemo_load(str(self))
-#         target = self.init(torch_dtype_from_mcore_config(source.config))
-#         target = self.convert_state(source, target)
-#
-#         target = target.cpu()
-#         target.save_pretrained(output_path)
-#         self.tokenizer.save_pretrained(output_path)
-#
-#         return output_path
-#
-#     def convert_state(self, source, target):
-#         mapping = {
-#             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
-#             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
-#             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-#             "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
-#             "decoder.final_layernorm.weight": "model.norm.weight",
-#         }
-#
-#         transforms = [
-#             io.state_transform(
-#                 source_key="decoder.layers.*.self_attention.linear_qkv.weight",
-#                 target_key=(
-#                     "model.layers.*.self_attn.q_proj.weight",
-#                     "model.layers.*.self_attn.k_proj.weight",
-#                     "model.layers.*.self_attn.v_proj.weight",
-#                 ),
-#                 fn=TransformFns.split_qkv,
-#             ),
-#             io.state_transform(
-#                 source_key="decoder.layers.*.self_attention.linear_qkv.bias",
-#                 target_key=(
-#                     "model.layers.*.self_attn.q_proj.bias",
-#                     "model.layers.*.self_attn.k_proj.bias",
-#                     "model.layers.*.self_attn.v_proj.bias",
-#                 ),
-#                 fn=TransformFns.split_qkv_bias,
-#             ),
-#             io.state_transform(
-#                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-#                 target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
-#                 fn=TransformFns.split_fc1,
-#             ),
-#             io.state_transform(
-#                 source_key="embedding.word_embeddings.weight",
-#                 target_key="model.embed_tokens.weight",
-#                 fn=TransformFns.prune_padding,
-#             ),
-#             io.state_transform(
-#                 source_key="output_layer.weight",
-#                 target_key="lm_head.weight",
-#                 fn=TransformFns.prune_padding,
-#             ),
-#         ]
-#         return io.apply_transforms(
-#             source,
-#             target,
-#             mapping=mapping,
-#             transforms=transforms,
-#         )
-#
-#     @property
-#     def tokenizer(self):
-#         return io.load_context(str(self)).model.tokenizer.tokenizer
-#
-#     @property
-#     def config(self) -> "HFQwen3Config":
-#         from transformers import Qwen3Config as HFQwen3Config
-#
-#         source: Qwen3Config = io.load_context(str(self)).model.config
-#
-#         return HFQwen3Config(
-#             architectures=["Qwen3ForCausalLM"],
-#             num_hidden_layers=source.num_layers,
-#             hidden_size=source.hidden_size,
-#             intermediate_size=source.ffn_hidden_size,
-#             num_attention_heads=source.num_attention_heads,
-#             head_dim=(
-#                 source.kv_channels
-#                 if source.kv_channels is not None
-#                 else source.hidden_size // source.num_attention_heads
-#             ),
-#             max_position_embeddings=source.seq_length,
-#             initializer_range=source.init_method_std,
-#             rms_norm_eps=source.layernorm_epsilon,
-#             num_key_value_heads=source.num_query_groups,
-#             rope_theta=source.rotary_base,
-#             vocab_size=getattr(source, 'vocab_size', self.tokenizer.vocab_size),
-#             sliding_window=source.seq_length,
-#             tie_word_embeddings=False,
-#         )
+@io.model_exporter(Qwen3Model, "hf")
+class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
+    # pylint: disable=C0115,C0116
+    def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
+        from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights():
+            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True, torch_dtype=dtype)
+
+    def apply(self, output_path: Path) -> Path:
+        source, _ = self.nemo_load(str(self))
+        target = self.init(torch_dtype_from_mcore_config(source.config))
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        self.tokenizer.save_pretrained(output_path)
+
+        return output_path
+
+    def convert_state(self, source, target):
+        mapping = {
+            "**.self_attention.linear_proj.weight": "**.self_attn.o_proj.weight",
+            "**.self_attention.linear_qkv.layer_norm_weight": "**.input_layernorm.weight",
+            "**.self_attention.q_layernorm.weight": "**.self_attn.q_norm.weight",
+            "**.self_attention.k_layernorm.weight": "**.self_attn.k_norm.weight",
+            "decoder.final_layernorm.weight": "model.norm.weight",
+        }
+        is_moe = getattr(self.config, "num_experts", 0) > 0
+        if is_moe:
+            mapping.update({
+                "**.mlp.experts.linear_fc2.weight*": "**.mlp.experts.*.down_proj.weight",
+                "**.mlp.router.weight": "**.mlp.gate.weight",
+                "**.pre_mlp_layernorm.weight": "**.post_attention_layernorm.weight",
+            })
+        else:
+            mapping.update({
+                "**.mlp.linear_fc2.weight": "**.mlp.down_proj.weight",
+                "**.mlp.linear_fc1.layer_norm_weight": "**.post_attention_layernorm.weight",
+            })
+        transforms = [
+            io.state_transform(
+                source_key="**.self_attention.linear_qkv.weight",
+                target_key=(
+                    "**.self_attn.q_proj.weight",
+                    "**.self_attn.k_proj.weight",
+                    "**.self_attn.v_proj.weight",
+                ),
+                fn=TransformFns.split_qkv,
+            ),
+            io.state_transform(
+                source_key="**.mlp.linear_fc1.weight",
+                target_key=("**.mlp.gate_proj.weight", "**.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ) if not is_moe 
+            else io.state_transform(
+                source_key="**.mlp.linear_fc1.weight",
+                target_key=("**.mlp.experts.*.gate_proj.weight", "**.mlp.experts.*.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="model.embed_tokens.weight",
+                fn=TransformFns.prune_padding,
+            ),
+        ]
+        if not self.config.tie_word_embeddings:
+            transforms.append(io.state_transform(
+                source_key="output_layer.weight",
+                target_key="lm_head.weight",
+                fn=TransformFns.prune_padding,
+            ))
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=transforms,
+        )
+
+    @property
+    def tokenizer(self):
+        return io.load_context(str(self)).model.tokenizer.tokenizer
+
+    @property
+    def config(self) -> "HFQwen3Config":
+        from transformers import Qwen3Config as HFQwen3Config
+        from transformers import Qwen3MoeConfig as HFQwen3MoeConfig
+
+        source: Qwen3Config = io.load_context(str(self)).model.config
+        is_moe = source.num_moe_experts is not None
+        hf_config_cls = partial(
+            HFQwen3MoeConfig,
+            moe_intermediate_size=source.moe_ffn_hidden_size,
+            num_experts=source.num_moe_experts,
+            num_experts_per_tok=source.moe_router_topk,
+            router_aux_loss_coef=source.moe_aux_loss_coeff,
+        ) if is_moe else HFQwen3Config
+
+        return hf_config_cls(
+            architectures=["Qwen3ForCausalLM"],
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            head_dim=source.kv_channels,
+            max_position_embeddings=source.max_position_embeddings,
+            initializer_range=source.init_method_std,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
+            vocab_size=getattr(source, 'vocab_size', self.tokenizer.vocab_size),
+            sliding_window=None,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
+            max_window_layers=source.num_layers,
+            bos_token_id=151643,
+            eos_token_id=151645,
+        )
 
 
 __all__ = [
