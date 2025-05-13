@@ -304,12 +304,11 @@ class Llama4OmniBaseModel(MCoreNevaModel):
             attention_mask,
         )
 
-        if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
-                self._process_embedding_token_parallel(
-                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
-                )
+        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
+            self._process_embedding_token_parallel(
+                combined_embeddings, final_labels, final_loss_mask, packed_seq_params
             )
+        )
 
         output = self.language_model(
             input_ids=None,
