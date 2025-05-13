@@ -446,20 +446,19 @@ class MCoreNevaModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if (
-                self.context_parallel_lm > 1
-                and packed_seq_params is not None
-                and packed_seq_params.qkv_format == "thd"
-            ):
-                # _process_embedding_token_parallel expects input in shape bshd for cp + thd
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
+        if (
+            self.context_parallel_lm > 1
+            and packed_seq_params is not None
+            and packed_seq_params.qkv_format == "thd"
+        ):
+            # _process_embedding_token_parallel expects input in shape bshd for cp + thd
+            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
-                self._process_embedding_token_parallel(
-                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
-                )
+        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
+            self._process_embedding_token_parallel(
+                combined_embeddings, final_labels, final_loss_mask, packed_seq_params
             )
+        )
 
         output = self.language_model(
             input_ids=None,
@@ -863,6 +862,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 original_seq_len = combined_embeddings.shape[0]
             else:
                 original_seq_len = new_labels.shape[1]
+        print("####", torch.distributed.get_rank(), original_seq_len)
 
         # no need to chunk
         if original_seq_len <= attention_chunk_size:
