@@ -48,7 +48,6 @@ def _build_import_path(domain, subdomains: list, imp):
 
 def _get_class_from_path(domain, subdomains, imp):
     path = _build_import_path(domain, subdomains, imp)
-    print(path)
     class_ = None
     result = None
 
@@ -61,6 +60,7 @@ def _get_class_from_path(domain, subdomains, imp):
                 class_ = class_.__wrapped__
 
             # Subclass tests
+            print(f"path: {path}, class: {class_}")
             if issubclass(class_, (Model, torch.nn.Module)):
                 result = class_
         else:
