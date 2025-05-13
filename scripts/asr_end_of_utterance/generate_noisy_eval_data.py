@@ -16,12 +16,23 @@
 """
 This script is used to generate noisy evaluation data for ASR and end of utterance detection.
 
-Example usage:
+Example usage with a single manifest input:
 python generate_noisy_eval_data.py \
     --config-path conf/ \
     --config-name data \
     output_dir=/path/to/output \
     data.manifest_filepath=/path/to/manifest.json \
+    data.seed=42 \
+    data.noise.manifest_path /path/to/noise_manifest.json
+
+
+Example usage with multiple manifests matching a pattern:
+python generate_noisy_eval_data.py \
+    --config-path conf/ \
+    --config-name data \
+    output_dir=/path/to/output/dir \
+    data.manifest_filepath=/path/to/manifest/dir/ \
+    data.pattern="*.json" \
     data.seed=42 \
     data.noise.manifest_path /path/to/noise_manifest.json
 

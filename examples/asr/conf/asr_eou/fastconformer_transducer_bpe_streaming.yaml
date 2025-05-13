@@ -8,9 +8,9 @@
 name: "FastConformer-Transducer-BPE-Streaming-EOU"
 
 model:
-  token_init_method: "min"  # choices=['min', 'max', 'mean', 'constant']
-  token_init_weight_value: 0.01  # only applicable when token_init_method='constant'
-  token_init_bias_value: -800.0  # only applicable when token_init_method='constant'
+  token_init_method: "constant"  # choices=['min', 'max', 'mean', 'constant']
+  token_init_weight_value: null  # only applicable when token_init_method='constant'
+  token_init_bias_value: -1000.0  # only applicable when token_init_method='constant'
 
   sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
@@ -254,15 +254,16 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-4
+    lr: 1e-4 #  1e-4
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
 
     # scheduler setup
     sched:
-      name: CosineAnnealing
+      name: CosineAnnealing  # NoamAnnealing CosineAnnealing
       # scheduler config override
+      # d_model: ${model.encoder.d_model}
       warmup_steps: 10000
       warmup_ratio: null
       min_lr: 1e-6

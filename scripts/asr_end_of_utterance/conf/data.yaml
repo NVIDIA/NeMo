@@ -23,6 +23,7 @@ data:
   random_padding:
     prob: 0.5
     min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
+    max_pad_duration: 5.0  # maximum duration of pre/post padding in seconds
     max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
     pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
     normal_mean: 0.5  # mean of normal distribution for padding duration
