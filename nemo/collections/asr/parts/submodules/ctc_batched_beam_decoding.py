@@ -21,7 +21,7 @@ import torch
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
-from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BatchedBeamHypsCTC
+from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BatchedBeamHyps
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import (
     check_cuda_python_cuda_graphs_conditional_nodes_supported,
@@ -68,7 +68,7 @@ class BacthedBeamCTCState:
     active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
     active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
 
-    batched_hyps: BatchedBeamHypsCTC  # batched hypotheses - decoding result
+    batched_hyps: BatchedBeamHyps  # batched hypotheses - decoding result
 
     # NGramGPULM-related fields
     ngram_lm_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
@@ -127,13 +127,14 @@ class BacthedBeamCTCState:
         self.active_mask = torch.zeros((batch_size, self.beam_size), device=self.device, dtype=torch.bool)
         self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
 
-        self.batched_hyps = BatchedBeamHypsCTC(
+        self.batched_hyps = BatchedBeamHyps(
             batch_size=batch_size,
             beam_size=self.beam_size,
             blank_index=self.blank_index,
             init_length=max_time + 1,
             device=device,
             float_dtype=float_dtype,
+            model_type='ctc',
         )
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
@@ -224,10 +225,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.full_graph = None
         self.separate_graphs = None
 
-        # prprprprpr
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
         if ngram_lm_model is not None:
@@ -282,7 +281,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     @torch.no_grad()
     def batched_beam_search_torch(
         self, decoder_outputs: torch.Tensor, decoder_output_lengths: torch.Tensor
-    ) -> BatchedBeamHypsCTC:
+    ) -> BatchedBeamHyps:
         """
         Pure PyTorch implementation of the batched beam search algorithm.
 
@@ -299,13 +298,14 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         vocab = torch.arange(vocab_size, device=decoder_outputs.device, dtype=torch.long)
         vocab_blank_mask = vocab == self._blank_index
 
-        batched_beam_hyps = BatchedBeamHypsCTC(
+        batched_beam_hyps = BatchedBeamHyps(
             batch_size=curr_batch_size,
             beam_size=self.beam_size,
             blank_index=self._blank_index,
             init_length=curr_max_time + 1,
             device=decoder_outputs.device,
             float_dtype=decoder_outputs.dtype,
+            model_type='ctc',
         )
 
         if self.ngram_lm_batch is not None:
@@ -388,7 +388,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self,
         decoder_outputs: torch.Tensor,
         decoder_output_lengths: torch.Tensor,
-    ) -> BatchedBeamHypsCTC:
+    ) -> BatchedBeamHyps:
         """
         Cuda-Graphs implementation of the batched beam search algorithm.
 
@@ -673,7 +673,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.state.curr_frame_idx.add_(1)
         torch.greater_equal(self.state.last_timesteps, self.state.curr_frame_idx, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
-        torch.cuda.set_sync_debug_mode(0)
 
     def _after_process_batch(self):
         """
@@ -690,7 +689,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-    ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
+    ) -> BatchedBeamHyps:
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
             return self.batched_beam_search_cuda_graphs(decoder_outputs=x, decoder_output_lengths=out_len)
 
