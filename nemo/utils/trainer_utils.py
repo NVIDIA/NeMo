@@ -22,7 +22,7 @@ _HAS_HYDRA = True
 
 try:
     import hydra
-    from omegaconf import DictConfig, OmegaConf, open_dict
+    from omegaconf import DictConfig, OmegaConf
 except ModuleNotFoundError:
     DictConfig = Mapping
     OmegaConf = None
@@ -30,6 +30,20 @@ except ModuleNotFoundError:
 
 
 def resolve_trainer_cfg(trainer_cfg: DictConfig) -> DictConfig:
+    """
+    Resolves and processes a trainer configuration.
+
+    This function handles specific trainer configuration details:
+    - For half precision setups, replaces precision settings with custom plugins
+    - Instantiates strategy objects from mapping configurations
+    - Instantiates custom callbacks from sequences
+
+    Args:
+        trainer_cfg: A DictConfig containing trainer configuration parameters
+
+    Returns:
+        A processed DictConfig with resolved configuration values
+    """
     trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not _HAS_HYDRA:
         return trainer_cfg
@@ -63,6 +77,19 @@ class HalfPrecisionForAudio(HalfPrecision):
 
     @override
     def convert_input(self, data: Any) -> Any:
+        """
+        Converts input data to the appropriate precision format, preserving audio tensor precision.
+
+        This method overrides the parent class implementation to avoid downcasting tensors
+        with 'audio' in their dictionary keys. It processes input data recursively when
+        encountering nested dictionaries.
+
+        Args:
+            data: The input data to convert (can be tensor, dict, or other types)
+
+        Returns:
+            The converted data with appropriate precision for each element
+        """
         if not isinstance(data, dict):
             return super().convert_input(data)
 
