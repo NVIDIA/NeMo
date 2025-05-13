@@ -13,7 +13,7 @@
 # limitations under the License.
 
 TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-    scripts/vlm/avlm_pretrain.py \
+    scripts/avlm/avlm_pretrain.py \
     --devices=2 \
     --max_steps=5 \
     --experiment-dir=/tmp/nemo2_avlm_energon_packed_results/$RUN_ID \
