@@ -257,7 +257,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # we need timestamps to extract non-blank per-frame confidence
         if self.compute_timestamps is not None:
             self.compute_timestamps |= self.preserve_frame_confidence
-        
+
         if self.cfg.strategy in ['flashlight', 'wfst', 'beam_batch', 'pyctcdecode', 'beam']:
             if self.cfg.beam.beam_alpha is not None:
                 logging.warning(

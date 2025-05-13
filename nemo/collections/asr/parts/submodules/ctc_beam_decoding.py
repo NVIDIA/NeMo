@@ -1021,10 +1021,10 @@ class BeamCTCInferConfig:
     return_best_hypothesis: bool = True
     allow_cuda_graphs: bool = True
 
-    beam_alpha: Optional[float] = 1.0 # Deprecated
+    beam_alpha: Optional[float] = 1.0  # Deprecated
     beam_beta: float = 1.0
     beam_threshold: float = 20.0
-    kenlm_path: Optional[str] = None # Deprecated
+    kenlm_path: Optional[str] = None  # Deprecated
     ngram_lm_alpha: Optional[float] = 1.0
     ngram_lm_model: Optional[str] = None
 
@@ -1044,7 +1044,8 @@ class BeamCTCInferConfig:
     #             "Please use `ngram_lm_model` instead."
     #         )
     #         self.ngram_lm_model = self.kenlm_path
-            
+
+
 @dataclass
 class WfstCTCInferConfig:
     beam_size: int
