@@ -37,6 +37,7 @@ from typing import Union
 import torch
 import torch.nn as nn
 from einops import rearrange
+
 try:
     from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TERowParallelLinear
     from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
