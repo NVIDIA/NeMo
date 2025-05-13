@@ -218,7 +218,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.beam_threshold = beam_threshold
 
         assert not self.preserve_alignments, "Preserve aligments is not supported"
-        assert not self.compute_timestamps, "Compute timestamps is not supported"
 
         self.state = None
         self.full_graph = None
