@@ -50,6 +50,8 @@ except (ImportError, ModuleNotFoundError):
     from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
     ModuleSpec = ApexGuardDefaults
+    IdentityFuncOp = ApexGuardDefaults
+    IdentityOp = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
 from nemo.collections.common.parts.utils import activation_registry
