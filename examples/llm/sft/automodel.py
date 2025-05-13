@@ -17,6 +17,7 @@ import tempfile
 import fiddle as fdl
 import lightning.pytorch as pl
 
+from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from nemo import lightning as nl
 from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
@@ -44,8 +45,6 @@ def make_squad_hf_dataset(
     packed_sequence_size,
     limit_dataset_samples=None,
     fp8=False,
-    num_replicas=1,
-    rank=0,
 ):
     def formatting_prompts_func(example):
         formatted_text = [
@@ -90,8 +89,6 @@ def make_squad_hf_dataset(
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-            num_replicas=num_replicas,
-            rank=rank,
         )
     else:
         datamodule = llm.HFDatasetDataModule(
@@ -100,8 +97,6 @@ def make_squad_hf_dataset(
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
             pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-            num_replicas=num_replicas,
-            rank=rank,
         )
     ## tokenization is happening here
     datamodule.map(
@@ -124,6 +119,9 @@ def make_strategy(
     cp_size=None,
     sequence_parallel=False,
     use_hf_tp_plan=False,
+    cfsdp2=False,
+    cfsdp2_unit_modules=None,
+    init_cfsdp2_model_with_meta_device=False,
 ):
     if strategy == 'auto':
         return pl.strategies.SingleDeviceStrategy(
@@ -136,9 +134,6 @@ def make_strategy(
             find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
-        print(
-            f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}"
-        )
 
         offload_policy = None
         if enable_cpu_offload:
@@ -146,18 +141,32 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-            assert (
-                dp_size * tp_size * cp_size == devices * num_nodes
-            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+
+        assert (
+            dp_size * tp_size * cp_size == devices * num_nodes
+        ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
         print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
+
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
             context_parallel_size=cp_size,
             sequence_parallel=sequence_parallel,
+            cfsdp2=cfsdp2,
+            cfsdp2_unit_modules=cfsdp2_unit_modules,
+            init_cfsdp2_model_with_meta_device=init_cfsdp2_model_with_meta_device,
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             offload_policy=offload_policy,
             use_hf_tp_plan=use_hf_tp_plan,
+            ddp_config=DistributedDataParallelConfig(
+                check_for_nan_in_grad=True,
+                data_parallel_sharding_strategy="optim_grads_params",
+                grad_reduce_in_fp32=False,
+                preserve_fp32_weights=False,
+                overlap_grad_reduce=True,
+                overlap_param_gather=True,
+                average_in_collective=False,
+            ),
         )
     else:
         raise NotImplementedError("Encountered unknown strategy")
@@ -195,9 +204,9 @@ def main():
         choices=['auto', 'ddp', 'fsdp2'],
         help='Training strategy e.g. ddp/fsdp2/single-gpu',
     )
-    parser.add_argument('--devices', type=int, default=2, help='Number of GPUs to use')
+    parser.add_argument('--devices', type=int, default=1, help='Number of GPUs to use')
     parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
-    parser.add_argument('--dp-size', type=int, default=2, help='Data Parallel size; to be used with fsdp2')
+    parser.add_argument('--dp-size', type=int, default=1, help='Data Parallel size; to be used with fsdp2')
     parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
     parser.add_argument('--cp-size', type=int, default=1, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
@@ -206,16 +215,33 @@ def main():
         help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
     )
     parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
+    parser.add_argument('--cfsdp2', action='store_true', help='Use custom FSDP2.')
+    parser.add_argument(
+        '--cfsdp2-unit-modules',
+        type=str,
+        nargs='+',
+        default=[],
+        help=(
+            'Set of custom FSDP2 unit module classes for coalesced collective communication in FSDP. '
+            'Modules that are not identified as FSDP unit modules will be arbitrarily bucketed and '
+            'sharded, which may cause increased communication overhead for AG & RS operations as well '
+            'as inflated memory usage to allocate irrelevant parameters or gradients during training.'
+        ),
+    )
+    parser.add_argument(
+        '--init-cfsdp2-model-with-meta-device',
+        action='store_true',
+        help='Initialize models on an abstract device and allocate memory in shards, which permits loading large models in GPU for cFSDP.',
+    )
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
         '--accumulate-grad-batches',
-        '--accumulate_grad_batches',
         type=int,
         default=1,
         help='Number of batches to accumulate gradient over.',
     )
-    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
+    parser.add_argument('--max-steps', type=int, default=2, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
     parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
@@ -351,6 +377,9 @@ def main():
         cp_size=args.cp_size,
         sequence_parallel=args.sequence_parallel,
         use_hf_tp_plan=args.use_hf_tp_plan,
+        cfsdp2=args.cfsdp2,
+        cfsdp2_unit_modules=args.cfsdp2_unit_modules,
+        init_cfsdp2_model_with_meta_device=args.init_cfsdp2_model_with_meta_device,
     )
 
     resume = (
@@ -387,8 +416,6 @@ def main():
             packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
-            num_replicas=args.dp_size,
-            rank=0,
         )
 
     llm.api.finetune(
@@ -406,7 +433,7 @@ def main():
             limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=False,
+            use_distributed_sampler=True,  # needed to use PL DistributedSampler
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
