@@ -55,7 +55,7 @@ def pretrain_recipe(
     dir: Optional[str] = None,
     name: str = "default",
     # Trainer
-    tensor_parallelism: int = 4,  # Default for 14B model
+    tensor_parallelism: int = 8,  # Default for 14B model
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,

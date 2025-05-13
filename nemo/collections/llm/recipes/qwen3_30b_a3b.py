@@ -57,11 +57,12 @@ def pretrain_recipe(
     name: str = "default",
     # Trainer
     tensor_parallelism: int = 4,  # Default for 30B-A3B model
-    pipeline_parallelism: int = 1,
+    pipeline_parallelism: int = 2,
     pipeline_parallelism_type: Optional[torch.dtype] = None,
     virtual_pipeline_parallelism: Optional[int] = None,
     context_parallelism: int = 1,
-    sequence_parallelism: bool = False,
+    expert_parallelism: Optional[int] = 4,
+    sequence_parallelism: bool = True,
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     max_steps: int = 300000,
@@ -134,7 +135,7 @@ def pretrain_recipe(
     Note:
         This recipe uses a mock dataset, look for the finetune examples to see how to change the dataset.
     """
-    return run.Partial(
+    recipe = run.Partial(
         fn,
         model=model(),
         trainer=qwen3_trainer(
@@ -144,6 +145,7 @@ def pretrain_recipe(
             virtual_pipeline_parallelism=virtual_pipeline_parallelism,
             context_parallelism=context_parallelism,
             sequence_parallelism=sequence_parallelism,
+            expert_parallelism=expert_parallelism,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             max_steps=max_steps,
@@ -172,6 +174,10 @@ def pretrain_recipe(
         ),
         resume=default_resume(),
     )
+    recipe.model.config.recompute_granularity = "full"
+    recipe.model.config.recompute_method = "uniform"
+    recipe.model.config.recompute_num_layers = 1
+    return recipe
 
 
 @run.cli.factory(target=finetune, name=NAME)
