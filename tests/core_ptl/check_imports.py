@@ -48,7 +48,7 @@ def _build_import_path(domain, subdomains: list, imp):
 
 def _get_class_from_path(domain, subdomains, imp):
     path = _build_import_path(domain, subdomains, imp)
-
+    print(path)
     class_ = None
     result = None
 
