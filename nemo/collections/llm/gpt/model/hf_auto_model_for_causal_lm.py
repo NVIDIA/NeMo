@@ -205,6 +205,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         if self.load_pretrained_weights:
+            print(f"###attn_implementation: {attn_implementation}")
             m = auto_cls.from_pretrained(
                 self.model_name,
                 torch_dtype=self.default_dtype,
@@ -219,7 +220,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
-            print(f"###attn_implementation: {attn_implementation}")
             return auto_cls.from_config(
                 config,
                 torch_dtype=dtype,
