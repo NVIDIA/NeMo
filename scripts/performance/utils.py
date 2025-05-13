@@ -80,7 +80,7 @@ def slurm_executor(
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    srun_args = custom_srun_args
+    srun_args = custom_srun_args.copy()
     srun_args.extend(
         [
             "--mpi=pmix",
