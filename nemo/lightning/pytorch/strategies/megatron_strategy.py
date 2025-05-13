@@ -173,6 +173,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         find_unused_parameters (bool): Find unused parameters in DDP. Defaults to False.
         ckpt_type (TrainerCkptProtocol): Checkpoint type. Defaults to TrainerCheckpoint.
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
+        ckpt_load_main_params (bool): Load main model parameters from trainer.ckpt_path. Defaults to False.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"].
@@ -257,6 +258,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         checkpoint_io=None,  # TODO: Add type-hint
         find_unused_parameters: bool = False,
         ckpt_load_optimizer: bool = True,
+        ckpt_load_main_params: bool = False,
         ckpt_save_optimizer: bool = True,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         fsdp: Optional[FSDPLiteral] = None,
@@ -317,6 +319,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.account_for_loss_in_pipeline_split = account_for_loss_in_pipeline_split
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
+        self.ckpt_load_main_params = ckpt_load_main_params
         self.ckpt_save_optimizer = ckpt_save_optimizer
         self.ckpt_load_strictness = ckpt_load_strictness
         self.use_te_rng_tracker = use_te_rng_tracker
@@ -379,6 +382,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
+
+        if self.ckpt_load_main_params:
+            assert not self.ckpt_load_optimizer, 'ckpt_load_main_params must be used without ckpt_load_optimizer.'
 
         if isinstance(self.ddp_config, DistributedDataParallelConfig):
             self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
@@ -1060,7 +1066,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if not 'optimizer' in checkpoint:
             for opt in self.optimizers:
-                opt.reload_model_params()
+                if self.ckpt_load_main_params:
+                    opt.reload_model_params(state_dict=checkpoint['state_dict'])
+                else:
+                    opt.reload_model_params()
 
     @property
     @override
