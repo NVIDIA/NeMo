@@ -412,7 +412,7 @@ docker run \
   --shm-size=16g \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
-  nvcr.io/nvidia/pytorch:${NV_PYTORCH_TAG:-'nvcr.io/nvidia/pytorch:25.01-py3'}
+  nvcr.io/nvidia/pytorch:${NV_PYTORCH_TAG:-'25.01-py3'}
 ```
 
 From [NVIDIA/NeMo](github.com/NVIDIA/NeMo), fetch the commit/branch/tag that you want to install.  
@@ -445,7 +445,7 @@ docker run \
   --shm-size=16g \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
-  nvcr.io/nvidia/pytorch:${NV_PYTORCH_TAG:-'nvcr.io/nvidia/nemo:25.02'}
+  nvcr.io/nvidia/nemo:${NV_PYTORCH_TAG:-'25.02'}
 ```
 
 ## Future Work
