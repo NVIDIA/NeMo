@@ -14,6 +14,7 @@
 from typing import Dict, List, Union
 
 import torch
+import torch.nn.functional as F
 from megatron.energon import SimilarityInterleavedSample, VQASample, batch_list, batch_pad_stack, stateless
 from torch.nn.utils.rnn import pad_sequence
 
@@ -65,6 +66,9 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
             packed_sequence_size,
             num_image_embeddings_per_tile,
         )
+        self.pad_to_multiple_of = 64
+        self.multimodal_sample_config = multimodal_sample_config
+        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
         self.encoders: Dict[str, SampleEncoder] = {
             VQASample.__name__: LlavaNextSampleEncoder(tokenizer, image_processor, multimodal_sample_config),
             SimilarityInterleavedSample.__name__: LlavaNextSimilarityInterleavedSampleEncoder(
@@ -142,6 +146,30 @@ class LlavaNextTaskEncoder(MultiModalTaskEncoder):
 
             batch_tokens = pad_sequence(tokens, batch_first=True)
             batch_labels = pad_sequence(labels, batch_first=True)
+
+            seqlen = len(batch_tokens[0])
+
+            # Pad tokens
+            if self.pad_to_multiple_of:
+                seqlen_padded = (
+                    (seqlen + self.pad_to_multiple_of - 1) // self.pad_to_multiple_of * self.pad_to_multiple_of
+                )
+                pad_len = seqlen_padded - seqlen
+
+                if pad_len > 0:
+                    batch_tokens = F.pad(batch_tokens, (0, pad_len), 'constant', 0)
+                    batch_labels = F.pad(
+                        batch_labels, (0, pad_len), 'constant', self.multimodal_sample_config.ignore_place_holder
+                    )
+
+            # Compute loss mask
+            loss_mask = torch.ones_like(batch_labels, dtype=torch.float)
+            loss_mask[batch_labels == self.multimodal_sample_config.ignore_place_holder] = 0.0
+
+            # Compute attention mask
+            attention_mask = torch.ones_like(batch_labels, dtype=torch.float)
+            attention_mask[batch_labels == self.multimodal_sample_config.ignore_place_holder] = 0.0
+
             image_sizes = torch.cat(image_sizes, dim=0)
             batch_loss_mask = batch_pad_stack(loss_mask)
             batch_attention_mask = batch_pad_stack(attention_mask)
@@ -264,12 +292,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
     tokenizer = processor.tokenizer
-    multimodal_sample_config = MultiModalSampleConfig()
-    multimodal_sample_config.conversation_template_config.system = None
 
     worker_config = WorkerConfig.default_worker_config(0)
     multimodal_sample_config = MultiModalSampleConfig()
     multimodal_sample_config.image_following_text = False
+    multimodal_sample_config.conversation_template_config.system = None
     train_loader = get_loader(
         get_train_dataset(
             args.data_path,
