@@ -329,16 +329,20 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
         }
         is_moe = getattr(self.config, "num_experts", 0) > 0
         if is_moe:
-            mapping.update({
-                "**.mlp.experts.linear_fc2.weight*": "**.mlp.experts.*.down_proj.weight",
-                "**.mlp.router.weight": "**.mlp.gate.weight",
-                "**.pre_mlp_layernorm.weight": "**.post_attention_layernorm.weight",
-            })
+            mapping.update(
+                {
+                    "**.mlp.experts.linear_fc2.weight*": "**.mlp.experts.*.down_proj.weight",
+                    "**.mlp.router.weight": "**.mlp.gate.weight",
+                    "**.pre_mlp_layernorm.weight": "**.post_attention_layernorm.weight",
+                }
+            )
         else:
-            mapping.update({
-                "**.mlp.linear_fc2.weight": "**.mlp.down_proj.weight",
-                "**.mlp.linear_fc1.layer_norm_weight": "**.post_attention_layernorm.weight",
-            })
+            mapping.update(
+                {
+                    "**.mlp.linear_fc2.weight": "**.mlp.down_proj.weight",
+                    "**.mlp.linear_fc1.layer_norm_weight": "**.post_attention_layernorm.weight",
+                }
+            )
         transforms = [
             io.state_transform(
                 source_key="**.self_attention.linear_qkv.weight",
@@ -349,15 +353,18 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
                 ),
                 fn=TransformFns.split_qkv,
             ),
-            io.state_transform(
-                source_key="**.mlp.linear_fc1.weight",
-                target_key=("**.mlp.gate_proj.weight", "**.mlp.up_proj.weight"),
-                fn=TransformFns.split_fc1,
-            ) if not is_moe 
-            else io.state_transform(
-                source_key="**.mlp.linear_fc1.weight",
-                target_key=("**.mlp.experts.*.gate_proj.weight", "**.mlp.experts.*.up_proj.weight"),
-                fn=TransformFns.split_fc1,
+            (
+                io.state_transform(
+                    source_key="**.mlp.linear_fc1.weight",
+                    target_key=("**.mlp.gate_proj.weight", "**.mlp.up_proj.weight"),
+                    fn=TransformFns.split_fc1,
+                )
+                if not is_moe
+                else io.state_transform(
+                    source_key="**.mlp.linear_fc1.weight",
+                    target_key=("**.mlp.experts.*.gate_proj.weight", "**.mlp.experts.*.up_proj.weight"),
+                    fn=TransformFns.split_fc1,
+                )
             ),
             io.state_transform(
                 source_key="embedding.word_embeddings.weight",
@@ -366,11 +373,13 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
             ),
         ]
         if not self.config.tie_word_embeddings:
-            transforms.append(io.state_transform(
-                source_key="output_layer.weight",
-                target_key="lm_head.weight",
-                fn=TransformFns.prune_padding,
-            ))
+            transforms.append(
+                io.state_transform(
+                    source_key="output_layer.weight",
+                    target_key="lm_head.weight",
+                    fn=TransformFns.prune_padding,
+                )
+            )
 
         return io.apply_transforms(
             source,
@@ -390,13 +399,17 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
 
         source: Qwen3Config = io.load_context(str(self)).model.config
         is_moe = source.num_moe_experts is not None
-        hf_config_cls = partial(
-            HFQwen3MoeConfig,
-            moe_intermediate_size=source.moe_ffn_hidden_size,
-            num_experts=source.num_moe_experts,
-            num_experts_per_tok=source.moe_router_topk,
-            router_aux_loss_coef=source.moe_aux_loss_coeff,
-        ) if is_moe else HFQwen3Config
+        hf_config_cls = (
+            partial(
+                HFQwen3MoeConfig,
+                moe_intermediate_size=source.moe_ffn_hidden_size,
+                num_experts=source.num_moe_experts,
+                num_experts_per_tok=source.moe_router_topk,
+                router_aux_loss_coef=source.moe_aux_loss_coeff,
+            )
+            if is_moe
+            else HFQwen3Config
+        )
 
         return hf_config_cls(
             architectures=["Qwen3ForCausalLM"],
