@@ -888,7 +888,10 @@ class GPTSFTChatDataset(GPTSFTDataset):
     """
     Dataset for fine-tuning a chat model.
 
-    Accepts conversational data in ShareGPT format or HuggingFace chat template format.
+    Accepts conversational data in ShareGPT format. If use_hf_tokenizer_chat_template is True, the dataset will
+    accept both ShareGPT and HuggingFace chat template format. In the case of ShareGPT format, it will try to convert
+    to HuggingFace format.
+
     ShareGPT format:
     {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
     HuggingFace chat template format:
@@ -896,9 +899,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
         "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."},
                      {"role": "assistant", "content": "..."}]
     }
-
-    If use_hf_tokenizer_chat_template is True, the dataset will try to use the HuggingFace chat template format or
-        convert the ShareGPT format if needed.
     """
 
     def __init__(
