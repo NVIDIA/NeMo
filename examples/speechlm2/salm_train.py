@@ -33,7 +33,7 @@ class PROFILING(Callback):
     def on_train_batch_start(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch, batch_idx: int
     ) -> None:
-        if batch_idx == 0:
+        if batch_idx == 5:
             print("STARTING PROFILE")
             torch.cuda.profiler.cudart().cudaProfilerStart()
 

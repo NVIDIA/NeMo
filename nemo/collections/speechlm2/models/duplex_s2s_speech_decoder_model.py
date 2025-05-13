@@ -13,7 +13,6 @@
 # limitations under the License.
 import torch
 import torch.distributed as dist
-import torchaudio
 from lightning import LightningModule
 from omegaconf import DictConfig, OmegaConf, open_dict
 from peft import PeftModel
@@ -31,6 +30,7 @@ from torch.distributed.tensor.parallel import (
 from transformers import DynamicCache
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.audio.parts.utils.resampling import resample
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
 from nemo.collections.speechlm2.models.duplex_s2s_model import replace_control_speech_codes, tokens_to_str
@@ -43,6 +43,7 @@ from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, i
 from nemo.collections.speechlm2.parts.precision import fp32_precision
 from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo
 from nemo.collections.tts.models import AudioCodecModel
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
@@ -366,11 +367,11 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
                 dataset_batch["source_audio_lens"],
             )
 
-            with fp32_precision():  # torchaudio resample is fragile to bfloat16 default dtype as well
+            with fp32_precision():  # resample is fragile to bfloat16 default dtype
                 self.asr_bleu.update(
                     name=name,
                     refs=dataset_batch["target_texts"],
-                    pred_audio=torchaudio.functional.resample(results["audio"], 22050, 16000),
+                    pred_audio=resample(results["audio"], 22050, 16000),
                     pred_audio_lens=(results["audio_len"] / 22050 * 16000).to(torch.long),
                 )
 
@@ -495,6 +496,28 @@ class DuplexS2SSpeechDecoderModel(LightningModule, HFHubMixin):
 
     def configure_optimizers(self):
         return configure_optimizers(self)
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "source_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "source_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {"name": "target_audio", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "target_audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "target_tokens",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+            ],
+        }
 
     def configure_model(self) -> None:
         # TODO(pzelasko): refactor into separate module re-usable across models

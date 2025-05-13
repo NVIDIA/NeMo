@@ -57,7 +57,7 @@ def train(cfg):
     trainer = Trainer(
         plugins=[HalfPrecisionForAudio(precision)],
         **resolve_trainer_cfg(cfg.trainer),
-        # callbacks=[PROFILING()],
+        callbacks=[PROFILING()],
     )
     exp_manager(trainer, cfg.get("exp_manager", None))
 

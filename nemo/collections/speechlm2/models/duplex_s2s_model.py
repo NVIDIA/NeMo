@@ -14,7 +14,6 @@
 from typing import Any
 
 import torch
-import torchaudio
 from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
 from peft import PeftModel
@@ -32,6 +31,7 @@ from torch.distributed.tensor.parallel import (
 from transformers import DynamicCache
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.audio.parts.utils.resampling import resample
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
 from nemo.collections.speechlm2.modules import AudioPerceptionModule
@@ -372,11 +372,11 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
                 dataset_batch["source_audio_lens"],
             )
 
-            with fp32_precision():  # torchaudio resample is fragile to bfloat16 default dtype as well
+            with fp32_precision():  # resample is fragile to bfloat16 default dtype
                 self.asr_bleu.update(
                     name=name,
                     refs=dataset_batch["target_texts"],
-                    pred_audio=torchaudio.functional.resample(results["audio"], 22050, 16000),
+                    pred_audio=resample(results["audio"], 22050, 16000),
                     pred_audio_lens=(results["audio_len"] / 22050 * 16000).to(torch.long),
                 )
 
