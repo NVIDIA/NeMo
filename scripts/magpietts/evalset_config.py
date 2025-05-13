@@ -20,6 +20,12 @@ dataset_meta_info = {
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
+    'libri_dev_clean_eval_huge': {
+        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_huge.json',
+        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
+        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
+    },
+
     'libri_dev_clean_eval_large': {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_large.json',
         'audio_dir' : '/datap/misc/Datasets/LibriTTS',
