@@ -18,16 +18,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
-from nemo.utils import logging
-
-from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.utils import logging
 
 if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
@@ -42,12 +41,14 @@ class Qwen3Config(Qwen2Config):
     """
     Base config for Qwen 3 Models
     """
+
     add_qkv_bias: bool = False
     qk_layernorm: bool = True
     kv_channels: Optional[int] = 128
     num_query_groups: int = 8
     max_position_embeddings: int = 40960
     vocab_size: int = 151936
+
 
 @dataclass
 class Qwen3MoEConfig(Qwen3Config):
@@ -59,6 +60,7 @@ class Qwen3MoEConfig(Qwen3Config):
     moe_grouped_gemm: bool = True
     moe_token_dispatcher_type: str = "alltoall"
     moe_permute_fusion: bool = True
+
 
 @dataclass
 class Qwen3Config600M(Qwen3Config):
@@ -72,63 +74,75 @@ class Qwen3Config600M(Qwen3Config):
     ffn_hidden_size: int = 3072
     share_embeddings_and_output_weights: bool = True
 
+
 @dataclass
 class Qwen3Config1P7B(Qwen3Config):
     """
     Config for Qwen 3 1.7B: https://huggingface.co/Qwen/Qwen3-1.7B
     """
+
     num_layers: int = 28
     hidden_size: int = 2048
     num_attention_heads: int = 16
     ffn_hidden_size: int = 6144
     share_embeddings_and_output_weights: bool = True
 
+
 @dataclass
 class Qwen3Config4B(Qwen3Config):
     """
     Config for Qwen 3 4B: https://huggingface.co/Qwen/Qwen3-4B
     """
+
     num_layers: int = 36
     hidden_size: int = 2560
     num_attention_heads: int = 32
     ffn_hidden_size: int = 9728
     share_embeddings_and_output_weights: bool = True
 
+
 @dataclass
 class Qwen3Config8B(Qwen3Config):
     """
     Config for Qwen 3 8B: https://huggingface.co/Qwen/Qwen3-8B
     """
+
     num_layers: int = 36
     hidden_size: int = 4096
     num_attention_heads: int = 32
     ffn_hidden_size: int = 12288
+
 
 @dataclass
 class Qwen3Config14B(Qwen3Config):
     """
     Config for Qwen 3 14B: https://huggingface.co/Qwen/Qwen3-14B
     """
+
     num_layers: int = 40
     hidden_size: int = 5120
     num_attention_heads: int = 40
     ffn_hidden_size: int = 17408
+
 
 @dataclass
 class Qwen3Config32B(Qwen3Config):
     """
     Config for Qwen 3 32B: https://huggingface.co/Qwen/Qwen3-32B
     """
+
     num_layers: int = 64
     hidden_size: int = 5120
     num_attention_heads: int = 64
     ffn_hidden_size: int = 25600
+
 
 @dataclass
 class Qwen3Config30B_A3B(Qwen3MoEConfig):
     """
     Config for Qwen 3 30B-A3B: https://huggingface.co/Qwen/Qwen3-30B-A3B
     """
+
     num_layers: int = 48
     hidden_size: int = 2048
     num_attention_heads: int = 32
@@ -136,17 +150,20 @@ class Qwen3Config30B_A3B(Qwen3MoEConfig):
     ffn_hidden_size: int = 6144
     moe_ffn_hidden_size: int = 768
 
+
 @dataclass
 class Qwen3Config235B_A22B(Qwen3MoEConfig):
     """
     Config for Qwen 3 235B-A22B: https://huggingface.co/Qwen/Qwen3-235B-A22B
     """
+
     num_layers: int = 94
     hidden_size: int = 4096
     num_attention_heads: int = 64
     num_query_groups: int = 4
     ffn_hidden_size: int = 12288
     moe_ffn_hidden_size: int = 1536
+
 
 class Qwen3Model(GPTModel):
     """
@@ -198,16 +215,20 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
         }
         is_moe = self.config.num_moe_experts is not None
         if is_moe:
-            mapping.update({
-                "**.mlp.experts.*.down_proj.weight": "**.mlp.experts.linear_fc2.weight*",
-                "**.mlp.gate.weight": "**.mlp.router.weight",
-                "**.post_attention_layernorm.weight": "**.pre_mlp_layernorm.weight",
-            })
+            mapping.update(
+                {
+                    "**.mlp.experts.*.down_proj.weight": "**.mlp.experts.linear_fc2.weight*",
+                    "**.mlp.gate.weight": "**.mlp.router.weight",
+                    "**.post_attention_layernorm.weight": "**.pre_mlp_layernorm.weight",
+                }
+            )
         else:
-            mapping.update({
-                "**.mlp.down_proj.weight": "**.mlp.linear_fc2.weight",
-                "**.post_attention_layernorm.weight": "**.mlp.linear_fc1.layer_norm_weight",
-            })
+            mapping.update(
+                {
+                    "**.mlp.down_proj.weight": "**.mlp.linear_fc2.weight",
+                    "**.post_attention_layernorm.weight": "**.mlp.linear_fc1.layer_norm_weight",
+                }
+            )
 
         if getattr(source.config, "tie_word_embeddings", False):
             del mapping["lm_head.weight"]
@@ -222,15 +243,18 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
                 target_key="**.self_attention.linear_qkv.weight",
                 fn=TransformFns.merge_qkv,
             ),
-            io.state_transform(
-                source_key=("**.mlp.gate_proj.weight", "**.mlp.up_proj.weight"),
-                target_key="**.mlp.linear_fc1.weight",
-                fn=TransformFns.merge_fc1,
-            ) if not is_moe else
-            io.state_transform(
-                source_key=("**.mlp.experts.*.gate_proj.weight", "**.mlp.experts.*.up_proj.weight"),
-                target_key="**.mlp.experts.linear_fc1.weight*",
-                fn=TransformFns.merge_fc1,
+            (
+                io.state_transform(
+                    source_key=("**.mlp.gate_proj.weight", "**.mlp.up_proj.weight"),
+                    target_key="**.mlp.linear_fc1.weight",
+                    fn=TransformFns.merge_fc1,
+                )
+                if not is_moe
+                else io.state_transform(
+                    source_key=("**.mlp.experts.*.gate_proj.weight", "**.mlp.experts.*.up_proj.weight"),
+                    target_key="**.mlp.experts.linear_fc1.weight*",
+                    fn=TransformFns.merge_fc1,
+                )
             ),
         ]
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
@@ -274,6 +298,7 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
         )
 
         return output
+
 
 # @io.model_exporter(Qwen3Model, "hf")
 # class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):

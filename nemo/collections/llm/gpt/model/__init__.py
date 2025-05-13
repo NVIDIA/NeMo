@@ -135,14 +135,14 @@ from nemo.collections.llm.gpt.model.qwen2 import (
 )
 from nemo.collections.llm.gpt.model.qwen3 import (
     Qwen3Config,
-    Qwen3Config600M,
     Qwen3Config1P7B,
     Qwen3Config4B,
     Qwen3Config8B,
     Qwen3Config14B,
-    Qwen3Config32B,
     Qwen3Config30B_A3B,
+    Qwen3Config32B,
     Qwen3Config235B_A22B,
+    Qwen3Config600M,
     Qwen3Model,
 )
 from nemo.collections.llm.gpt.model.ssm import (

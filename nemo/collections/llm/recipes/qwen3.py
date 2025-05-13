@@ -21,14 +21,14 @@ from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
 from nemo.collections.llm.gpt.model.qwen3 import (
-    Qwen3Config600M,
     Qwen3Config1P7B,
     Qwen3Config4B,
     Qwen3Config8B,
     Qwen3Config14B,
-    Qwen3Config32B,
     Qwen3Config30B_A3B,
+    Qwen3Config32B,
     Qwen3Config235B_A22B,
+    Qwen3Config600M,
     Qwen3Model,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
@@ -151,4 +151,4 @@ def qwen3_trainer(
         val_check_interval=val_check_interval,
     )
 
-    return trainer 
+    return trainer
