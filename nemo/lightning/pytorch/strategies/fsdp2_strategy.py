@@ -335,7 +335,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 # Apply the optimizer step to the model weights.
                 base_optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
 
-                if isinstance(lightning_module.model, FSDP):
+                if isinstance(lightning_module.model, FSDP) and lightning_module.model.ddp_config.preserve_fp32_weights:
                     # If custom FSDP2 is configured with "optim" (optimizer state / high-precision model weight sharding),
                     # then the optimizer step will be applied to the main high-precision model weights. Update the model
                     # weights after the optimizer step.

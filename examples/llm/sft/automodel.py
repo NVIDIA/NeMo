@@ -160,7 +160,8 @@ def make_strategy(
             ddp_config=DistributedDataParallelConfig(
                 check_for_nan_in_grad=True,
                 data_parallel_sharding_strategy="optim_grads_params",
-                grad_reduce_in_fp32=True,
+                grad_reduce_in_fp32=False,
+                preserve_fp32_weights=False,
                 overlap_grad_reduce=True,
                 overlap_param_gather=True,
                 average_in_collective=False,
