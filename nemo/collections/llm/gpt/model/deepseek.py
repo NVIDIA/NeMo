@@ -474,26 +474,26 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             return hf_model
 
     def _detect_hf_deepseek_version(self, source_config: Dict[str, Any]) -> str:
-            """
-            Detect the HF DeepSeek version based on the source NeMo config.
+        """
+        Detect the HF DeepSeek version based on the source NeMo config.
 
-            Args:
-                source_config (Dict[str, Any]): The source NeMo model config.
+        Args:
+            source_config (Dict[str, Any]): The source NeMo model config.
 
-            Returns:
-                str: The DeepSeek version in the Hugging Face Hub convention.
-            """
-            if source_config['moe_router_enable_expert_bias']:
-                target_model_name = "deepseek-ai/DeepSeek-V3"
-            elif source_config['q_lora_rank'] is not None:
-                target_model_name = "deepseek-ai/DeepSeek-V2"
-            else:
-                target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
-            logging.info(
-                f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
-                f"please pass in a local HF checkpoint."
-            )
-            return target_model_name
+        Returns:
+            str: The DeepSeek version in the Hugging Face Hub convention.
+        """
+        if source_config['moe_router_enable_expert_bias']:
+            target_model_name = "deepseek-ai/DeepSeek-V3"
+        elif source_config['q_lora_rank'] is not None:
+            target_model_name = "deepseek-ai/DeepSeek-V2"
+        else:
+            target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
+        logging.info(
+            f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
+            f"please pass in a local HF checkpoint."
+        )
+        return target_model_name
 
     def ckpt_load(self, path: Path) -> Tuple[Dict, Dict]:
         """
