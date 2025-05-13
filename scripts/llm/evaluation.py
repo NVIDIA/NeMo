@@ -114,7 +114,7 @@ def get_parser():
         "--request_timeout",
         type=int,
         default=1000,
-        help="Request timeout for querying the server. Default: use default for the task.",
+        help="Time in seconds for the eval client. Default: 1000s",
     )
     parser.add_argument(
         "--tag",
@@ -190,8 +190,8 @@ def slurm_executor(
         nodes=nodes,
         ntasks_per_node=devices,
         exclusive=True,
-        #packager=run.GitArchivePackager(),
-        packager=run.Packager()
+        # archives and uses the local code. Use packager=run.Packager() to use the code code mounted on clusters
+        packager=run.GitArchivePackager(),
     )
 
     executor.container_image = container_image
@@ -255,19 +255,20 @@ def main():
     if args.slurm:
         # TODO: Set your custom parameters for the Slurm Executor.
         executor = slurm_executor(
-            user="athittenaman",
-            host="login-eos",
-            remote_job_dir="/lustre/fsw/coreai_dlalgo_llm/athittenaman/nemo-experiments",
-            account="coreai_dlalgo_llm",
-            partition="batch",
+            user="",
+            host="",
+            remote_job_dir="",
+            account="",
+            partition="",
             nodes=args.nodes,
             devices=args.devices,
             container_image=args.container_image,
-            custom_mounts=["/lustre/fsw/coreai_dlalgo_llm/nemo_home/models:/lustre/fsw/coreai_dlalgo_llm/nemo_home/models,"
-            "/lustre/fsw/coreai_dlalgo_llm/athittenaman/NeMo:/opt/NeMo"],
+            custom_mounts=[],
         )
-        executor.srun_args = ["--mpi=pmix", "--overlap", "--ntasks-per-node=1"]
+        executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
+        executor_eval.srun_args = ["--ntasks-per-node=1", "--nodes=1"] ## so that eval is laucnhed only on main node
+        # or node with index 0
     else:
         executor = local_executor_torchrun()
         executor_eval = None
