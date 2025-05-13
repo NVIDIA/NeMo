@@ -441,10 +441,11 @@ class ConformerFeedForward(nn.Module):
         self.activation_name = activation_name.lower()
 
         if self.activation_name == 'swiglu':
-            self.linear1 = nn.Linear(d_model, d_ff * 2, bias=self.use_bias)  # Projects to 2x for SwiGLU
+            self.linear1 = nn.Linear(d_model, d_ff, bias=self.use_bias)  
+            self.value = nn.Linear(d_model, d_ff, bias=self.use_bias)
             self.activation = nn.SiLU()  # PyTorch's nn.SiLU is Swish with beta=1
             self.dropout = nn.Dropout(p=dropout)
-            self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias) # Takes d_ff after SwiGLU
+            self.linear2 = nn.Linear(d_ff, d_model, bias=self.use_bias) 
         elif self.activation_name == 'swish':
             self.linear1 = nn.Linear(d_model, d_ff, bias=self.use_bias)
             self.activation = Swish()
@@ -455,9 +456,9 @@ class ConformerFeedForward(nn.Module):
 
     def forward(self, x):
         if self.activation_name == 'swiglu':
-            x = self.linear1(x)
-            x_gate, x_val = x.chunk(2, dim=-1)
-            x = self.activation(x_gate) * x_val  # This is the SwiGLU operation
+            x_gate = self.activation(self.linear1(x))
+            x_val = self.value(x)
+            x = x_gate * x_val
             x = self.dropout(x)
             x = self.linear2(x)
         elif self.activation_name == 'swish':
@@ -476,3 +477,6 @@ class ConformerFeedForward(nn.Module):
             if self.use_bias:
                 nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)
                 nn.init.uniform_(self.linear2.bias, -ffn2_max, ffn2_max)
+            if self.activation_name == 'swiglu':
+                nn.init.uniform_(self.value.weight, -ffn1_max, ffn1_max)
+                nn.init.uniform_(self.value.bias, -ffn1_max, ffn1_max)
