@@ -22,6 +22,7 @@ import wrapt
 
 from nemo.core import Model
 from nemo.utils import model_utils
+from nemo.utils.import_utils import UnavailableError
 
 DOMAINS = ['asr', 'tts', 'nlp']
 
@@ -64,7 +65,7 @@ def _get_class_from_path(domain, subdomains, imp):
                 result_issubclass = issubclass(class_, (Model, torch.nn.Module))
                 if result_issubclass:
                     result = class_
-            except nemo.utils.import_utils.UnavailableError as e:
+            except UnavailableError as e:
                 raise Exception(f"Error: {e}, path: {path}, class: {class_}")
         else:
             class_ = None
