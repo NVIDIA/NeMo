@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
     processor = AutoProcessor.from_pretrained(model_id)
-    tokenizer = AutoTokenizer(model_id)
+    tokenizer = AutoTokenizer(model_id, use_fast=True)
 
     # Setup data module based on type
     if args.data_type == 'mock':
@@ -94,7 +94,9 @@ if __name__ == '__main__':
             raise ValueError("For Energon data type, you must specify --data-path")
 
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+        from nemo.collections.multimodal.data.energon.config import (
+            MultiModalSampleConfig,
+        )
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         # Configure multimodal sample settings
@@ -126,7 +128,7 @@ if __name__ == '__main__':
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
             packing_buffer_size=200 if args.use_packed_sequence else None,
-            virtual_epoch_length=10,  # Small value for testing
+            # virtual_epoch_length=10,  # Small value for testing
         )
     else:
         raise ValueError(f"Unknown data type: {args.data_type}")

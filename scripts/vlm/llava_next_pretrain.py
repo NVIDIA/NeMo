@@ -51,15 +51,19 @@ def main(args):
     if args.data_type == "energon":
         from transformers import AutoProcessor
 
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+            AutoTokenizer,
+        )
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+        from nemo.collections.multimodal.data.energon.config import (
+            MultiModalSampleConfig,
+        )
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         data_path = args.data_path
         model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
         processor = AutoProcessor.from_pretrained(model_id)
-        tokenizer = AutoTokenizer(model_id)
+        tokenizer = AutoTokenizer(model_id, use_fast=True)
 
         multimodal_sample_config = MultiModalSampleConfig(
             image_token=ImageToken(token_str="<image>", token_id=-200),
@@ -86,7 +90,6 @@ def main(args):
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
             packing_buffer_size=200 if args.use_packed_sequence else None,
-            virtual_epoch_length=1000,
         )
 
     elif args.data_type == "mock":
@@ -102,7 +105,7 @@ def main(args):
         raise ValueError(f"Data type {args.data_type} not supported")
 
     # Submodules configurations
-    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
+    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length, num_layers=2)
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
     )
@@ -133,7 +136,7 @@ def main(args):
         context_parallel_size=args.cp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=True,
+        # sequence_parallel=True,
     )
 
     # Checkpoint callback setup

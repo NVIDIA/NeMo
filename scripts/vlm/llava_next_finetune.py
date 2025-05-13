@@ -48,15 +48,19 @@ def main(args):
     if args.data_type == "energon":
         from transformers import AutoProcessor
 
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+            AutoTokenizer,
+        )
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+        from nemo.collections.multimodal.data.energon.config import (
+            MultiModalSampleConfig,
+        )
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         data_path = args.data_path
         model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
         processor = AutoProcessor.from_pretrained(model_id)
-        tokenizer = AutoTokenizer(model_id)
+        tokenizer = AutoTokenizer(model_id, use_fast=True)
 
         multimodal_sample_config = MultiModalSampleConfig()
 
