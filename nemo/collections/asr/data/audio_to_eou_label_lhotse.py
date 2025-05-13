@@ -74,6 +74,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             random_padding:  # Random padding configuration
                 prob: 0.9  # probability of applying padding
                 min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
+                max_pad_duration: 2.0 # maximum duration of pre/post padding in seconds
                 max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
                 pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
                 normal_mean: 0.5  # mean of normal distribution for padding duration
@@ -354,6 +355,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         """
         p = np.random.rand()
         if self.padding_cfg is None or p > self.padding_cfg.prob:
+            # don't apply padding
             return audio, audio_len, eou_targets
 
         duration = audio_len.item() / self.cfg.sample_rate
@@ -363,11 +365,12 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         # apply padding
         audio = audio[:audio_len]
+
         max_padding_duration = max(0, self.padding_cfg.max_total_duration - duration)
-        if max_padding_duration <= self.padding_cfg.min_pad_duration:
+        if max_padding_duration <= 2 * self.padding_cfg.min_pad_duration:
             min_padding_duration = 0
         else:
-            min_padding_duration = self.padding_cfg.min_pad_duration
+            min_padding_duration = 2 * self.padding_cfg.min_pad_duration
 
         if self.padding_cfg.pad_distribution == 'uniform':
             total_padding_duration = np.random.uniform(min_padding_duration, max_padding_duration)
@@ -377,8 +380,18 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         else:
             raise ValueError(f"Unknown padding distribution: {self.padding_cfg.pad_distribution}")
 
-        pre_padding_duration = np.random.uniform(0, total_padding_duration)
-        post_padding_duration = total_padding_duration - pre_padding_duration
+        if min_padding_duration == 0:
+            pre_padding_duration = total_padding_duration / 2
+            post_padding_duration = total_padding_duration / 2
+        else:
+            pre_padding_duration = np.random.uniform(
+                min_padding_duration, total_padding_duration - min_padding_duration
+            )
+            post_padding_duration = total_padding_duration - pre_padding_duration
+
+        if self.padding_cfg.max_pad_duration is not None:
+            pre_padding_duration = min(pre_padding_duration, self.padding_cfg.max_pad_duration)
+            post_padding_duration = min(post_padding_duration, self.padding_cfg.max_pad_duration)
 
         pre_padding_len = math.ceil(pre_padding_duration * self.cfg.sample_rate)
         post_padding_len = math.ceil(post_padding_duration * self.cfg.sample_rate)
