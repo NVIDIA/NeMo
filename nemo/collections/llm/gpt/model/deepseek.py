@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
@@ -473,6 +473,28 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             type(hf_model).register_for_auto_class("AutoModelForCausalLM")
             return hf_model
 
+    def _detect_hf_deepseek_version(self, source_config: Dict[str, Any]) -> str:
+            """
+            Detect the HF DeepSeek version based on the source NeMo config.
+
+            Args:
+                source_config (Dict[str, Any]): The source NeMo model config.
+
+            Returns:
+                str: The DeepSeek version in the Hugging Face Hub convention.
+            """
+            if source_config['moe_router_enable_expert_bias']:
+                target_model_name = "deepseek-ai/DeepSeek-V3"
+            elif source_config['q_lora_rank'] is not None:
+                target_model_name = "deepseek-ai/DeepSeek-V2"
+            else:
+                target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
+            logging.info(
+                f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
+                f"please pass in a local HF checkpoint."
+            )
+            return target_model_name
+
     def ckpt_load(self, path: Path) -> Tuple[Dict, Dict]:
         """
         This function loads the state dict directly from a distributed checkpoint, and modify the state dict
@@ -512,21 +534,12 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         logging.info("DeepSeek NeMo checkpoint loaded.")
         if target_model_name is None:
             # Before DeepSeek is fully supported by HF, it is necessary to pass in a local HF checkpoint that
-            # is used to initialize the HF model. The following
+            # is used to initialize the HF model.
             logging.warning(
                 "Before DeepSeek is officially supported in HF, you should pass in a local HF "
                 "checkpoint using llm.export_ckpt(..., target_model_name=<local hf path>)"
             )
-            if source_config['moe_router_enable_expert_bias']:
-                target_model_name = "deepseek-ai/DeepSeek-V3"
-            elif source_config['q_lora_rank'] is not None:
-                target_model_name = "deepseek-ai/DeepSeek-V2"
-            else:
-                target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
-            logging.info(
-                f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
-                f"please pass in a local HF checkpoint."
-            )
+            target_model_name = self._detect_hf_deepseek_version(source_config)
 
         target = self.init(torch_dtype_from_dict_config(source_config), model_name=target_model_name)
         target = self.convert_state(source, target, source_config)
@@ -642,10 +655,26 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
 
     @property
     def config(self) -> "HFDeepseekV3Config":
+        """Create a HF DeepseekV3Config from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Currently only supports DeepseekV3Config based on availability
+        in the Transformers library.
+
+        Returns:
+            HFDeepseekV3Config: HF configuration for DeepSeekV3 models
+        """
+        # TODO: Get config for all DeepSeek model variants once available in transformers
+
         from transformers import DeepseekV3Config as HFDeepseekV3Config
 
-        # TODO: Generalize that to different DeepSeek model variants
         source: DeepSeekV3Config = io.load_context(str(self)).model.config
+
+        target_model_name = self._detect_hf_deepseek_version(asdict(source))
+        if target_model_name != "deepseek-ai/DeepSeek-V3":
+            raise ValueError("Getting config for model other than {target_model_name} is not supported.")
 
         # Figure out the number of zeros in the prefix of moe_layer_freq array
         # for the HF first_k_dense_replace parameter and validate the reminder:
