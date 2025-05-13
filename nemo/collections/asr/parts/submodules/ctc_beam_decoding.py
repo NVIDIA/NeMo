@@ -229,9 +229,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
-        beam_alpha: float = 1.0,
+        ngram_lm_alpha: float = 0.3,
         beam_beta: float = 0.0,
-        kenlm_path: str = None,
+        ngram_lm_model: str = None,
         flashlight_cfg: Optional['FlashlightConfig'] = None,
         pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
     ):
@@ -262,11 +262,11 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         # Log the beam search algorithm
         logging.info(f"Beam search algorithm: {search_type}")
 
-        self.beam_alpha = beam_alpha
+        self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
 
         # Default beam search args
-        self.kenlm_path = kenlm_path
+        self.ngram_lm_model = ngram_lm_model
 
         # PyCTCDecode params
         if pyctcdecode_cfg is None:
@@ -351,9 +351,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         if self.default_beam_scorer is None:
             # Check for filepath
-            if self.kenlm_path is None or not os.path.exists(self.kenlm_path):
+            if self.ngram_lm_model is None or not os.path.exists(self.ngram_lm_model):
                 raise FileNotFoundError(
-                    f"KenLM binary file not found at : {self.kenlm_path}. "
+                    f"KenLM binary file not found at : {self.ngram_lm_model}. "
                     f"Please set a valid path in the decoding config."
                 )
 
@@ -369,9 +369,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
             self.default_beam_scorer = BeamSearchDecoderWithLM(
                 vocab=vocab,
-                lm_path=self.kenlm_path,
+                lm_path=self.ngram_lm_model,
                 beam_width=self.beam_size,
-                alpha=self.beam_alpha,
+                alpha=self.ngram_lm_alpha,
                 beta=self.beam_beta,
                 num_cpus=max(1, os.cpu_count()),
                 input_tensor=False,
@@ -453,7 +453,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         if self.pyctcdecode_beam_scorer is None:
             self.pyctcdecode_beam_scorer = pyctcdecode.build_ctcdecoder(
-                labels=self.vocab, kenlm_model_path=self.kenlm_path, alpha=self.beam_alpha, beta=self.beam_beta
+                labels=self.vocab, kenlm_model_path=self.ngram_lm_model, alpha=self.ngram_lm_alpha, beta=self.beam_beta
             )  # type: pyctcdecode.BeamSearchDecoderCTC
 
         x = x.to('cpu').numpy()
@@ -535,9 +535,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         if self.flashlight_beam_scorer is None:
             # Check for filepath
-            if self.kenlm_path is None or not os.path.exists(self.kenlm_path):
+            if self.ngram_lm_model is None or not os.path.exists(self.ngram_lm_model):
                 raise FileNotFoundError(
-                    f"KenLM binary file not found at : {self.kenlm_path}. "
+                    f"KenLM binary file not found at : {self.ngram_lm_model}. "
                     "Please set a valid path in the decoding config."
                 )
 
@@ -552,7 +552,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             from nemo.collections.asr.modules.flashlight_decoder import FlashLightKenLMBeamSearchDecoder
 
             self.flashlight_beam_scorer = FlashLightKenLMBeamSearchDecoder(
-                lm_path=self.kenlm_path,
+                lm_path=self.ngram_lm_model,
                 vocabulary=self.vocab,
                 tokenizer=self.tokenizer,
                 lexicon_path=self.flashlight_cfg.lexicon_path,
@@ -560,7 +560,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 beam_size=self.beam_size,
                 beam_size_token=self.flashlight_cfg.beam_size_token,
                 beam_threshold=self.flashlight_cfg.beam_threshold,
-                lm_weight=self.beam_alpha,
+                lm_weight=self.ngram_lm_alpha,
                 word_score=self.beam_beta,
                 unk_weight=self.flashlight_cfg.unk_weight,
                 sil_weight=self.flashlight_cfg.sil_weight,
@@ -895,7 +895,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
-        beam_alpha: float, the language model weight.
+        ngram_lm_alpha: float, the language model weight.
         beam_beta: float, the word insertion weight.
         beam_threshold: float, the beam pruning threshold.
         ngram_lm_model: str, the path to the ngram model.
@@ -909,7 +909,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
-        beam_alpha: float = 1.0,
+        ngram_lm_alpha: float = 1.0,
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
         ngram_lm_model: str = None,
@@ -929,12 +929,12 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
-        self.beam_alpha = beam_alpha
+        self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
 
         # Default beam search args
-        self.kenlm_path = ngram_lm_model
+        self.ngram_lm_model = ngram_lm_model
 
         # Default beam search scorer functions
         self.default_beam_scorer = None
@@ -948,10 +948,10 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             return_best_hypothesis=return_best_hypothesis,
             preserve_alignments=preserve_alignments,
             compute_timestamps=compute_timestamps,
-            beam_alpha=beam_alpha,
+            ngram_lm_alpha=ngram_lm_alpha,
             beam_beta=beam_beta,
             beam_threshold=beam_threshold,
-            kenlm_path=ngram_lm_model,
+            ngram_lm_model=ngram_lm_model,
             allow_cuda_graphs=allow_cuda_graphs,
         )
 
@@ -1021,15 +1021,30 @@ class BeamCTCInferConfig:
     return_best_hypothesis: bool = True
     allow_cuda_graphs: bool = True
 
-    beam_alpha: float = 1.0
+    beam_alpha: Optional[float] = 1.0 # Deprecated
     beam_beta: float = 1.0
     beam_threshold: float = 20.0
-    kenlm_path: Optional[str] = None
+    kenlm_path: Optional[str] = None # Deprecated
+    ngram_lm_alpha: Optional[float] = 1.0
+    ngram_lm_model: Optional[str] = None
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
 
-
+    # def __post_init__(self):
+    #     if self.beam_alpha is not None:
+    #         logging.warning(
+    #             "`beam_alpha` is deprecated and will be removed in a future release. "
+    #             "Please use `ngram_lm_alpha` instead."
+    #         )
+    #         self.ngram_lm_alpha = self.beam_alpha
+    #     if self.kenlm_path is not None:
+    #         logging.warning(
+    #             "`kenlm_path` is deprecated and will be removed in a future release. "
+    #             "Please use `ngram_lm_model` instead."
+    #         )
+    #         self.ngram_lm_model = self.kenlm_path
+            
 @dataclass
 class WfstCTCInferConfig:
     beam_size: int

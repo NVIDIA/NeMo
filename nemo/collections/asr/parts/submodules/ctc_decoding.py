@@ -177,15 +177,15 @@ class AbstractCTCDecoding(ConfidenceMixin):
                         optional bool, whether to return just the best hypothesis or all of the
                         hypotheses after beam search has concluded. This flag is set by default.
 
-                    beam_alpha:
+                    ngram_lm_alpha:
                         float, the strength of the Language model on the final score of a token.
-                        final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+                        final_score = acoustic_score + ngram_lm_alpha * lm_score + beam_beta * seq_length.
 
                     beam_beta:
                         float, the strength of the sequence length penalty on the final score of a token.
-                        final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+                        final_score = acoustic_score + ngram_lm_alpha * lm_score + beam_beta * seq_length.
 
-                    kenlm_path:
+                    ngram_lm_model:
                         str, path to a KenLM ARPA or .binary file (depending on the strategy chosen).
                         If the path is invalid (file is not found at path), will raise a deferred error at the moment
                         of calculation of beam search, so that users may update / change the decoding strategy
@@ -257,6 +257,20 @@ class AbstractCTCDecoding(ConfidenceMixin):
         # we need timestamps to extract non-blank per-frame confidence
         if self.compute_timestamps is not None:
             self.compute_timestamps |= self.preserve_frame_confidence
+        
+        if self.cfg.strategy in ['flashlight', 'wfst', 'beam_batch', 'pyctcdecode', 'beam']:
+            if self.cfg.beam.beam_alpha is not None:
+                logging.warning(
+                    "`beam_alpha` is deprecated and will be removed in a future release. "
+                    "Please use `ngram_lm_alpha` instead."
+                )
+                self.cfg.beam.ngram_lm_alpha = self.cfg.beam.beam_alpha
+            if self.cfg.beam.kenlm_path is not None:
+                logging.warning(
+                    "`kenlm_path` is deprecated and will be removed in a future release. "
+                    "Please use `ngram_lm_model` instead."
+                )
+                self.cfg.beam.ngram_lm_model = self.cfg.beam.kenlm_path
 
         if self.cfg.strategy == 'greedy':
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
@@ -285,9 +299,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
-                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
             )
 
             self.decoding.override_fold_consecutive_value = False
@@ -301,9 +315,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
-                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 pyctcdecode_cfg=self.cfg.beam.get('pyctcdecode_cfg', None),
             )
 
@@ -318,9 +332,9 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
-                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
-                kenlm_path=self.cfg.beam.get('kenlm_path', None),
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 flashlight_cfg=self.cfg.beam.get('flashlight_cfg', None),
             )
 
@@ -355,10 +369,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
-                beam_alpha=self.cfg.beam.get('beam_alpha', 1.0),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
-                ngram_lm_model=self.cfg.beam.get('kenlm_path', None),
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
             )
 
@@ -1194,15 +1208,15 @@ class CTCDecoding(AbstractCTCDecoding):
                         optional bool, whether to return just the best hypothesis or all of the
                         hypotheses after beam search has concluded. This flag is set by default.
 
-                    beam_alpha:
+                    ngram_lm_alpha:
                         float, the strength of the Language model on the final score of a token.
-                        final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+                        final_score = acoustic_score + ngram_lm_alpha * lm_score + beam_beta * seq_length.
 
                     beam_beta:
                         float, the strength of the sequence length penalty on the final score of a token.
-                        final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+                        final_score = acoustic_score + ngram_lm_alpha * lm_score + beam_beta * seq_length.
 
-                    kenlm_path:
+                    ngram_lm_model:
                         str, path to a KenLM ARPA or .binary file (depending on the strategy chosen).
                         If the path is invalid (file is not found at path), will raise a deferred error at the moment
                         of calculation of beam search, so that users may update / change the decoding strategy
@@ -1411,15 +1425,15 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                         optional bool, whether to return just the best hypothesis or all of the
                         hypotheses after beam search has concluded. This flag is set by default.
 
-                    beam_alpha:
+                    ngram_lm_alpha:
                         float, the strength of the Language model on the final score of a token.
-                        final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+                        final_score = acoustic_score + ngram_lm_alpha * lm_score + beam_beta * seq_length.
 
                     beam_beta:
                         float, the strength of the sequence length penalty on the final score of a token.
-                        final_score = acoustic_score + beam_alpha * lm_score + beam_beta * seq_length.
+                        final_score = acoustic_score + ngram_lm_alpha * lm_score + beam_beta * seq_length.
 
-                    kenlm_path:
+                    ngram_lm_model:
                         str, path to a KenLM ARPA or .binary file (depending on the strategy chosen).
                         If the path is invalid (file is not found at path), will raise a deferred error at the moment
                         of calculation of beam search, so that users may update / change the decoding strategy

@@ -835,8 +835,8 @@ class TestCTCDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {"allow_cuda_graphs": False, "beam_alpha": 0.3, "beam_beta": 1.0},
-            {"allow_cuda_graphs": False, "beam_alpha": 0.3, "beam_beta": 1.0},
+            {"allow_cuda_graphs": False, "ngram_lm_alpha": 0.3, "beam_beta": 1.0},
+            {"allow_cuda_graphs": False, "ngram_lm_alpha": 0.3, "beam_beta": 1.0},
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])

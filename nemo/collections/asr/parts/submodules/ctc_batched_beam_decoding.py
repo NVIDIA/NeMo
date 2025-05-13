@@ -156,10 +156,7 @@ class SeparateGraphsBatchedBeamCTC:
 
 class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
-    Batched Alignment-Length Synchronous Decoding implementation. Callable.
-    Based on https://ieeexplore.ieee.org/document/9053040 with the following modficiations:
-        - does not support prediction network caching
-        - does not employ transcript length estimation, instead, limits the number of expansions for every frame.
+    Batched beam search implementation for CTC models.
     """
 
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
@@ -183,29 +180,29 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         return_best_hypothesis: bool = True,
         preserve_alignments=False,
         compute_timestamps: bool = False,
-        beam_alpha: float = 1.0,
+        ngram_lm_alpha: float = 1.0,
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
-        kenlm_path: str = None,
+        ngram_lm_model: str = None,
         allow_cuda_graphs: bool = True,
     ):
         """
         Init method.
         Args:
-            decoder: Prediction network from RNN-T
-            joint: Joint module from RNN-T
-            blank_index: index of blank symbol
-            max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
-            preserve_alignments: if alignments are needed
-            preserve_frame_confidence: if frame confidence is needed
-            confidence_method_cfg: config for the confidence
-            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
-            ngram_lm_alpha: weight for the n-gram LM scores
-            pruning_mode: mode for pruning hypotheses with LM
-            score_norm: whether to normalize scores before best hypothesis extraction
-            allow_cuda_graphs: whether to allow CUDA graphs
-            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
+            blank_index: index of blank symbol.
+            beam_size: beam size.
+            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses.
+            preserve_alignments: if alignments are needed. Defaults to False.
+            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats.
+            ngram_lm_alpha: weight for the n-gram LM scores.
+            beam_beta: word insertion weight.
+            beam_threshold: threshold for pruning candidates.
+            allow_cuda_graphs: whether to allow CUDA graphs. Defaults to True.
         """
+        
+        print("Parammmmssss")
+        print("Alpha: ", ngram_lm_alpha)
+        print("lm_model: ", ngram_lm_model)
 
         super().__init__()
         self._blank_index = blank_index
@@ -216,7 +213,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.allow_cuda_graphs = allow_cuda_graphs
         self.return_best_hypothesis = return_best_hypothesis
 
-        self.beam_alpha = beam_alpha
+        self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
 
@@ -233,9 +230,9 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
 
         self.ngram_lm_batch = None
-        if kenlm_path is not None:
+        if ngram_lm_model is not None:
             assert self._blank_index != 0
-            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=kenlm_path, vocab_size=self._blank_index)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -326,7 +323,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states.view(-1))
-                log_probs[..., :-1] += self.beam_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
+                log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
 
             # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
             repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
@@ -383,7 +380,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         # step 3: updating LM scores with eos scores
         if self.ngram_lm_batch is not None:
             eos_score = self.ngram_lm_batch.get_final(batch_lm_states).view(batched_beam_hyps.scores.shape)
-            batched_beam_hyps.scores += eos_score * self.beam_alpha
+            batched_beam_hyps.scores += eos_score * self.ngram_lm_alpha
 
         return batched_beam_hyps
 
@@ -621,7 +618,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.state.batch_lm_states_candidates.copy_(
                 batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape)
             )
-            log_probs[..., :-1] += self.beam_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
+            log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
 
         # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
         repeated_mask = self.state.batched_hyps.last_label[:, :, None] == self.state.vocab[None, None, :]
@@ -687,7 +684,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             eos_score = self.ngram_lm_batch.get_final(self.state.batch_lm_states).view(
                 self.state.batched_hyps.scores.shape
             )
-            self.state.batched_hyps.scores += eos_score * self.beam_alpha
+            self.state.batched_hyps.scores += eos_score * self.ngram_lm_alpha
 
     def __call__(
         self,
