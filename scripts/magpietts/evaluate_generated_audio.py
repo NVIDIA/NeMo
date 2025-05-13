@@ -8,9 +8,11 @@ import torch
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
+from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
+from nemo.collections.tts.models import AudioCodecModel
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import librosa
-import evalset_config
+import scripts.magpietts.evalset_config as evalset_config
 from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
 
 def find_sample_audios(audio_dir):
@@ -77,7 +79,8 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
 
     return embeddings.squeeze()
 
-def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large"):
+def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large",
+             codecmodel_path=None, predicted_codes=None, predicted_codes_lens=None):
     audio_file_lists = find_sample_audios(generated_audio_dir)
     records = read_manifest(manifest_path)
     assert len(audio_file_lists) == len(records)
@@ -112,7 +115,15 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     speaker_verification_model_alternate = speaker_verification_model_alternate.to(device)
     speaker_verification_model_alternate.eval()
 
-
+    if codecmodel_path is not None:
+        codec = AudioCodecModel.restore_from(codecmodel_path, strict=False)
+        codec = codec.to(device)
+        codec.eval()
+        codec_feature_dim = codec.vector_quantizer.codebook_dim
+        fcd_metric = FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
+    else:
+        print("No codec model provided, skipping FCD metric")
+        fcd_metric = None
 
     filewise_metrics = []
     pred_texts = []
@@ -125,6 +136,9 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             gt_audio_filepath = os.path.join(audio_dir, gt_audio_filepath)
             if context_audio_filepath is not None:
                 context_audio_filepath = os.path.join(audio_dir, context_audio_filepath)
+            # Update the FCD metric for *real* codes
+            if fcd_metric is not None:
+                 fcd_metric.update_from_audio_file(gt_audio_filepath, True)
 
         pred_audio_filepath = audio_file_lists[ridx]
 
@@ -184,7 +198,10 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
                 pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
                 gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
 
-
+        # update FCD metric for all generated codes
+        if fcd_metric is not None:
+            for i in range(predicted_codes.shape[0]):
+                fcd_metric.update_from_codes(predicted_codes[i:i+1], predicted_codes_lens[i:i+1], False)
 
         filewise_metrics.append({
             'gt_text': gt_text,
@@ -213,6 +230,13 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     # Sort filewise metrics by cer in reverse
     filewise_metrics.sort(key=lambda x: x['cer'], reverse=True)
 
+    # compute frechet distance for the whole test set
+    if fcd_metric is not None:
+        fcd = fcd_metric.compute().cpu().item()
+        fcd_metric.reset()
+    else:
+        fcd = 0.0
+
     avg_metrics = {}
     avg_metrics['cer_filewise_avg'] = sum([m['detailed_cer'][0] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['wer_filewise_avg'] = sum([m['detailed_wer'][0] for m in filewise_metrics]) / len(filewise_metrics)
@@ -226,6 +250,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     avg_metrics['ssim_gt_context_avg_alternate'] = sum([m['gt_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics["cer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=True)[0]
     avg_metrics["wer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=False)[0]
+    avg_metrics["frechet_codec_distance"] = fcd
 
     pprint.pprint(avg_metrics)
 
