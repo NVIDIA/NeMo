@@ -708,7 +708,6 @@ def _import_patch_embedding_hf(a):
 
 
 def _import_gate(gate):
-    print("_import_gate: ", gate[0:1], gate.size(), gate)
     return gate[0:1]
 
 
