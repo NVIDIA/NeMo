@@ -43,6 +43,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
     TransformerLayerWithPostLNSupport,
 )
 
+
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 def get_bert_layer_with_transformer_engine_spec_postln() -> ModuleSpec:
     if not HAVE_MEGATRON_CORE:
@@ -77,6 +78,7 @@ def get_bert_layer_with_transformer_engine_spec_postln() -> ModuleSpec:
         ),
     )
     return bert_layer_with_transformer_engine_spec_postln
+
 
 # Use this spec for an implementation using only modules in megatron core
 def get_bert_layer_local_spec_postln() -> ModuleSpec:
