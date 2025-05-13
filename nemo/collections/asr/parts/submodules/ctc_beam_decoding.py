@@ -1030,20 +1030,6 @@ class BeamCTCInferConfig:
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
 
-    # def __post_init__(self):
-    #     if self.beam_alpha is not None:
-    #         logging.warning(
-    #             "`beam_alpha` is deprecated and will be removed in a future release. "
-    #             "Please use `ngram_lm_alpha` instead."
-    #         )
-    #         self.ngram_lm_alpha = self.beam_alpha
-    #     if self.kenlm_path is not None:
-    #         logging.warning(
-    #             "`kenlm_path` is deprecated and will be removed in a future release. "
-    #             "Please use `ngram_lm_model` instead."
-    #         )
-    #         self.ngram_lm_model = self.kenlm_path
-
 
 @dataclass
 class WfstCTCInferConfig:
