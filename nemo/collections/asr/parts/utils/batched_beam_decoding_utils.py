@@ -459,8 +459,6 @@ class BatchedBeamHyps:
             list[Hypothesis]: A list where each element corresponds to a batch and contains
             best hypothesis.
         """
-        if self.model_type == 'ctc':
-            score_norm = False
         self.flatten_sort_(score_norm)
 
         scores = self.scores[self.batch_indices, 0].tolist()
