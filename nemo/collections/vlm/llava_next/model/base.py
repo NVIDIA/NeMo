@@ -143,6 +143,9 @@ class LlavaNextConfig(NevaConfig):
             MCoreLlavaNextModel: An instance of the LLaVA Next model.
         """
 
+        self.language_transformer_config.use_cpu_initialization = self.use_cpu_initialization
+        self.vision_transformer_config.use_cpu_initialization = self.use_cpu_initialization
+        self.vision_projection_config.use_cpu_initialization = self.use_cpu_initialization
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
