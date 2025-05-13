@@ -200,7 +200,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             beam_threshold: threshold for pruning candidates.
             allow_cuda_graphs: whether to allow CUDA graphs. Defaults to True.
         """
-        
+
         print("Parammmmssss")
         print("Alpha: ", ngram_lm_alpha)
         print("lm_model: ", ngram_lm_model)
@@ -618,7 +618,9 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             self.state.batch_lm_states_candidates.copy_(
                 batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape)
             )
-            log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(self.state.batch_size, self.state.beam_size, -1)
+            log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(
+                self.state.batch_size, self.state.beam_size, -1
+            )
 
         # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
         repeated_mask = self.state.batched_hyps.last_label[:, :, None] == self.state.vocab[None, None, :]

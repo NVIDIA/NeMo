@@ -131,7 +131,7 @@ class BatchedBeamHyps:
             device=device,
             dtype=torch.long,
         )  # links to prefices
-        
+
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
         self.scores = torch.full(
             [batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE
@@ -149,7 +149,7 @@ class BatchedBeamHyps:
             self.transcript_prefix_hash = torch.full(
                 [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=INIT_PREFIX_HASH_VALUE
             )
-            
+
         if model_type == 'ctc':
             # CTC frames and tokens are aligned, so we can precompute timestamps
             self.timestamps = self._create_timestamps_tensor(self._max_length)  # timestamps
@@ -158,11 +158,10 @@ class BatchedBeamHyps:
             self.timestamps = torch.zeros(
                 (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
             )  # timestamps
-            
+
             # tracking last frame index and number of labels for the last frama
             self.next_timestamp = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
             self.last_timestamp_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
-
 
     def clear_(self):
         """
@@ -183,7 +182,7 @@ class BatchedBeamHyps:
         self.transcript_hash.fill_(INIT_HASH_VALUE)
         if self.store_prefix_hashes:
             self.transcript_prefix_hash.fill_(INIT_PREFIX_HASH_VALUE)
-        
+
         # model specific parameters
         if self.model_type == 'ctc':
             self.timestamps.copy_(self._create_timestamps_tensor(self._max_length))
@@ -259,7 +258,7 @@ class BatchedBeamHyps:
         if self.model_type == 'tdt' and next_label_durations is None:
             raise ValueError("`next_label_durations` is required when model type is TDT.")
 
-        last_labels=torch.gather(self.last_label, dim=-1, index=next_indices)
+        last_labels = torch.gather(self.last_label, dim=-1, index=next_indices)
         self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
         self.transcript_wb_prev_ptr.scatter_(
             dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_indices.unsqueeze(-1)
@@ -316,15 +315,15 @@ class BatchedBeamHyps:
             prev_transcript_hash,
             out=self.transcript_hash,
         )
-        
+
         if self.model_type == 'ctc':
             # track last label
             torch.where(is_extended, next_labels, last_labels, out=self.last_label)
         else:
             # track last non-blank label
             torch.where(extended_with_label, next_labels, last_labels, out=self.last_label)
-            
-        # store prefix hashes for batched maes 
+
+        # store prefix hashes for batched maes
         if self.store_prefix_hashes:
             prev_transcript_prefix_hash = torch.gather(self.transcript_prefix_hash, dim=-1, index=next_indices)
             torch.where(
@@ -472,9 +471,10 @@ class BatchedBeamHyps:
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
-                y_sequence=transcripts[batch_idx][
-                    mask := self._create_transcripts_mask(transcripts[batch_idx])
-                ].cpu().detach().numpy(),
+                y_sequence=transcripts[batch_idx][mask := self._create_transcripts_mask(transcripts[batch_idx])]
+                .cpu()
+                .detach()
+                .numpy(),
                 timestamp=timestamps[batch_idx][mask].cpu().detach().numpy(),
                 alignments=None,
                 dec_state=None,
@@ -507,7 +507,10 @@ class BatchedBeamHyps:
                         score=scores[batch_idx][beam_idx],
                         y_sequence=transcripts[batch_idx][beam_idx][
                             mask := self._create_transcripts_mask(transcripts[batch_idx][beam_idx])
-                        ].cpu().detach().numpy(),
+                        ]
+                        .cpu()
+                        .detach()
+                        .numpy(),
                         timestamp=timestamps[batch_idx][beam_idx][mask].cpu().detach().numpy(),
                         alignments=None,
                         dec_state=None,
@@ -597,7 +600,7 @@ class BatchedBeamHyps:
         return torch.arange(max_time, device=self.device, dtype=torch.long)[None, None, :].repeat(
             self.batch_size, self.beam_size, 1
         )
-        
+
     def _create_transcripts_mask(self, transcripts: torch.Tensor):
         """
         Processes the transcripts.
