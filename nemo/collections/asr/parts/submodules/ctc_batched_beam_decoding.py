@@ -200,10 +200,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             allow_cuda_graphs: whether to allow CUDA graphs. Defaults to True.
         """
 
-        print("Parammmmssss")
-        print("Alpha: ", ngram_lm_alpha)
-        print("lm_model: ", ngram_lm_model)
-
         super().__init__()
         self._blank_index = blank_index
 
