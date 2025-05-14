@@ -28,8 +28,8 @@ def parse_cli_args():
 
     subparsers = parser.add_subparsers(dest="cluster_type", help='Type of cluster: slurm or runai')
 
-    slurm_parser = subparsers.add_parser('slurm',help="define variables for slurm launcher")
-    runai_parser = subparsers.add_parser('runai',help="define variables for runai launcher")
+    slurm_parser = subparsers.add_parser('slurm', help="define variables for slurm launcher")
+    runai_parser = subparsers.add_parser('runai', help="define variables for runai launcher")
 
     slurm_parser.add_argument(
         "-a",

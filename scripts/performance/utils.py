@@ -130,12 +130,13 @@ def slurm_executor(
 
     return executor
 
+
 def runai_executor(
     base_url: str,
     app_id: str,
     app_secret: str,
     project_name: str,
-    pvc_nemo_run_dir: str, 
+    pvc_nemo_run_dir: str,
     nodes: int,
     num_gpus_per_node: int,
     launched_from_cluster: bool = False,
@@ -164,9 +165,9 @@ def runai_executor(
     if hf_token is not None:
         env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
     env_vars |= custom_env_vars
-    
+
     executor = run.DGXCloudExecutor(
-        base_url=base_url, 
+        base_url=base_url,
         app_id=app_id,
         app_secret=app_secret,
         project_name=project_name,
@@ -177,7 +178,7 @@ def runai_executor(
         env_vars=env_vars,
         launcher="torchrun",  # Use torchrun to launch the processes
         launched_from_cluster=launched_from_cluster,
-        pvcs=custom_mounts
+        pvcs=custom_mounts,
     )
 
     return executor
