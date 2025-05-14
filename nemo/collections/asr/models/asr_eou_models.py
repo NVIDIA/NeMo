@@ -466,14 +466,16 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
             eou_metrics.extend(x[f'{mode}_eou_metrics'])
             eob_metrics.extend(x[f'{mode}_eob_metrics'])
 
-        num_utterances = sum([x.num_utterances for x in eou_metrics])
+        num_eou_utterances = sum([x.num_utterances for x in eou_metrics])
         eou_latency = flatten_nested_list([x.latency for x in eou_metrics])
         eou_early_cutoff = flatten_nested_list([x.early_cutoff for x in eou_metrics])
+
+        num_eob_utterances = sum([x.num_utterances for x in eob_metrics])
         eob_latency = flatten_nested_list([x.latency for x in eob_metrics])
         eob_early_cutoff = flatten_nested_list([x.early_cutoff for x in eob_metrics])
 
-        eou_avg_num_early_cutoff = len(eou_early_cutoff) / num_utterances
-        eob_avg_num_early_cutoff = len(eob_early_cutoff) / num_utterances
+        eou_avg_num_early_cutoff = len(eou_early_cutoff) / num_eou_utterances
+        eob_avg_num_early_cutoff = len(eob_early_cutoff) / num_eob_utterances
         if len(eou_latency) == 0:
             eou_latency = [0.0]
         if len(eou_early_cutoff) == 0:
@@ -525,8 +527,8 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel):
         tensorboard_logs[f'{mode}_eou_early_cutoff_avg_num'] = eou_avg_num_early_cutoff
         tensorboard_logs[f'{mode}_eob_early_cutoff_avg_num'] = eob_avg_num_early_cutoff
 
-        tensorboard_logs[f'{mode}_eou_missing'] = sum(eou_missing) / num_utterances
-        tensorboard_logs[f'{mode}_eob_missing'] = sum(eob_missing) / num_utterances
+        tensorboard_logs[f'{mode}_eou_missing'] = sum(eou_missing) / num_eou_utterances
+        tensorboard_logs[f'{mode}_eob_missing'] = sum(eob_missing) / num_eob_utterances
 
         return {**loss_log, 'log': tensorboard_logs}
 
