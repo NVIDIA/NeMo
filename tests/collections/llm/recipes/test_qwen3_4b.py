@@ -90,4 +90,4 @@ class TestQwen3_4B:
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
-            recipe_module.finetune_recipe(peft_scheme="invalid_scheme") 
+            recipe_module.finetune_recipe(peft_scheme="invalid_scheme")
