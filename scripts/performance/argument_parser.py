@@ -96,6 +96,12 @@ def parse_cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "-nt",
+        "--enable_nccltrace",
+        help="Enable NCCL tracing. Disabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
         "-tb",
         "--tensorboard",
         help="Enable tensorboard logging. Disabled by default",
@@ -369,6 +375,23 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+
+    parser.add_argument(
+        "-ev",
+        "--custom_env_vars",
+        type=str,
+        required=False,
+        default={},
+    )
+
+    parser.add_argument(
+        "-cpin",
+        "--cpu_pinning",
+        type=int,
+        help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
+        required=False,
+        default=0,
     )
 
     return parser
