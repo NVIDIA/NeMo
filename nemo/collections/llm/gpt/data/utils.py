@@ -867,7 +867,9 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
     if tokenizer.eos_id:
         input_ids += [tokenizer.eos_id]
         mask += [1]
-    context_end_idx = len(mask) - mask[::-1].index(0) # traverse the list backward for first occurrence of masked token
+    context_end_idx = len(mask) - mask[::-1].index(
+        0
+    )  # traverse the list backward for first occurrence of masked token
     context_ids = input_ids[:context_end_idx]
     answer_ids = input_ids[context_end_idx:]
 
@@ -877,6 +879,7 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
         context_ids=context_ids,
         answer_ids=answer_ids,
     )
+
 
 def _mask_targets(
     target,

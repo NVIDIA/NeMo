@@ -26,11 +26,11 @@ from datasets import load_dataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import (
+    _chat_preprocess,
     _get_samples_mapping,
     _JSONLMemMapDataset,
     _OnlineSampleMapping,
     _preprocess,
-    _chat_preprocess,
 )
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -1035,7 +1035,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         get_attention_mask_from_fusion: bool = False,
         sanity_check_dist_workers: bool = True,
         use_hf_tokenizer_chat_template: bool = False,
-        tool_schemas: Optional[str|dict] = None,
+        tool_schemas: Optional[str | dict] = None,
     ):
         super().__init__(
             file_path,
@@ -1073,7 +1073,11 @@ class GPTSFTChatDataset(GPTSFTDataset):
         if isinstance(self.tool_schemas, str):
             self.tool_schemas = json.loads(self.tool_schemas)
 
-        if self.use_hf_tokenizer_chat_template and not hasattr(self.tokenizer, "tokenizer") or not hasattr(self.tokenizer.tokenizer, "apply_chat_template"):
+        if (
+            self.use_hf_tokenizer_chat_template
+            and not hasattr(self.tokenizer, "tokenizer")
+            or not hasattr(self.tokenizer.tokenizer, "apply_chat_template")
+        ):
             raise ValueError("Dataset does not have a tokenizer and cannot be used as a chat dataset")
 
     def _maybe_validate_prompt_template(self):
@@ -1097,10 +1101,10 @@ class GPTSFTChatDataset(GPTSFTDataset):
             )
         else:
             result = _chat_preprocess(example, self.tokenizer, self.tool_schemas)
-        
+
         # store metadata in dataset, in case user may have keys required in the prediction json files
         metadata = {k: v for k, v in example.items() if k not in ['conversations', 'messages']}
-        
+
         result['metadata'] = metadata
         if self.output_original_text:
             for k in ['conversations', 'messages']:
@@ -1144,7 +1148,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
             )
         else:
             max_length = max([len(x) for x in input_ids])
-        
+
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
