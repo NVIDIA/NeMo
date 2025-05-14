@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -265,6 +265,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
+
+        if self.use_linear_ce_loss:
+            # scan the model for fp8 layers, if found disable lce
+            for module in self.model.modules():
+                if hasattr(module, 'fp8'):
+                    logging.warning("LCE does not support FP8, switching to regular CE.")
+                    self.use_linear_ce_loss = False
+                    break
 
         if self.enable_grad_ckpt:
             if getattr(self.model, 'supports_gradient_checkpointing', False):

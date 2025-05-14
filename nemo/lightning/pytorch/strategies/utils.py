@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,8 +31,7 @@ from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
 from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
-from torch.distributed.device_mesh import _mesh_resources
-from torch.distributed.tensor import DeviceMesh
+from torch.distributed.device_mesh import _mesh_resources, DeviceMesh
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel, parallelize_module
 
 from nemo.lightning import _strategy_lib
@@ -58,14 +57,12 @@ class RestoreConfig:
 
     Attributes:
         path (str): Path to the checkpoint directory.
-        adapter_path (Optional[str]): Path to adapter checkpoint, if any.
         load_model_state (bool): Whether to load model weights.
         load_optim_state (bool): Whether to load optimizer state.
         load_artifacts (bool): Whether to load additional artifacts (e.g., tokenizer).
     """
 
     path: str
-    adapter_path: Optional[str] = None
     load_model_state: bool = True
     load_optim_state: bool = False
     # eg tokenizer, etc.
@@ -599,9 +596,9 @@ def to_cpu(v):
         tensor([4, 5, 6])
     """
     if isinstance(v, DTensor):
-        if v.device.type == 'cuda':
+        if v.device.type == "cuda":
             return v.full_tensor().cpu()
-        elif v.device.type == 'cpu':
+        elif v.device.type == "cpu":
             return v._local_tensor
         else:
             raise ValueError("Unknown device " + str(v.device))
