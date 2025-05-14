@@ -26,7 +26,6 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
-from nemo.utils import logging
 
 if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
