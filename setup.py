@@ -73,11 +73,11 @@ extras_require = {
     'core': req_file(["requirements_lightning.txt", "requirements_automodel.txt"]),
     'lightning': req_file(["requirements_lightning.txt"]),
     'automodel': req_file(["requirements_automodel.txt"]),
-    'internal-common': req_file('requirements_common.txt'),
+    'common-only': req_file('requirements_common.txt'),
     # domain packages
     'asr': req_file("requirements_asr.txt"),
     'ctc_segmentation': req_file("requirements.txt", folder="tools/ctc_segmentation"),
-    'internal-nlp': req_file("requirements_nlp.txt"),
+    'nlp-only': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
     'multimodal': req_file("requirements_multimodal.txt"),
@@ -90,7 +90,7 @@ extras_require = {
 extras_require['all'] = list(chain(val for key, val in extras_require.items() if key != 'deploy'))
 
 # Add lightning requirements as needed
-extras_require['common'] = extras_require['internal-common']
+extras_require['common'] = extras_require['common-only']
 
 extras_require['common'] = list(
     chain(
@@ -111,7 +111,7 @@ extras_require['asr'] = list(
         extras_require['common'],
     )
 )
-extras_require['nlp'] = extras_require['internal-nlp']
+extras_require['nlp'] = extras_require['nlp-only']
 extras_require['nlp'] = list(
     chain(
         extras_require['nlp'],
