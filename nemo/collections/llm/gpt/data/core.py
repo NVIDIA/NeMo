@@ -955,7 +955,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         ceil_to_power_2: bool = False,
         get_attention_mask_from_fusion: bool = False,
         sanity_check_dist_workers: bool = True,
-        use_hf_tokenizer_chat_template: bool = False,
+        use_hf_tokenizer_chat_template: bool = True,
         tool_schemas: Optional[str | dict] = None,
     ):
         super().__init__(
