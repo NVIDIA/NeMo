@@ -14,8 +14,8 @@
 
 import math
 import os
-from dataclasses import dataclass, field
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Callable
 
@@ -21,8 +22,6 @@ from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.nn import functional as F
-from contextlib import nullcontext
-
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
     FluxSingleTransformerBlock,
