@@ -162,6 +162,7 @@ def apply_transforms(
         if name in target_state:
             target_param = target_state[name]
             if param.data.shape != target_param.shape:
+                breakpoint()
                 raise ValueError(
                     f"Shape mismatch for parameter {name}: target shape {param.shape} vs "
                     f"converted source shape {target_param.shape}"
@@ -299,6 +300,7 @@ class StateDictTransform(Generic[F]):
                 if isinstance(layer_names_group[0], str):
                     layer_names_group = [[x] for x in layer_names_group]
                 for layer_names in zip(*layer_names_group):
+                    print(f'Running transform with {param_names}')
                     target_dict[layer_names[-1]] = self.call_transform(
                         ctx, **dict(zip(param_names, [source_dict[x] for x in layer_names[:-1]]))
                     )

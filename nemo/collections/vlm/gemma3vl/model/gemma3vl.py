@@ -15,7 +15,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
-
+import torch
 from nemo.collections.llm.gpt.model.gemma3 import (
     Gemma3Config,
     Gemma3Config4B,
@@ -24,6 +24,7 @@ from nemo.collections.llm.gpt.model.gemma3 import (
 )
 from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
 from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLVisionConfig, Gemma3VLMultimodalProjectorConfig
+from nemo.collections.vlm.neva.model.llava import import_qkv, export_qkv, export_qkv_bias
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 
@@ -96,7 +97,7 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
             "vision_tower.vision_model.embeddings.patch_embedding.bias": "vision_model.conv1.bias",
             "vision_tower.vision_model.embeddings.position_embedding.weight": "vision_model.position_embeddings.weight",
             "vision_tower.vision_model.post_layernorm.weight": "vision_model.ln_post.weight",
-            "vision_tower.vision_model.post_layernorm.bias ": "vision_model.ln_post.bias",
+            "vision_tower.vision_model.post_layernorm.bias": "vision_model.ln_post.bias",
             "vision_tower.vision_model.encoder.layers.*.layer_norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "vision_tower.vision_model.encoder.layers.*.layer_norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
             "vision_tower.vision_model.encoder.layers.*.self_attn.out_proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
@@ -108,8 +109,7 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
             "vision_tower.vision_model.encoder.layers.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
             "vision_tower.vision_model.encoder.layers.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
             # vision projector
-            "multi_modal_projector.mm_input_projection_weight": "vision_projection.mm_soft_embed_norm.weight",
-            "multi_modal_projector.mm_soft_emb_norm.weight": "vision_projection.proj.weight",
+            "multi_modal_projector.mm_soft_emb_norm.weight": "vision_projection.mm_soft_embed_norm.weight",
             # text model
             "language_model.model.embed_tokens.weight": "language_model.embedding.word_embeddings.weight",
             "language_model.model.layers.*.input_layernorm.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
@@ -127,32 +127,13 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
             "language_model.model.norm.weight": "language_model.decoder.final_layernorm.weight",
         }
         transforms = [
+            _import_vision_qkv,
+            _import_vision_qkv_bias,
+            _import_language_qkv,
             io.state_transform(
-                source_key=(
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
-                ),
-                target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
-                fn=TransformFns.merge_qkv,
-            ),
-            io.state_transform(
-                source_key=(
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
-                ),
-                target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
-                fn=TransformFns.merge_qkv,
-            ),
-            io.state_transform(
-                source_key=(
-                    "language_model.model.layers.*.self_attn.q_proj.weight",
-                    "language_model.model.layers.*.self_attn.k_proj.weight",
-                    "language_model.model.layers.*.self_attn.v_proj.weight",
-                ),
-                target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
-                fn=TransformFns.merge_qkv,
+                source_key="multi_modal_projector.mm_input_projection_weight",
+                target_key="vision_projection.proj.weight",
+                fn=_vision_projector_permute
             ),
             io.state_transform(
                 source_key=(
@@ -243,8 +224,7 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
             "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "vision_tower.vision_model.encoder.layers.*.mlp.fc2.weight",
             "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "vision_tower.vision_model.encoder.layers.*.mlp.fc2.bias",
             # vision projector
-            "vision_projection.mm_soft_embed_norm.weight": "multi_modal_projector.mm_input_projection_weight",
-            "vision_projection.proj.weight": "multi_modal_projector.mm_soft_emb_norm.weight",
+            "vision_projection.mm_soft_embed_norm.weight": "multi_modal_projector.mm_soft_emb_norm.weight",
             # text model
             "language_model.embedding.word_embeddings.weight": "language_model.model.embed_tokens.weight",
             "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "language_model.model.layers.*.input_layernorm.weight",
@@ -263,32 +243,13 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
         }
 
         transforms = [
+            _export_vision_qkv,
+            _export_vision_qkv_bias,
+            _export_language_qkv,
             io.state_transform(
-                source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
-                target_key=(
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
-                ),
-                fn=TransformFns.split_qkv,
-            ),
-            io.state_transform(
-                source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
-                target_key=(
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
-                    "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
-                ),
-                fn=TransformFns.split_qkv,
-            ),
-            io.state_transform(
-                source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
-                target_key=(
-                    "language_model.model.layers.*.self_attn.q_proj.weight",
-                    "language_model.model.layers.*.self_attn.k_proj.weight",
-                    "language_model.model.layers.*.self_attn.v_proj.weight",
-                ),
-                fn=TransformFns.split_qkv,
+                source_key="vision_projection.proj.weight",
+                target_key="multi_modal_projector.mm_input_projection_weight",
+                fn=_vision_projector_permute,
             ),
             io.state_transform(
                 source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
@@ -339,3 +300,138 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
 
         output = HFGemma3Config(text_config=output_text, vision_config=output_vision)
         return output
+
+
+@staticmethod
+def _vision_projector_permute(ctx: io.TransformCTX, x):
+    return torch.permute(x, (1, 0))
+
+@io.state_transform(
+    source_key=(
+            "language_model.model.layers.*.self_attn.q_proj.weight",
+            "language_model.model.layers.*.self_attn.k_proj.weight",
+            "language_model.model.layers.*.self_attn.v_proj.weight",
+    ),
+    target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+)
+def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0115,C0116
+    megatron_config = ctx.target.config.language_transformer_config
+    return import_qkv(
+        q,
+        k,
+        v,
+        head_num=megatron_config.num_attention_heads,
+        num_query_groups=megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        hidden_size=megatron_config.hidden_size,
+        head_size=megatron_config.kv_channels,
+    )
+
+
+@io.state_transform(
+    source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+            "language_model.model.layers.*.self_attn.q_proj.weight",
+            "language_model.model.layers.*.self_attn.k_proj.weight",
+            "language_model.model.layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_language_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.text_config
+    return export_qkv(
+        qkv,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_key_value_heads,
+        heads_per_group=hf_config.num_attention_heads // hf_config.num_key_value_heads,
+        hidden_size=hf_config.hidden_size,
+        head_size=hf_config.head_dim,
+    )
+
+
+@io.state_transform(
+    source_key=(
+            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
+            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
+            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
+    ),
+    target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
+)
+def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
+    # pylint: disable=C0115,C0116
+    megatron_config = ctx.target.config.vision_transformer_config
+    return import_qkv(
+        q,
+        k,
+        v,
+        head_num=megatron_config.num_attention_heads,
+        num_query_groups=megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        hidden_size=megatron_config.hidden_size,
+        head_size=megatron_config.kv_channels,
+    )
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
+            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
+            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_vision_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.vision_config
+    return export_qkv(
+        qkv,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_attention_heads,
+        heads_per_group=1,
+        hidden_size=hf_config.hidden_size,
+        head_size=hf_config.hidden_size // hf_config.num_attention_heads,
+    )
+
+
+@io.state_transform(
+    source_key=(
+        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
+    ),
+    target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
+)
+def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
+    # pylint: disable=C0115,C0116
+    megatron_config = ctx.target.config.vision_transformer_config
+    return import_qkv(
+        q_bias.unsqueeze(-1),
+        k_bias.unsqueeze(-1),
+        v_bias.unsqueeze(-1),
+        head_num=megatron_config.num_attention_heads,
+        num_query_groups=megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        hidden_size=1,
+        head_size=megatron_config.kv_channels,
+    ).squeeze(-1)
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
+    target_key=(
+            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
+            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
+            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
+    ),
+)
+def _export_vision_qkv_bias(ctx: io.TransformCTX, qkv_bias):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.vision_config
+    return export_qkv_bias(
+        qkv_bias,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_attention_heads,
+        heads_per_group=1,
+        head_size=hf_config.hidden_size // hf_config.num_attention_heads,
+    )

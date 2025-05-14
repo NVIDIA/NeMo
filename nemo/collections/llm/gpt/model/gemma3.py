@@ -132,7 +132,7 @@ class Gemma3Config(GPTConfig):
     seq_length: int = 131_072
 
     # embedding
-    vocab_size: int = 262_144
+    vocab_size: int = 262_208 # Gemma3 1B model has smaller embedding table
     position_embedding_type: str = "rope"
     rotary_base: tuple = (10_000, 1_000_000)  # (local, global)
     share_embeddings_and_output_weights: bool = True
@@ -209,6 +209,7 @@ class Gemma3Config1B(Gemma3Config):
     rope_scaling_factor: float = 1.0  # no rope scaling
     seq_length: int = 32768
     bf16: bool = True
+    vocab_size: int = 262_144
 
 
 @dataclass
