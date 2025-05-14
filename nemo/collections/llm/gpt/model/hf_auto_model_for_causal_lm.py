@@ -187,13 +187,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """helper method; see also configure_model."""
         # create all your layers here
         auto_cls = AutoModelForCausalLM
-        if self.use_liger_kernel:
-            liger_kernel_trf, HAS_LIGER_KERNEL = safe_import('liger_kernel.transformers')
-            if not HAS_LIGER_KERNEL:
-                logging.warning("Asked to use Liger Kernel, but could not import")
-            else:
-                auto_cls = liger_kernel_trf.AutoLigerKernelForCausalLM
-
         quantization_config = None
         if self.load_in_4bit:
             quantization_config = BitsAndBytesConfig(
@@ -205,7 +198,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         if self.load_pretrained_weights:
-            m = auto_cls.from_pretrained(
+            return = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 torch_dtype=self.default_dtype,
                 device_map=None if self.load_in_4bit else self.device_map,
@@ -213,13 +206,12 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 attn_implementation=attn_implementation,
                 quantization_config=quantization_config,
             )
-            return m
         else:
             from transformers import AutoConfig
 
             config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
             dtype = getattr(config, 'torch_dtype', self.default_dtype)
-            return auto_cls.from_config(
+            return AutoModelForCausalLM.from_config(
                 config,
                 torch_dtype=dtype,
                 trust_remote_code=self.trust_remote_code,
@@ -250,10 +242,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             else:
                 raise e
         if self.use_liger_kernel:
-            from liger_kernel.transformers import _apply_liger_kernel_to_instance
+            liger_kernel_trf, HAS_LIGER_KERNEL = safe_import('liger_kernel.transformers')
 
             try:
-                _apply_liger_kernel_to_instance(model=self.model)
+                if HAS_LIGER_KERNEL:
+                    liger_kernel_trf._apply_liger_kernel_to_instance(model=self.model)
+                else:
+                    self.use_liger_kernel = False
+                    logging.warning("Asked to use Liger Kernel, but could not import")
             except Exception as e:
                 logging.warning("Liger failed with: {}. Switching to non-liger path.".format(e))
                 self.use_liger_kernel = False
