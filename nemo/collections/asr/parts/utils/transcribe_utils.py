@@ -452,9 +452,6 @@ def write_transcription(
     else:
         raise TypeError
 
-    if cfg.normalize:
-        norm_f = open(cfg.output_filename_normalized, 'w', encoding='utf-8', newline='\n')
-
     # create output dir if not exists
     Path(cfg.output_filename).parent.mkdir(parents=True, exist_ok=True)
     with open(cfg.output_filename, 'w', encoding='utf-8', newline='\n') as f:
@@ -480,13 +477,12 @@ def write_transcription(
                         item['pred_lang_chars'] = transcription.langs_chars
                     if not cfg.decoding.beam.return_best_hypothesis:
                         item['beams'] = beams[idx]
-                f.write(json.dumps(item) + "\n")
                 
                 if cfg.normalize:     
-                    normalized_item=deepcopy(item)
-                    normalized_item[cfg.gt_text_attr_name] = normalizer(item['text'])
-                    normalized_item['pred_text'] = normalizer(item['pred_text'])
-                    norm_f.write(json.dumps(normalized_item) + "\n")
+                    item=deepcopy(item)
+                    item[cfg.gt_text_attr_name] = normalizer(item['text'])
+                    item['pred_text'] = normalizer(item['pred_text'])
+                f.write(json.dumps(item) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r', encoding='utf-8') as fr:
                 for idx, line in enumerate(fr):
@@ -515,13 +511,12 @@ def write_transcription(
 
                         if not cfg.decoding.beam.return_best_hypothesis:
                             item['beams'] = beams[idx]
-                    f.write(json.dumps(item) + "\n")
             
                     if cfg.normalize:     
-                        normalized_item=deepcopy(item)
-                        normalized_item['pred_text'] = normalizer(item['pred_text'])
-                        normalized_item['text'] = normalizer(item['text'])
-                        norm_f.write(json.dumps(normalized_item) + "\n")
+                        item=deepcopy(item)
+                        item['pred_text'] = normalizer(item['pred_text'])
+                        item['text'] = normalizer(item['text'])
+                    f.write(json.dumps(item) + "\n")
     
     return cfg.output_filename, pred_text_attr_name
 
