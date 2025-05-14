@@ -42,6 +42,11 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
             attention layers, but before layer normalization
         ffn_dropout: probability of dropout applied to FFN output
         hidden_act: activation function used between two linear layers in FFN
+        use_pytorch_sdpa (bool): use torch sdpa instead of manual attention.
+            Defaults to False.
+        use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa.
+            None or empty list means all backends. e.g. ["MATH"]
+            Defaults to None
     """
 
     def __init__(
@@ -54,12 +59,19 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        use_pytorch_sdpa=False,
+        use_pytorch_sdpa_backends=None,
     ):
         super().__init__()
         self.pre_ln = pre_ln
         self.layer_norm_1 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.first_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
+            hidden_size,
+            num_attention_heads,
+            attn_score_dropout,
+            attn_layer_dropout,
+            use_pytorch_sdpa=use_pytorch_sdpa,
+            use_pytorch_sdpa_backends=use_pytorch_sdpa_backends,
         )
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)

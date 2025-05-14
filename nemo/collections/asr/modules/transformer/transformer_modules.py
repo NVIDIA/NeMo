@@ -138,15 +138,38 @@ class MultiHeadAttention(nn.Module):
         attn_score_dropout: probability of dropout applied to attention scores
         attn_layer_dropout: probability of dropout applied to the output of the
             whole layer, but before layer normalization
+        use_pytorch_sdpa (bool): use torch sdpa instead of manual attention.
+            Defaults to False.
+        use_pytorch_sdpa_backends (list[str]): list of backend names to use in sdpa.
+            None or empty list means all backends. e.g. ["MATH"]
+            Defaults to None
     """
 
-    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0):
+    def __init__(
+        self,
+        hidden_size,
+        num_attention_heads,
+        attn_score_dropout=0.0,
+        attn_layer_dropout=0.0,
+        use_pytorch_sdpa=False,
+        use_pytorch_sdpa_backends=None,
+    ):
         super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(
                 "The hidden size (%d) is not a multiple of the number "
                 "of attention heads (%d)" % (hidden_size, num_attention_heads)
             )
+        self.use_pytorch_sdpa = use_pytorch_sdpa
+        if use_pytorch_sdpa:
+            if use_pytorch_sdpa_backends:
+                use_pytorch_sdpa_backends = [
+                    getattr(nn.attention.SDPBackend, backend_name) for backend_name in use_pytorch_sdpa_backends
+                ]
+            else:
+                use_pytorch_sdpa_backends = list(nn.attention.SDPBackend.__members__.values())
+        self.use_pytorch_sdpa_backends = use_pytorch_sdpa_backends
+
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.attn_head_size = int(hidden_size / num_attention_heads)
@@ -173,18 +196,30 @@ class MultiHeadAttention(nn.Module):
         query = self.query_net(queries)
         key = self.key_net(keys)
         value = self.value_net(values)
-        query = self.transpose_for_scores(query) / self.attn_scale
-        key = self.transpose_for_scores(key) / self.attn_scale
+        query = self.transpose_for_scores(query)
+        key = self.transpose_for_scores(key)
         value = self.transpose_for_scores(value)
 
-        # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
-        attention_scores = torch.matmul(query, key.transpose(-1, -2))
-        if attention_mask is not None:
-            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
-        attention_probs = torch.softmax(attention_scores, dim=-1)
-        attention_probs = self.attn_dropout(attention_probs)
+        if not self.use_pytorch_sdpa:
+            # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
+            attention_scores = torch.matmul(query / self.attn_scale, key.transpose(-1, -2) / self.attn_scale)
+            if attention_mask is not None:
+                attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
+            attention_probs = torch.softmax(attention_scores, dim=-1)
+            attention_probs = self.attn_dropout(attention_probs)
 
-        context = torch.matmul(attention_probs, value)
+            context = torch.matmul(attention_probs, value)
+        else:
+            with torch.nn.attention.sdpa_kernel(self.use_pytorch_sdpa_backends):
+                context = nn.functional.scaled_dot_product_attention(
+                    query,
+                    key,
+                    value,
+                    attn_mask=attention_mask,
+                    dropout_p=self.attn_dropout.p if self.training else 0.0,
+                    scale=1 / self.attn_scale**2,
+                )
+
         context_hidden_size = context.size()[-1] * self.num_attention_heads
         context = context.permute(0, 2, 1, 3).contiguous()
         new_context_shape = context.size()[:-2] + (context_hidden_size,)

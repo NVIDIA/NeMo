@@ -145,6 +145,8 @@ model:
     stochastic_depth_drop_prob: 0.0
     stochastic_depth_mode: linear  # linear or uniform
     stochastic_depth_start_layer: 1
+    use_pytorch_sdpa: false # use torch sdpa instead of manual attention
+    use_pytorch_sdpa_backends: [] # empty list means all backends https://pytorch.org/docs/stable/generated/torch.nn.attention.SDPBackend.html e.g. [MATH]
   
   transformer_encoder:
     _target_: nemo.collections.asr.modules.transformer.transformer_encoders.TransformerEncoder
@@ -158,6 +160,8 @@ model:
     hidden_act: relu
     pre_ln: False
     pre_ln_final_layer_norm: True
+    use_pytorch_sdpa: false # use torch sdpa instead of manual attention
+    use_pytorch_sdpa_backends: [] # empty list means all backends https://pytorch.org/docs/stable/generated/torch.nn.attention.SDPBackend.html e.g. [MATH]
   
   loss: 
     _target_: nemo.collections.asr.losses.bce_loss.BCELoss
