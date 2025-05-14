@@ -18,6 +18,7 @@ from nemo.collections.llm.modelopt import SpeculativeTransform, setup_trainer_an
 from nemo.collections.llm.utils import barrier
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import TrainerContext
+from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 
@@ -26,8 +27,7 @@ def get_args():
     parser = ArgumentParser(description="""Enable Speculative Decoding on a NeMo 2.0 checkpoint.""")
 
     parser.add_argument("--model_path", type=str, required=True, help="""Path to NeMo 2 checkpoint""")
-    parser.add_argument("--num_eagle_layers", type=int, default=1, help="""Number of Eagle layers to use""")
-    parser.add_argument("--num_medusa_heads", type=int, default=0, help="""Number of Medusa heads to use""")
+    parser.add_argument("--sd_algorithm", type=str, default="eagle", help="""Speculative decoding algorithm to use""")
     parser.add_argument("--export_dir", type=str, required=True, help="""Path to export checkpoint""")
     parser.add_argument("--tp_size", type=int, default=1, help="""Tensor parallel size""")
     parser.add_argument("--pp_size", type=int, default=1, help="""Pipeline parallel size""")
@@ -40,6 +40,9 @@ def get_args():
 
 
 if __name__ == "__main__":
+    logging.warning(
+        "Using default Speculative Decoding configs per algorithm. Please modify the script directly to customize."
+    )
     args = get_args()
 
     # Set up dummy trainer to restore model
@@ -60,9 +63,11 @@ if __name__ == "__main__":
         # WAR: We force vocab size to be divisible by 1 as it performs inconsistent padding upon restore
     )
 
-    model_transform = SpeculativeTransform(
-        num_eagle_layers=args.num_eagle_layers, num_medusa_heads=args.num_medusa_heads
-    )
+    # NOTE: > > Modify this to customize config < <
+    # config = {}
+    config = None
+
+    model_transform = SpeculativeTransform(algorithm=args.sd_algorithm, config=config)
     model_transform(model)
 
     # Save to disk
