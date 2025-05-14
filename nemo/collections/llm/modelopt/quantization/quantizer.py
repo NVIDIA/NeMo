@@ -541,9 +541,7 @@ def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausa
         Optional[str]: The inferred decoder type or None if no match is found.
     """
     if isinstance(model, llm.HFAutoModelForCausalLM):
-        for k, v in mte.model_utils.MODEL_NAME_TO_TYPE.items():
-            if k.lower() in type(model.model).__name__.lower():
-                return v
+        return mte.model_utils.get_model_type(model.model)
     else:
         for config_class, decoder_type in gpt_model_type:
             if isinstance(model, config_class):
