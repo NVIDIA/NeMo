@@ -135,7 +135,7 @@ def change_paths_to_absolute_paths(tokenizer_config: Dict[Any, Any], nemo_checkp
 
 
 def load_config(path: Union[str, Path]):
-    """ Load the config from the NeMo model.
+    """Load the config from the NeMo model.
 
     Args:
         path (str | Path): The path to the NeMo model.
@@ -151,8 +151,9 @@ def load_config(path: Union[str, Path]):
     dict_to_obj = lambda d: (
         type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
     )
-    
+
     return dict_to_obj(config['config'])
+
 
 def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
     """
@@ -168,7 +169,7 @@ def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
         Tuple[Dict, Any]: The loaded state dict and the yaml config object.
     """
     config_obj = load_config(checkpoint_path)
-    
+
     path = Path(checkpoint_path)
     langauge_layers = config_obj.num_layers
 

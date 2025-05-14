@@ -14,7 +14,7 @@
 
 from pathlib import Path
 
-from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter, get_model, load_config
+from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
@@ -41,7 +41,7 @@ class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"])
         #     target = self.init()
         source, source_config = ckpt_load(str(self))
         source = _ModelState(source, source_config)
-        
+
         target = self.init()
         target = self.convert_state(source, target)
 
@@ -52,11 +52,11 @@ class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"])
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
             # TODO: Optional -- maybe fetch from remote HF?
-            logging.warning(f"Only huggingface tokenizer is supported for Mixtral HF export. Tokenizer will not be saved.")
-        
+            logging.warning(
+                f"Only huggingface tokenizer is supported for Mixtral HF export. Tokenizer will not be saved."
+            )
 
         return output_path
-
 
     def convert_state(self, source, target):
         """convert state"""
@@ -69,9 +69,8 @@ class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"])
             for i in range(v.shape[0]):
                 new_key = k.replace("experts.experts", f"experts.experts.{i}")
                 transformed_experts[new_key] = v[i]
-        
-        source._state_dict = transformed_experts | non_experts
 
+        source._state_dict = transformed_experts | non_experts
 
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
