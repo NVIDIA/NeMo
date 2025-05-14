@@ -862,7 +862,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 original_seq_len = combined_embeddings.shape[0]
             else:
                 original_seq_len = new_labels.shape[1]
-        print("####", torch.distributed.get_rank(), original_seq_len)
 
         # no need to chunk
         if original_seq_len <= attention_chunk_size:
