@@ -174,7 +174,7 @@ def slurm_executor(
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx"
+        "HF_TOKEN": "xxxxxx",
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -207,7 +207,7 @@ def local_executor_torchrun() -> run.LocalExecutor:
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx"
+        "HF_TOKEN": "xxxxxx",
     }
 
     executor = run.LocalExecutor(env_vars=env_vars)
@@ -231,7 +231,7 @@ def main():
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         max_batch_size=args.batch_size,
         num_gpus=args.devices,
-        num_nodes=args.nodes
+        num_nodes=args.nodes,
     )
 
     api_endpoint = run.Config(
@@ -267,7 +267,7 @@ def main():
         )
         executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
-        executor_eval.srun_args = ["--ntasks-per-node=1", "--nodes=1"] ## so that eval is laucnhed only on main node
+        executor_eval.srun_args = ["--ntasks-per-node=1", "--nodes=1"]  ## so that eval is laucnhed only on main node
         # or node with index 0
     else:
         executor = local_executor_torchrun()
