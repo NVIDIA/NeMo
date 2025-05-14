@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/avlm/hf_home coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
     scripts/avlm/avlm_pretrain.py \
     --devices=2 \
     --max_steps=5 \
-    --experiment-dir=/tmp/nemo2_avlm_energon_packed_results/$RUN_ID \
+    --log_dir=/tmp/nemo2_avlm_energon_packed_results/$RUN_ID \
     --data_type=energon \
-    --data-path=/media/fileshare/TestData/avlm/train/data/sample_data/wds \
+    --data_path=/home/TestData/avlm/train/data/sample_data/wds \
+    --seq_length=8192 \
     --gbs=1 \
     --mbs=1 \
     --lr=0.001 \

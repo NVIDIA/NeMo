@@ -58,9 +58,9 @@ def main(args):
         args.use_packed_sequence = False
     else:
         raise ValueError(f"Invalid use packed sequence value: {args.use_packed_sequence}")
-    decoder_seq_length = 8192
+    decoder_seq_length = args.seq_length
     if args.use_packed_sequence:
-        decoder_seq_length = int(8192 * 2)
+        decoder_seq_length = int(args.seq_length * 2)
 
     if args.data_type == "energon":
         from nemo.collections.avlm.data.energon import AVLMDataModule
@@ -201,7 +201,7 @@ def main(args):
         language_model_from_pretrained=args.language_model_path,
         vision_model_from_pretrained=vision_model_from_pretrained,
         audio_model_from_pretrained=None,
-        freeze_language_model=False,
+        freeze_language_model=True,
         freeze_vision_model=True,
         freeze_vision_projection=False,
         freeze_audio_model=True,
@@ -335,6 +335,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=2000)
     parser.add_argument("--val_check_interval", type=int, required=False, default=500)
+    parser.add_argument("--seq_length", type=int, required=False, default=8192)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
