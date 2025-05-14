@@ -131,6 +131,59 @@ def slurm_executor(
     return executor
 
 
+def runai_executor(
+    base_url: str,
+    app_id: str,
+    app_secret: str,
+    project_name: str,
+    pvc_nemo_run_dir: str,
+    nodes: int,
+    num_gpus_per_node: int,
+    launched_from_cluster: bool = False,
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
+    custom_mounts: List[dict[str, any]] = [],
+    custom_env_vars: Dict[str, str] = {},
+    hf_token: str = None,
+    wandb_key: str = None,
+) -> run.DGXCloudExecutor:
+    """
+    DGXC Create cluster definition with appropriate cluster params and NeMo container params needed for pre-training
+    and fine-tuning experiments
+    """
+    env_vars = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+    }
+
+    if wandb_key is not None:
+        env_vars["WANDB_API_KEY"] = wandb_key
+    if hf_token is not None:
+        env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
+    env_vars |= custom_env_vars
+
+    executor = run.DGXCloudExecutor(
+        base_url=base_url,
+        app_id=app_id,
+        app_secret=app_secret,
+        project_name=project_name,
+        nodes=nodes,
+        gpus_per_node=num_gpus_per_node,
+        container_image=container_image,
+        pvc_nemo_run_dir=pvc_nemo_run_dir,
+        env_vars=env_vars,
+        launcher="torchrun",  # Use torchrun to launch the processes
+        launched_from_cluster=launched_from_cluster,
+        pvcs=custom_mounts,
+    )
+
+    return executor
+
+
 def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     """
     HuggingFace tokenizer.

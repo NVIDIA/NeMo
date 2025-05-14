@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 from os.path import basename, splitext
 
 import fiddle as fdl
@@ -28,6 +29,7 @@ from ..utils import (
     args_sanity_check,
     get_comm_overlap_callback_idx,
     get_user_configs,
+    runai_executor,
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
@@ -89,6 +91,8 @@ def override_recipe_configs(
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
+    if args.cluster_type == "runai":
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_bootstrap_backend = "nccl"
     if gpu_type in ["b200", "gb200"]:
         tp_comm_overlap_cfg = userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
         # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
@@ -136,20 +140,49 @@ if __name__ == "__main__":
     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    executor = slurm_executor(
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-    )
+    if args.cluster_type == "runai":
+        pvcs = []
+        for item in args.custom_mounts:
+            parts = item.split(':')
+            if len(parts) != 3:
+                raise argparse.ArgumentTypeError("Each mount must be in name:path:claimName format")
+            pvcs.append(
+                {
+                    "name": parts[0],
+                    "path": parts[1],
+                    "existingPvc": True,
+                    "claimName": parts[2],
+                }
+            )
+        executor = runai_executor(
+            base_url=args.base_url,
+            app_id=args.app_id,
+            app_secret=args.app_secret,
+            project_name=args.project_name,
+            nodes=num_nodes,
+            num_gpus_per_node=args.gpus_per_node,
+            container_image=args.container_image,
+            pvc_nemo_run_dir=args.pvc_nemo_run_dir,
+            custom_mounts=pvcs,
+            custom_env_vars={},
+            hf_token=args.hf_token,
+            wandb_key=args.wandb_key,
+        )
+    else:
+        executor = slurm_executor(
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars={},
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+        )
 
     plugins = [
         PerfEnvPlugin(
