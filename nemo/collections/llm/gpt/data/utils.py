@@ -799,7 +799,7 @@ def _preprocess(
     context_ids = input_ids[:last_ignore_index_pos]
     answer_ids = input_ids[last_ignore_index_pos:]
 
-    return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
+    return dict(input_ids=input_ids, loss_mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 
 
 def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
@@ -875,7 +875,7 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
 
     return dict(
         input_ids=input_ids,
-        mask=mask,
+        loss_mask=mask,
         context_ids=context_ids,
         answer_ids=answer_ids,
     )
