@@ -61,16 +61,14 @@ def _get_class_from_path(domain, subdomains, imp):
                 class_ = class_.__wrapped__
 
             # Subclass tests
-            try:
-                result_issubclass = issubclass(class_, (Model, torch.nn.Module))
-                if result_issubclass:
-                    result = class_
-            except UnavailableError as e:
-                raise Exception(f"Error: {e}, path: {path}, class: {class_}")
+            if issubclass(class_, (Model, torch.nn.Module)):
+                result = class_
         else:
             class_ = None
 
         error = None
+    except UnavailableError:
+        error = traceback.format_exc()
 
     except Exception:
         error = traceback.format_exc()
