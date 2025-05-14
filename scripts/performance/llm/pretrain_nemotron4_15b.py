@@ -19,11 +19,11 @@ import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
+from nemo.collections.llm.recipes.callbacks import straggler_det_callback
 from nemo.collections.llm.recipes.nemotron4_15b import pretrain_recipe
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin, FaultTolerancePlugin
-from nemo.collections.llm.recipes.callbacks import straggler_det_callback
+from nemo.lightning.run.plugins import FaultTolerancePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -201,18 +201,12 @@ if __name__ == "__main__":
                 ranks=list(range(num_nodes * args.gpus_per_node)),
             )
         )
-    
+
     if args.enable_resiliency:
         # Add the fault tolerance plugin which enables restart after a crash
-        recipe.trainer.callbacks.append(
-            run.Config(
-                straggler_det_callback(straggler_report_time_interval=1)
-            )
-        )
+        recipe.trainer.callbacks.append(run.Config(straggler_det_callback(straggler_report_time_interval=1)))
 
-        plugins.append(
-            FaultTolerancePlugin(num_in_job_restarts=1, num_job_retries_on_failure=0)
-        )
+        plugins.append(FaultTolerancePlugin(num_in_job_restarts=1, num_job_retries_on_failure=0))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
