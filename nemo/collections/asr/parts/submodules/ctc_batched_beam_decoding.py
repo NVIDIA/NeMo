@@ -158,7 +158,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
     """
 
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
-    CUDA_PROGRAM_NAME = b"while_malsd_batch_conditional_rnnt.cu"
+    CUDA_PROGRAM_NAME = b"while_beam_batch_conditional_ctc.cu"
 
     class CudaGraphsMode(PrettyStrEnum):
         FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
