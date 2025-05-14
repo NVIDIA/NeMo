@@ -17,7 +17,7 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import Any, List, Mapping, Optional
+from typing import List, Mapping, Optional
 
 import datasets
 import numpy as np
@@ -905,85 +905,6 @@ class GPTSFTPackedDataset(GPTSFTDataset):
             )
 
         return processed_batch
-
-
-def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
-    """
-    Preprocess messages to apply chat template and tokenize. Returns a dictionary of tokens
-    {
-        "input_ids": [],
-        "mask": [],
-        "context_ids": [],
-        "answer_ids": [],
-    }
-
-    * input_ids contain tokenized messages with chat template applied
-    * mask corresponds to tokens of input_ids where 1 represents output tokens for the role `assistant` in both
-    context and answer for multi-turn, and 0 to mask all other tokens, e.g. system, user, and tool calling.
-    * context_ids contain tokenized messages with chat template applied for all messages except assistant's last
-    * answer_ids contain tokenized messages with chat template applied for only the assistant's last generated
-    output
-
-    Input source is expected HuggingFace AutoTokenizer format
-        {"messages": [
-            {"role": "system","content":"<text>"},
-            {"role": "user","content":"<text>"},
-            {"role": "assistant","content":"<text>"}
-        ]}
-    Input source as conversations format is also supported and is converted to HF format, however mask and type are
-    ignored. Mask will apply to all non-assistant output tokens.
-        {"conversations": [
-            {"from": "User","value":"<text>"},
-            {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
-        ]}
-    """
-    if not hasattr(tokenizer.tokenizer, "apply_chat_template"):
-        raise ValueError("Cannot apply chat template with tokenizer that is not a HuggingFace AutoTokenizer")
-
-    tools = None
-    if isinstance(source, dict):
-        tools = source.get("tools") or tool_schemas
-
-        if source.get("conversations"):
-            # Detect if Nemo {"conversations": [{"from": "User/Assistant", "value": ""}]}
-            # Convert to HuggingFace chat template [{"role": "stystem/user/assistant", "content": ""}]
-            chat = [{"role": convo["from"].lower(), "content": convo["value"]} for convo in source["conversations"]]
-            if source.get("system"):
-                chat.insert(0, {"role": "system", "content": source["system"]})
-
-        elif source.get("messages"):
-            # HuggingFace chat template {"messages": [{"role": "system/user/assistant", "content": ""}]}
-            chat = source.get("messages")
-    else:
-        chat = source
-
-    tokenized_chat = tokenizer.tokenizer.apply_chat_template(
-        chat,
-        tools=tools,
-        tokenize=True,
-        return_dict=True,
-        return_assistant_tokens_mask=True,
-    )
-
-    # Choose the last conversation as answer other history are context by finding the last masked token
-    # which indicates end of context and beginning of answer
-    input_ids = tokenized_chat.get("input_ids")
-    mask = tokenized_chat["assistant_masks"]
-    if tokenizer.eos_id:
-        input_ids += [tokenizer.eos_id]
-        mask += [1]
-    context_end_idx = len(mask) - mask[::-1].index(
-        0
-    )  # traverse the list backward for first occurrence of masked token
-    context_ids = input_ids[:context_end_idx]
-    answer_ids = input_ids[context_end_idx:]
-
-    return {
-        "input_ids": input_ids,
-        "loss_mask": mask,
-        "context_ids": context_ids,
-        "answer_ids": answer_ids,
-    }
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
