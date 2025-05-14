@@ -48,8 +48,10 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
 def get_bert_layer_with_transformer_engine_spec_postln() -> ModuleSpec:
     if not HAVE_MEGATRON_CORE:
         raise ImportError(
-            "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            "megatron-core was not found. "
+            "Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
         )
+
     bert_layer_with_transformer_engine_spec_postln = ModuleSpec(
         module=TransformerLayerWithPostLNSupport,
         submodules=TransformerLayerSubmodulesWithPostLNSupport(
@@ -84,8 +86,10 @@ def get_bert_layer_with_transformer_engine_spec_postln() -> ModuleSpec:
 def get_bert_layer_local_spec_postln() -> ModuleSpec:
     if not HAVE_MEGATRON_CORE:
         raise ImportError(
-            "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            "megatron-core was not found. "
+            "Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
         )
+
     bert_layer_local_spec_postln = ModuleSpec(
         module=TransformerLayerWithPostLNSupport,
         submodules=TransformerLayerSubmodulesWithPostLNSupport(

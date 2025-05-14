@@ -68,6 +68,7 @@ def _get_class_from_path(domain, subdomains, imp):
             class_ = None
 
         error = None
+    # UnavailableError is raised for safe import modules and should not be considered import errors
     except UnavailableError:
         result = None
         error = None
