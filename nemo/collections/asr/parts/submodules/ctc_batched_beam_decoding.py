@@ -45,7 +45,7 @@ INACTIVE_SCORE = float("-inf")
 
 class BacthedBeamCTCState:
     """
-    State for batched ALSD algorithm for RNN-T models. Used only with CUDA graphs.
+    State for Batched Beam Search for CTC models. Used only with CUDA graphs.
     In initialization phase it is possible to assign values (tensors) to the state.
     For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
@@ -56,14 +56,14 @@ class BacthedBeamCTCState:
     beam_size: int  # (maximum) length of internal storage for beam dimension
     blank_index: int  # the index of the blank token
 
-    decoder_outputs: torch.Tensor
-    decoder_output_lengths: torch.Tensor
-    last_timesteps: torch.Tensor
+    decoder_outputs: torch.Tensor  # logprobs from decoder
+    decoder_output_lengths: torch.Tensor  # lengths of the decoder outputs (i.e. max time for each utterance)
+    last_timesteps: torch.Tensor   # last time step for each utterance (used to check if the decoding is finished)
 
-    vocab: torch.Tensor
-    vocab_blank_mask: torch.Tensor
+    vocab: torch.Tensor  # vocabulary of the model. Constant
+    vocab_blank_mask: torch.Tensor  # mask for blank token in the vocabulary. Constant
 
-    curr_frame_idx: torch.Tensor
+    curr_frame_idx: torch.Tensor  # current frame index for each utterance (used to check if the decoding is finished)
     active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
     active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
 
@@ -89,7 +89,7 @@ class BacthedBeamCTCState:
             batch_size: batch size for encoder output storage
             beam_size: beam size for decoder output storage
             max_time: maximum time for encoder output storage
-            encoder_dim: last dimension for encoder output storage (projected encoder output)
+            vocab_size: vocabulary size of the model including blank
             device: device to store tensors
             float_dtype: default float dtype for tensors (should match projected encoder output)
             blank_index: index of the blank symbol
@@ -102,8 +102,6 @@ class BacthedBeamCTCState:
         self.max_time = max_time
         self.blank_index = blank_index
         self.vocab_size = vocab_size
-
-        self.MINUS_ONE_TENSOR = torch.tensor(-1, device=self.device, dtype=torch.long)
 
         self.NON_EXISTENT_LABEL = torch.tensor(NON_EXISTENT_LABEL_VALUE, device=self.device, dtype=torch.long)
         self.BLANK_TENSOR = torch.tensor(self.blank_index, device=self.device, dtype=torch.long)
@@ -193,6 +191,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             beam_size: beam size.
             return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses.
             preserve_alignments: if alignments are needed. Defaults to False.
+            compute_timestamps: if timestamps are needed. Defaults to False.
             ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats.
             ngram_lm_alpha: weight for the n-gram LM scores.
             beam_beta: word insertion weight.
@@ -224,7 +223,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         self.ngram_lm_batch = None
         if ngram_lm_model is not None:
-            assert self._blank_index != 0
+            assert self._blank_index != 0, "Blank should not be the first token in the vocabulary"
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
@@ -454,7 +453,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         decoder_output_lengths: torch.Tensor,
     ):
         """
-        Reinitializes the graph state for the MALSD computation.
+        Reinitializes the graph state for the Beam Search computation.
         This method sets up the internal state required for the decoding process, including initializing
         decoder outputs, decoder states, and optional n-gram language model states. It also handles CUDA
         graph compilation based on the specified mode.
@@ -661,7 +660,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
 
         # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
-        torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
+        torch.where(self.state.active_mask, next_labels, self.state.INACTIVE_SCORE, out=next_labels)
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.recombine_hyps_()
 
