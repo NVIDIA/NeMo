@@ -17,7 +17,6 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/
     --name 'test_speculative_training' \
     --model_path /tmp/nemo2_ckpt \
     --tp_size 2 \
-    --cp_size 1 \
     --pp_size 1 \
     --devices 2 \
     --num_nodes 1 \
