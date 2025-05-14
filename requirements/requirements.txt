@@ -1,5 +1,1 @@
-nemo_toolkit['automodel']@git+https://github.com/NVIDIA/NeMo.git@main
-nemo_toolkit['common-only']@git+https://github.com/NVIDIA/NeMo
-nemo_toolkit['nlp-only']@git+https://github.com/NVIDIA/NeMo
-nemo_toolkit['eval']@git+https://github.com/NVIDIA/NeMo
--r requirements_lightning.txt
+nemo_toolkit[automodel,common-only,nlp-only,eval]@git+https://github.com/NVIDIA/NeMo.git@main
