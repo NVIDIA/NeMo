@@ -198,7 +198,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             )
 
         if self.load_pretrained_weights:
-            return = AutoModelForCausalLM.from_pretrained(
+            return AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 torch_dtype=self.default_dtype,
                 device_map=None if self.load_in_4bit else self.device_map,
