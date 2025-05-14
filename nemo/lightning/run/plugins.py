@@ -176,6 +176,7 @@ class NsysPlugin(run.Plugin):
         launcher = executor.get_launcher()
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
+        launcher.nsys_filename = f"profile_%p_%q{{SLURM_JOB_ID}}_node%q{{SLURM_NODEID}}_rank%q{{SLURM_PROCID}}"
 
 
 @dataclass(kw_only=True)
