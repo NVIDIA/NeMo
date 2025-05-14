@@ -511,7 +511,7 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """
@@ -531,8 +531,10 @@ class MagpieTTSModel(ModelPT):
         codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
         for step in range(n_steps):
+            # how far along we are in the unmasking process
+            progress = step / n_steps
             # get mask fraction
-            frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
+            frac_masked = cosine_schedule(torch.tensor(progress))
             # how many codebooks to mask
             n_masked = torch.ceil(C * frac_masked).long() # TODO @rfejgin: should we force this to be initialized to exactly `C` (to avoid numerical issues)?
             n_unmasked = C - n_masked
@@ -590,12 +592,31 @@ class MagpieTTSModel(ModelPT):
                 probs[actual_batch_size:] = probs[:actual_batch_size]
             confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
 
+            # TODO
+            # * should we use raw logits or post-softmax probabilities?
+            # * are end of utterance-logits-somehow overwritten ? should we force those to max confidence?? may require
+            #   special handling and may explain termination issues!
+            
             # set confidence to max for unmasked codebooks so that they will remain unmasked
             confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
 
+            # attach debugger if not attached
+            import debugpy
+            # only attach if not already attached
+            if not debugpy.is_client_connected():
+                debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
+                print('Waiting for debugger to attach...')
+                debugpy.wait_for_client()  # This will block execution until the debugger attaches
+                print('Debugger is attached!')
             # replace entries in sampled_codes with previously unmasked codebooks
             sampled_codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
-            # optionally: add noise to confidences here (as in token-critic paper) (not implemented)
+            #  add noise to confidences (as in token-critic paper, https://arxiv.org/abs/2209.04439)
+            if noise_scale > 0.0:
+                # get noise from uniform distribution in the interval [-0.5, 0.5), scale it by `noise_scale`, 
+                # and anneal it to 0 as we approach the end of the unmasking process
+                noise = (torch.randn_like(confidences) - 0.5) * noise_scale * (1-progress)
+                confidences += noise
+            print(f"Step {step} of {n_steps} done")
         
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
@@ -1479,7 +1500,8 @@ class MagpieTTSModel(ModelPT):
             start_prior_after_n_audio_steps=10,
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
-            maskgit_n_steps=3
+            maskgit_n_steps=3,
+            maskgit_noise_scale=0.0
         ):
         with torch.no_grad():
             start_time = time.time()
@@ -1650,7 +1672,8 @@ class MagpieTTSModel(ModelPT):
                             finished_items=finished_items,
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale,
-                            n_steps=maskgit_n_steps
+                            n_steps=maskgit_n_steps,
+                            noise_scale=maskgit_noise_scale
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
