@@ -1005,6 +1005,27 @@ class GPTSFTChatDataset(GPTSFTDataset):
         """Overrides parent to make this function a no-op."""
         pass
 
+    def _build_samples_mapping(self):
+        """Build Sample Mapping and prep for _preprocess without HF template."""
+        super()._build_samples_mapping()
+        if self.use_hf_tokenizer_chat_template:
+            return
+
+        LABEL_START = self.special_tokens['label_start']
+        END_NAME_SIGNAL = self.special_tokens['end_of_name']
+
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR)
+        id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
+        self.label_start_tokens = id2[len(id1) :]
+
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
+        id2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        self.name_end_token_ids = id1[len(id2) :]
+
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
+        id2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        self.num_turn_start_tokens = len(id1) - len(id2)
+
     def _process_example(self, example):
         """
         Create an example by concatenating text and answer.
