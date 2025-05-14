@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any, Optional
+
 import torch.nn as nn
 
 from nemo.utils import logging
@@ -26,31 +28,32 @@ class SpeculativeTransform:
     """
     A callable class that applies speculative decoding transformation to a model.
 
-    This transform applies modelopt's speculative decoding techniques (Medusa or Eagle) to a model
+    This transform applies modelopt's speculative decoding techniques to a model
     when called. It can be used directly as a model_transform parameter in NeMo models.
 
     Args:
-        num_medusa_heads: Number of Medusa heads to use for speculative decoding.
-        num_eagle_layers: Number of Eagle layers to use for speculative decoding.
+        algorithm: The algorithm to use for speculative decoding.
+        config: The configuration for the algorithm.
+            (See https://github.com/NVIDIA/TensorRT-Model-Optimizer/blob/main/modelopt/torch/speculative/config.py)
 
     Example:
         >>> from nemo.collections.llm.modelopt import SpeculativeTransform
-        >>> model = GPTModel(config, model_transform=SpeculativeTransform(num_medusa_heads=4))
+        >>> model = GPTModel(config, model_transform=SpeculativeTransform())
         >>> # The model will be transformed when trainer.fit() or trainer.validate() is called
     """
 
-    def __init__(self, num_medusa_heads: int = 0, num_eagle_layers: int = 0):
+    ALGORITHMS = ["eagle", "medusa"]
+
+    def __init__(self, algorithm: str = "eagle", config: Optional[dict[str, Any]] = None):
         if not HAVE_MODELOPT:
             raise ImportError("nvidia-modelopt is required to use SpeculativeTransform")
-        if num_medusa_heads > 0 and num_eagle_layers > 0:
-            raise ValueError("Only one of num_medusa_heads or num_eagle_layers should be specified, not both.")
-        if num_medusa_heads == 0 and num_eagle_layers == 0:
-            raise ValueError("At least one of num_medusa_heads or num_eagle_layers must be greater than 0.")
 
-        self.num_medusa_heads = num_medusa_heads
-        self.num_eagle_layers = num_eagle_layers
-        # Default value for Medusa layers if using Medusa heads
-        self.num_medusa_layers = 1
+        assert algorithm in self.ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {self.ALGORITHMS}"
+        if config is None:
+            config = mtsp.MedusaConfig() if algorithm == "medusa" else mtsp.EagleConfig()
+
+        self.algorithm = algorithm
+        self.config = config
 
     def __call__(self, model: nn.Module) -> nn.Module:
         """
@@ -75,19 +78,12 @@ class SpeculativeTransform:
         if unwrapped_model.config.gradient_accumulation_fusion is True:
             raise ValueError("SpeculativeTransform is incompatible with gradient accumulation fusion.")
 
-        if self.num_medusa_heads > 0:
-            logging.info(f"Converting to Speculative Decoding model with num_medusa_heads={self.num_medusa_heads}")
-            sp_config = {"medusa_num_heads": self.num_medusa_heads, "medusa_num_layers": self.num_medusa_layers}
-            mtsp.convert(  # assumes in-place
-                unwrapped_model,
-                [("medusa", sp_config)],
-            )
-        elif self.num_eagle_layers > 0:
-            logging.info(f"Converting to Speculative Decoding model with num_eagle_layers={self.num_eagle_layers}")
-            sp_config = {"eagle_num_layers": self.num_eagle_layers}
-            mtsp.convert(  # assumes in-place
-                unwrapped_model,
-                [("eagle", sp_config)],
-            )
+        logging.info(
+            f"Converting to Speculative Decoding model with algorithm: {self.algorithm} and config:\n{self.config}"
+        )
+        mtsp.convert(  # assumes in-place
+            unwrapped_model,
+            [(self.algorithm, self.config)],
+        )
 
         return model

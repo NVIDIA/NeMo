@@ -32,8 +32,7 @@ def get_args():
 
     parser.add_argument("--name", type=str, required=True, help="""Experiment name""")
     parser.add_argument("--model_path", type=str, required=True, help="""Path to NeMo 2 checkpoint""")
-    parser.add_argument("--num_eagle_layers", type=int, default=1, help="""Number of Eagle layers to use""")
-    parser.add_argument("--num_medusa_heads", type=int, default=0, help="""Number of Medusa heads to use""")
+    parser.add_argument("--sd_algorithm", type=str, default="eagle", help="""Speculative decoding algorithm to use""")
     parser.add_argument("--tp_size", type=int, default=1, help="""Tensor parallel size""")
     parser.add_argument("--pp_size", type=int, default=1, help="""Pipeline parallel size""")
     parser.add_argument("--devices", type=int, default=1, help="""Number of GPUs to use per node""")
@@ -119,7 +118,5 @@ if __name__ == "__main__":
         trainer=trainer,
         log=logger,
         optim=optim,
-        model_transform=SpeculativeTransform(
-            num_eagle_layers=args.num_eagle_layers, num_medusa_heads=args.num_medusa_heads
-        ),
+        model_transform=SpeculativeTransform(algorithm=args.sd_algorithm),
     )
