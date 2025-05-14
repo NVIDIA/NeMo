@@ -70,6 +70,7 @@ def _get_class_from_path(domain, subdomains, imp):
         error = None
     except UnavailableError:
         result = None
+        error = None
 
     except Exception:
         error = traceback.format_exc()
