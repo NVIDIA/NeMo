@@ -235,7 +235,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             logging.info("Configuring model with attn_implementation:", self.attn_implementation)
         except ValueError as e:
             # 'does not support an attention implementation through torch.nn.functional.scaled_dot_product_attention'
-            if 'does not support an attention' in str(e):
+            # does not support Flash Attention 2.0 yet.
+            if 'does not support' in str(e):
                 logging.warning("Falling back to 'eager' attention implementation.")
                 self.model = self._configure_model(attn_implementation="eager")
             else:
