@@ -14,6 +14,7 @@
 #
 
 import os
+import json
 from typing import List, Union
 
 import numpy as np
@@ -255,14 +256,19 @@ def compute_fscore(
     logging.info("=" * 60)
     logging.info("Per words statistic (word: correct/totall | false positive):\n")
     max_len = max([len(x) for x in key_words_stat if key_words_stat[x][1] > 0 or key_words_stat[x][2] > 0])
-    for word in key_words_list:
-        if key_words_stat[word][1] > 0 or key_words_stat[word][2] > 0:
-            false_positive = ""
-            if key_words_stat[word][2] > 0:
-                false_positive = key_words_stat[word][2]
-            logging.info(
-                f"{word:>{max_len}}: {key_words_stat[word][0]:3}/{key_words_stat[word][1]:<3} |{false_positive:>3}"
-            )
+    with open("work/gpu_boosting/fscore.out", "w") as f:
+        for word in key_words_list:
+            if key_words_stat[word][1] > 0 or key_words_stat[word][2] > 0:
+                false_positive = ""
+                if key_words_stat[word][2] > 0:
+                    false_positive = key_words_stat[word][2]
+                logging.info(
+                    f"{word:>{max_len}}: {key_words_stat[word][0]:3}/{key_words_stat[word][1]:<3} |{false_positive:>3}"
+                )
+            item={"word": word, "correct": key_words_stat[word][0], "total": key_words_stat[word][1]}
+            f.write(json.dumps(item) + "\n")
+            
+                
     logging.info("=" * 60)
     logging.info("=" * 60)
     logging.info(f"Precision: {precision:.4f} ({tp}/{tp + fp}) fp:{fp}")
