@@ -181,3 +181,7 @@ examples/neural_graphs/*.yml
 nemo_experiments/
 
 slurm*.out
+
+*json
+decoders
+boost_*
