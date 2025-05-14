@@ -1551,6 +1551,8 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.LM_WEIGHTED_FULL,
         pruning_mode: Optional[str | PruningMode] = PruningMode.LATE,
         allow_cuda_graphs: Optional[bool] = True,
@@ -1615,6 +1617,8 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
                 preserve_alignments=preserve_alignments,
                 ngram_lm_model=ngram_lm_model,
                 ngram_lm_alpha=ngram_lm_alpha,
+                btree_model=btree_model,
+                btree_alpha=btree_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
                 pruning_mode=pruning_mode,
                 allow_cuda_graphs=allow_cuda_graphs,
@@ -1714,6 +1718,8 @@ class BeamRNNTInferConfig:
     preserve_alignments: bool = False
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
+    btree_model: Optional[str] = None
+    btree_alpha: Optional[float]  = 0.0
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
     max_symbols_per_step: Optional[int] = 10

@@ -24,6 +24,7 @@ import torch.nn.functional as F
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -236,6 +237,8 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         allow_cuda_graphs: bool = True,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
     ):
         """
         Init method.
@@ -282,6 +285,16 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
+
+        # init btree model
+        if btree_model is not None:
+            assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            self.ngram_lm_batch = GPUBoostingTreeModel.from_nemo(lm_path=btree_model, vocab_size=self._blank_index)
+            self.ngram_lm_alpha = btree_alpha
+            self.BOS = False
+        else:
+            self.ngram_lm_batch = None
+            self.BOS = True
 
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs if conditions met"""
@@ -403,7 +416,7 @@ class GreedyBatchedTDTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMetho
         became_inactive_mask = torch.empty_like(active_mask)
 
         if self.ngram_lm_batch is not None:
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=self.BOS)
 
         # loop while there are active utterances
         while active_mask.any():
