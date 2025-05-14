@@ -15,9 +15,9 @@
 """Gemma3 language model"""
 
 import copy
+import math
 from dataclasses import dataclass
 from functools import lru_cache
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Tuple, Union
 
@@ -28,12 +28,7 @@ from megatron.core.models.common.embeddings.language_model_embedding import Lang
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.process_groups_config import ModelCommProcessGroups
-from megatron.core.transformer import (
-    ModuleSpec,
-    TransformerConfig,
-    TransformerLayer,
-    TransformerLayerSubmodules,
-)
+from megatron.core.transformer import ModuleSpec, TransformerConfig, TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -50,6 +45,7 @@ from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -132,7 +128,7 @@ class Gemma3Config(GPTConfig):
     seq_length: int = 131_072
 
     # embedding
-    vocab_size: int = 262_208 # Gemma3 1B model has smaller embedding table
+    vocab_size: int = 262_208  # Gemma3 1B model has smaller embedding table
     position_embedding_type: str = "rope"
     rotary_base: tuple = (10_000, 1_000_000)  # (local, global)
     share_embeddings_and_output_weights: bool = True

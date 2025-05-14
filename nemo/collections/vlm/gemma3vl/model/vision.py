@@ -14,11 +14,10 @@
 
 from dataclasses import dataclass
 
-from torch import nn
-
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer import TransformerConfig
 from megatron.core.transformer.module import MegatronModule
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear
+from torch import nn
 
 from nemo.collections.vlm.vision.siglip_vit import SigLIPViT400M_14_384_Config
 from nemo.lightning import io

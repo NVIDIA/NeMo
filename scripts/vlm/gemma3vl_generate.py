@@ -104,18 +104,18 @@ def main(args) -> None:
     hf_tokenizer = gemma_tokenizer.tokenizer
 
     messages = [
-    {
-        "role": "system",
-        "content": [{"type": "text", "text": "You are a helpful assistant."}]
-    },
-    {
-        "role": "user",
-        "content": [
-            {"type": "image", "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG"},
-            {"type": "text", "text": "What animal is on the candy?"}
-        ]
-    }
-]
+        {"role": "system", "content": [{"type": "text", "text": "You are a helpful assistant."}]},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/p-blog/candy.JPG",
+                },
+                {"type": "text", "text": "What animal is on the candy?"},
+            ],
+        },
+    ]
 
     inputs = processor.apply_chat_template(
         messages,

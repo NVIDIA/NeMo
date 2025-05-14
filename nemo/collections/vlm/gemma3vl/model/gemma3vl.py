@@ -15,16 +15,13 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 import torch
-from nemo.collections.llm.gpt.model.gemma3 import (
-    Gemma3Config,
-    Gemma3Config4B,
-    Gemma3Config12B,
-    Gemma3Config27B,
-)
+
+from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config, Gemma3Config4B, Gemma3Config12B, Gemma3Config27B
 from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
-from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLVisionConfig, Gemma3VLMultimodalProjectorConfig
-from nemo.collections.vlm.neva.model.llava import import_qkv, export_qkv, export_qkv_bias
+from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
+from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 
@@ -133,7 +130,7 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
             io.state_transform(
                 source_key="multi_modal_projector.mm_input_projection_weight",
                 target_key="vision_projection.proj.weight",
-                fn=_vision_projector_permute
+                fn=_vision_projector_permute,
             ),
             io.state_transform(
                 source_key=(
@@ -306,11 +303,12 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
 def _vision_projector_permute(ctx: io.TransformCTX, x):
     return torch.permute(x, (1, 0))
 
+
 @io.state_transform(
     source_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
     target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -332,9 +330,9 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_language_qkv(ctx: io.TransformCTX, qkv):
@@ -352,9 +350,9 @@ def _export_language_qkv(ctx: io.TransformCTX, qkv):
 
 @io.state_transform(
     source_key=(
-            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
     ),
     target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
 )
@@ -376,9 +374,9 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_vision_qkv(ctx: io.TransformCTX, qkv):
@@ -420,9 +418,9 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
     target_key=(
-            "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
-            "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
+        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
     ),
 )
 def _export_vision_qkv_bias(ctx: io.TransformCTX, qkv_bias):
