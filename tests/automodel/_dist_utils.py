@@ -13,7 +13,7 @@
 # limitations under the License.
 import contextlib
 import importlib
-import os
+
 import sys
 import types
 
