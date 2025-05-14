@@ -61,7 +61,6 @@ def main():
 
     with torch.no_grad():
         input_ids = inputs['input_ids'].clone().to("cuda")
-        print(input_ids)
         generated_ids = input_ids
         for _ in range(10):
             seq_len = input_ids[0].shape[0]

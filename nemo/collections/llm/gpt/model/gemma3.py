@@ -15,9 +15,9 @@
 """Gemma3 language model"""
 
 import copy
+import math
 from dataclasses import dataclass
 from functools import lru_cache
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Tuple, Union
 
@@ -27,14 +27,8 @@ from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.packed_seq_params import PackedSeqParams
-
-# from megatron.core.process_groups_config import ModelCommProcessGroups
-from megatron.core.transformer import (
-    ModuleSpec,
-    TransformerConfig,
-    TransformerLayer,
-    TransformerLayerSubmodules,
-)
+from megatron.core.process_groups_config import ModelCommProcessGroups
+from megatron.core.transformer import ModuleSpec, TransformerConfig, TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -42,6 +36,7 @@ from torch import Tensor, nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.gemma2 import TERowParallelLinearLayerNorm
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
@@ -50,6 +45,7 @@ from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -109,7 +105,7 @@ def gemma3_layer_spec(config: GPTConfig) -> ModuleSpec:
                     core_attention=Gemma3TEDotProductAttention,  # mixed gloabl/local attn
                     q_layernorm=TENorm,
                     k_layernorm=TENorm,
-                    linear_proj=Gemma3TERowParallelLinear,  # post attn RMSNorm
+                    linear_proj=TERowParallelLinearLayerNorm,  # post attn RMSNorm
                 ),
             ),
             self_attn_bda=get_bias_dropout_add,  # residual link
@@ -117,7 +113,7 @@ def gemma3_layer_spec(config: GPTConfig) -> ModuleSpec:
                 module=MLP,
                 submodules=MLPSubmodules(
                     linear_fc1=TELayerNormColumnParallelLinear,
-                    linear_fc2=Gemma3TERowParallelLinear,  # post mlp RMSNorm
+                    linear_fc2=TERowParallelLinearLayerNorm,  # post mlp RMSNorm
                 ),
             ),
             mlp_bda=get_bias_dropout_add,  # residual link
@@ -132,7 +128,7 @@ class Gemma3Config(GPTConfig):
     seq_length: int = 131_072
 
     # embedding
-    vocab_size: int = 262_144
+    vocab_size: int = 262_208  # Gemma3 1B model has smaller embedding table
     position_embedding_type: str = "rope"
     rotary_base: tuple = (10_000, 1_000_000)  # (local, global)
     share_embeddings_and_output_weights: bool = True
@@ -169,7 +165,7 @@ class Gemma3Config(GPTConfig):
         self.rotary_base = (rotary_base_local, rotary_base_global)
 
         # Replace model's embedding and rope with customized ones
-        if hasattr(model, "embedding"):
+        if hasattr(model, 'embedding'):
             model.embedding = Gemma3LanguageModelEmbedding(
                 config=self,
                 vocab_size=self.vocab_size,
@@ -189,7 +185,7 @@ class Gemma3Config(GPTConfig):
             use_cpu_initialization=self.use_cpu_initialization,
             rotary_base_local=rotary_base_local,
         )
-        if hasattr(model, "embedding") or hasattr(model, "output_layer"):
+        if hasattr(model, 'embedding') or hasattr(model, 'output_layer'):
             model.setup_embeddings_and_output_layer()
         return model
 
@@ -209,11 +205,12 @@ class Gemma3Config1B(Gemma3Config):
     rope_scaling_factor: float = 1.0  # no rope scaling
     seq_length: int = 32768
     bf16: bool = True
+    vocab_size: int = 262_144
 
 
 @dataclass
 class Gemma3Config4B(Gemma3Config):
-    """Gemma3 1B config"""
+    """Gemma3 4B config"""
 
     is_vision_language: bool = True
     num_layers: int = 34
@@ -228,7 +225,7 @@ class Gemma3Config4B(Gemma3Config):
 
 @dataclass
 class Gemma3Config12B(Gemma3Config):
-    """Gemma3 1B config"""
+    """Gemma3 12B config"""
 
     is_vision_language: bool = True
     num_layers: int = 48
@@ -243,7 +240,7 @@ class Gemma3Config12B(Gemma3Config):
 
 @dataclass
 class Gemma3Config27B(Gemma3Config):
-    """Gemma3 1B config"""
+    """Gemma3 27B config"""
 
     is_vision_language: bool = True
     num_layers: int = 62
@@ -302,12 +299,12 @@ class Gemma3RotaryEmbedding(RotaryEmbedding):
         rotary_percent: float = 1.0,
         rotary_interleaved: bool = False,
         seq_len_interpolation_factor: float = None,
-        rotary_base: int = 1_000_000,
         rope_scaling: bool = False,
-        rope_scaling_factor: float = 8.0,
         use_cpu_initialization: bool = False,
-        # cp_group: Optional[torch.distributed.ProcessGroup] = None,
+        cp_group: Optional[torch.distributed.ProcessGroup] = None,
         *,
+        rope_scaling_factor: float = 8.0,
+        rotary_base: int = 1_000_000,
         rotary_base_local: int = 10_000,
     ):
         # The rope scaling in RotaryEmbedding is not linear scaling,
@@ -324,83 +321,37 @@ class Gemma3RotaryEmbedding(RotaryEmbedding):
             rope_scaling=rope_scaling,
             rope_scaling_factor=rope_scaling_factor,
             use_cpu_initialization=use_cpu_initialization,
-            # cp_group=cp_group,
+            cp_group=cp_group,
         )
-        # Apply scaling to global rope
-        self.inv_freq_global = self.inv_freq / rope_scaling_factor
-        self.inv_freq = None
+        self.inv_freq /= rope_scaling_factor
 
-        # Get inv_freq for local attention layers
-        dim = kv_channels
-        if rotary_percent < 1.0:
-            dim = int(dim * rotary_percent)
-        device = 'cpu' if use_cpu_initialization else torch.cuda.current_device()
-        inv_freq_local = 1.0 / (
-            rotary_base_local ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim)
+        # Setup Rotary Embedding for local attentions
+        self.rope_local = RotaryEmbedding(
+            kv_channels=kv_channels,
+            rotary_percent=rotary_percent,
+            rotary_interleaved=rotary_interleaved,
+            seq_len_interpolation_factor=seq_len_interpolation_factor,
+            rotary_base=rotary_base_local,
+            rope_scaling=rope_scaling,
+            rope_scaling_factor=rope_scaling_factor,
+            use_cpu_initialization=use_cpu_initialization,
+            cp_group=cp_group,
         )
-        # Do not apply scaling to local rope
-        self.inv_freq_local = inv_freq_local
 
     @lru_cache(maxsize=32)
     def forward(self, max_seq_len: int, offset: int = 0, packed_seq: bool = False) -> Tensor:
         """Get global and local rope embedding"""
-        self.inv_freq = self.inv_freq_global
         rope_global = super().forward(max_seq_len, offset, packed_seq)
-
-        self.inv_freq = self.inv_freq_local
-        rope_local = super().forward(max_seq_len, offset, packed_seq)
-
-        return (rope_local, rope_global)
-
-
-class Gemma3TERowParallelLinear(TERowParallelLinear):
-    """Gemma3 FC2 layer.
-
-    Adds a post layer norm.
-    """
-
-    def __init__(
-        self,
-        input_size: int,
-        output_size: int,
-        *,
-        config: TransformerConfig,
-        init_method: Callable,
-        bias: bool,
-        input_is_parallel: bool,
-        skip_bias_add: bool,
-        is_expert: bool,
-        tp_comm_buffer_name: str = None,
-        # tp_group: Optional[torch.distributed.ProcessGroup] = None,
-    ):
-        super().__init__(
-            input_size,
-            output_size,
-            config=config,
-            init_method=init_method,
-            bias=bias,
-            input_is_parallel=input_is_parallel,
-            skip_bias_add=skip_bias_add,
-            is_expert=is_expert,
-            tp_comm_buffer_name=tp_comm_buffer_name,
-            # tp_group=tp_group,
-        )
-        self.post_layernorm = TENorm(config, output_size)
-
-    def forward(self, x):
-        """Forward with additional Post LN on output"""
-        output, bias = super().forward(x)
-        return self.post_layernorm(output), bias
+        rope_local = self.rope_local.forward(max_seq_len, offset, packed_seq)
+        return rope_local, rope_global
 
 
 def _is_local_attn_layer(
     layer_number: int,
     layer_pattern: Tuple[int, int],
 ) -> bool:
-    layer_number -= 1
     pattern_size = sum(layer_pattern)
-    layer_id = layer_number % pattern_size
-    return layer_id < layer_pattern[0]
+    return layer_number % pattern_size != 0
 
 
 class Gemma3SelfAttention(SelfAttention):
@@ -466,7 +417,7 @@ class Gemma3TEDotProductAttention(TEDotProductAttention):
         k_channels: Optional[int] = None,
         v_channels: Optional[int] = None,
         cp_comm_type: str = "p2p",
-        # model_comm_pgs: ModelCommProcessGroups = None,
+        model_comm_pgs: ModelCommProcessGroups = None,
     ):
         # Overwrite config.window_size based on layer_number
         config = copy.deepcopy(config)
@@ -491,7 +442,7 @@ class Gemma3TEDotProductAttention(TEDotProductAttention):
             k_channels=k_channels,
             v_channels=v_channels,
             cp_comm_type=cp_comm_type,
-            # model_comm_pgs=model_comm_pgs,
+            model_comm_pgs=model_comm_pgs,
         )
 
 

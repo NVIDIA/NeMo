@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import lightning.pytorch as pl
 import numpy as np
