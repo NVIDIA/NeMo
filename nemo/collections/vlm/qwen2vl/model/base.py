@@ -28,6 +28,8 @@ from megatron.core.tensor_parallel import scatter_to_sequence_parallel_region
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import get_batch_on_this_cp_rank
+from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core import tensor_parallel
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -72,10 +74,17 @@ def qwen2vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             )
         )
 
+    packed_seq_params = _batch.get("packed_seq_params", None)
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
+    if packed_seq_params is not None:
+        for attr in ["cu_seqlens_q", "cu_seqlens_kv", "cu_seqlens_q_padded", "cu_seqlens_kv_padded"]:
+            value = getattr(packed_seq_params, attr, None)
+            if value is not None:
+                setattr(packed_seq_params, attr, value.cuda(non_blocking=True))
+    _batch["packed_seq_params"] = packed_seq_params
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
 
@@ -92,10 +101,11 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
         "video_grid_thw": batch.get("video_grid_thw", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
+        "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
+    # if 'cu_seqlens' in batch:
+    #     forward_args['packed_seq_params'] = get_packed_seq_params(batch)
 
     return model(**forward_args)
 
@@ -271,10 +281,12 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
-
+        self.context_parallel_lm = language_transformer_config.context_parallel_size
+        self.tensor_model_parallel_size_lm = language_transformer_config.tensor_model_parallel_size
         self.share_embeddings_and_output_weights = False
 
         if self.add_decoder:
+            language_transformer_config.scatter_embedding_sequence_parallel = False            
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer,
                 pre_process=pre_process,
@@ -481,6 +493,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
         runtime_gather_output: Optional[bool] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,        
     ) -> torch.Tensor:
         """Forward function of the Qwen2VL model.
 
@@ -502,6 +515,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             Shape [num_videos, 3].
             runtime_gather_output (bool): Gather output at runtime. Default None means
                 `parallel_output` arg in the constructor will be used.
+            packed_seq_params (PackedSeqParams): Dict with padded token information.
+                Required for using SP/CP with padding mask type.
+                
         Returns:
             output (torch.Tensor): Loss of shape [b, s] if labels are provided,
                 otherwise logits of shape [b, s, vocab_size].
@@ -572,9 +588,32 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
             if position_ids is not None:
                 position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+        packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
+        max_seq_len = self._language_max_sequence_length
 
-        if position_ids is None and input_ids is not None:
-            position_ids, _ = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
+
+        # Pipeline parallel expects fixed input size. Check if we need to pad.
+        if self._language_is_pipeline_parallel and language_seq_len < self._language_max_sequence_length:
+            padded_seq_len = self._language_max_sequence_length - language_seq_len
+            input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
+            if position_ids is not None:
+                position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+
+            # TODO: WIP
+            if packed_sequence:
+                last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+                last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
+                assert (
+                    last_seqlen_padded >= last_seqlen
+                ), "`language_max_sequence_length` needs to increase for sequence packing to work properly."
+                packed_seq_params.cu_seqlens_q_padded[-1] = max_seq_len
+                packed_seq_params.cu_seqlens_kv_padded[-1] = max_seq_len
+                packed_seq_params.max_seqlen_q = max(last_seqlen_padded, packed_seq_params.max_seqlen_q)
+                packed_seq_params.max_seqlen_kv = max(last_seqlen_padded, packed_seq_params.max_seqlen_kv)
+
+        # language_embeddings is a container for text, image and video embeddings; to feed to decoder
+        language_embeddings = None
+
 
         # Create the language_embeddings (if this is the first language model stage).
         if self.pre_process:
@@ -612,7 +651,69 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             image_embeddings=image_embeddings,
             video_embeddings=video_embeddings,
             attention_mask=attention_mask,
+            packed_seq_params=packed_seq_params,
         )  # [decoder_seq_len, b, h_language], [b, decoder_seq_len], [b, decoder_seq_len]
+
+        # generate position IDs
+        if position_ids is None and input_ids is not None:
+            if packed_sequence:
+                if packed_seq_params.cu_seqlens_q_padded is not None:
+                    cu_seqlens_q = packed_seq_params.cu_seqlens_q_padded
+                else:
+                    cu_seqlens_q = packed_seq_params.cu_seqlens_q
+                if packed_seq_params.cu_seqlens_kv_padded is not None:
+                    cu_seqlens_kv = packed_seq_params.cu_seqlens_kv_padded
+                else:
+                    cu_seqlens_kv = packed_seq_params.cu_seqlens_kv
+
+                assert isinstance(cu_seqlens_q, torch.Tensor) and isinstance(cu_seqlens_kv, torch.Tensor), \
+                    f"Got unexpected packed_seq_params value. {packed_seq_params}"
+
+                if len(cu_seqlens_q) == 2:
+                    # only 1 sampel in packed seq
+                    position_ids, _ = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
+                elif len(cu_seqlens_q) > 2:
+                    # split input_ids on seq_len
+                    packed_position_ids = []
+
+                    seqlens = (cu_seqlens_q[1:] - cu_seqlens_q[:-1]).tolist()
+                    splitted_input_ids = [
+                            x for x in torch.split(input_ids, seqlens, dim=1)
+                    ]
+
+                    if image_grid_thw is not None:                    
+                        assert image_grid_thw.shape[0] == len(splitted_input_ids), \
+                                f"Got unexpected batch size value. {image_grid_thw.shape=}, {{input_ids.shape=}} {len(splitted_input_ids)}, "                                
+                    if video_grid_thw is not None:                    
+                        assert video_grid_thw.shape[0] == len(splitted_input_ids), \
+                            f"Got unexpected batch size value. {video_grid_thw.shape=}, {{input_ids.shape=}} {len(splitted_input_ids)}, "                                
+
+                    for i in range(len(splitted_input_ids)):
+                        _input_ids = splitted_input_ids[i]
+                        _image_grid_thw = image_grid_thw[i, :].reshape(1,3) if image_grid_thw is not None else None
+                        _video_grid_thw = video_grid_thw[i, :].reshape(1,3) if video_grid_thw is not None else None
+
+                        _position_ids, _ = self.get_rope_index(_input_ids, _image_grid_thw, _video_grid_thw, None)
+                        packed_position_ids.append(_position_ids)
+
+                    position_ids = torch.cat(packed_position_ids, dim=2)
+                else:
+                    raise ValueError("Got unexpected cu_seqlens_kv value. {cu_seqlens_kv}")
+            else:
+                # relugar input data
+                position_ids, _ = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
+
+
+        if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
+            if self.context_parallel_lm > 1:
+                # _process_embedding_token_parallel expects input in shape bshd for cp
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
+
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
+                self._process_embedding_token_parallel(
+                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+                )
+            )
 
         output = self.language_model(
             input_ids=None,
@@ -622,12 +723,30 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             labels=final_labels,
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
+            packed_seq_params=packed_seq_params,            
         )  # output shape: [batch_size, seq length, vocab_size]
 
         if labels is None or loss_mask is None:
             return output
         else:
             return output, final_loss_mask.contiguous()
+
+    def set_input_tensor(self, input_tensor) -> None:
+        """Set model chunk input tensor."""
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
+
+        if self.add_encoder and self.add_decoder:
+            self.vision_model.set_input_tensor(input_tensor[0])
+        elif self.add_encoder:
+            self.vision_model.set_input_tensor(input_tensor[0])
+        elif self.pre_process:
+            self.encoder_hidden_state = input_tensor[0]
+        else:
+            self.language_model.set_input_tensor(input_tensor[0])
 
     # override _preprocess_data() in megatron-lm/megatron/core/models/multimodal/llava_model.py
     def _preprocess_data(
@@ -641,6 +760,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         position_ids: Optional[torch.Tensor] = None,
         use_inference_kv_cache: Optional[bool] = False,
         attention_mask: Optional[torch.Tensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,     
     ):
         """
         MCoreQwen2VLModel uses its own version of _preprocess_data instead of MCoreLLaVAModel's (in
@@ -682,6 +802,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         has_images = image_embeddings is not None
         has_videos = video_embeddings is not None
+        packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
 
         #
         # Create the final input embedding (if this is the first language model stage).
@@ -760,39 +881,124 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 final_embedding.shape[:2] == final_labels.shape == final_loss_mask.shape
             ), "unexpected shapes after data preprocessing"
 
-        if final_embedding is not None:
-            # Truncate if exceeding the language model's max sequence length.
-            if final_embedding.shape[1] > self._language_max_sequence_length:
-                final_embedding = final_embedding[:, : self._language_max_sequence_length]
 
-            # TODO: check and add self.context_parallel_lm to MCoreQwen2VLModel
-            # # Transpose to [s,b,h] if not using CP because CP Sharding expects seq in dim=1
-            final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
-            if self.sequence_parallel_lm:
-                final_embedding = scatter_to_sequence_parallel_region(final_embedding)
         truncate_labels = final_labels is not None and final_labels.shape[1] > self._language_max_sequence_length
         if truncate_labels:
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
+
+        # truncate final embedding
+        if final_embedding is not None:
+            # transpose final_embeddings to sbhd
+            # note this will also transpose thd, which is fine
+            final_embedding = final_embedding.transpose(1, 0).contiguous()
+            # Truncate if exceeding the language model's max sequence length.
+            if final_embedding.shape[0] > self._language_max_sequence_length:
+                final_embedding = final_embedding[: self._language_max_sequence_length]
+
+        # packed seq param truncation
+        if packed_sequence and packed_seq_params.cu_seqlens_q_padded[-1] > self._language_max_sequence_length:
+            truncate_len = packed_seq_params.cu_seqlens_q_padded[-1] - self._language_max_sequence_length
+            final_seq_len_padded = (
+                packed_seq_params.cu_seqlens_q_padded[-1] - packed_seq_params.cu_seqlens_q_padded[-2]
+            )
+            final_seq_len_unpadded = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
+            final_padding = final_seq_len_padded - final_seq_len_unpadded
+            truncate_len -= final_padding
+            packed_seq_params.cu_seqlens_q_padded[-1] = self._language_max_sequence_length
+            packed_seq_params.cu_seqlens_kv_padded[-1] = self._language_max_sequence_length
+            # need to truncate the actual sequence as well
+            if truncate_len > 0:
+                packed_seq_params.cu_seqlens_q[-1] -= truncate_len
+                packed_seq_params.cu_seqlens_kv[-1] -= truncate_len
+            assert (
+                packed_seq_params.cu_seqlens_q[-1] >= packed_seq_params.cu_seqlens_q[-2]
+            ), "with packed sequence, the truncation can only truncate on the last sequence."
+
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
-    def set_input_tensor(self, input_tensor) -> None:
-        """Set model chunk input tensor."""
-        # This is usually handled in schedules.py but some inference code still
-        # gives us non-lists or None
-        if not isinstance(input_tensor, list):
-            input_tensor = [input_tensor]
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
 
-        if self.add_encoder and self.add_decoder:
-            self.vision_model.set_input_tensor(input_tensor[0])
-        elif self.add_encoder:
-            self.vision_model.set_input_tensor(input_tensor[0])
-        elif self.pre_process:
-            self.encoder_hidden_state = input_tensor[0]
-        else:
-            self.language_model.set_input_tensor(input_tensor[0])
+    def _process_embedding_token_parallel(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
+        """Processes the input data for model parallelism support."""
 
+        # No pre or post processing needed with PP middle chunks.
+        if not self.pre_process and not self.post_process:
+            return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+
+        if self.pre_process:
+            # shard_factor, seq_dim = self._get_shard_factor(packed_seq_params)
+            if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
+                shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
+                seq_dim = 1
+            elif self.context_parallel_lm > 1:
+                shard_factor = self.context_parallel_lm * 2
+                seq_dim = 1
+            elif self.sequence_parallel_lm:
+                shard_factor = self.tensor_model_parallel_size_lm
+                seq_dim = 0
+
+            assert (
+                combined_embeddings.shape[seq_dim] % shard_factor == 0
+            ), f"Sequence length should be divisible by {shard_factor} for \
+                Sequence/Context parallelism {combined_embeddings.shape} with dim {seq_dim}"
+            if self.sequence_parallel_lm and self.tp_comm_overlap_lm:
+                assert (
+                    combined_embeddings.shape[seq_dim] == self._language_max_sequence_length
+                ), "TP Comm overlap either requires Vision+Text token length \
+                == language_max_sequence_length"
+
+        if self.context_parallel_lm > 1:
+            batch = dict()
+            if self.pre_process:
+                batch.update(
+                    {
+                        "combined_embeddings": combined_embeddings,
+                    }
+                )
+            if self.post_process:
+                batch.update(
+                    {
+                        "new_labels": new_labels,
+                        "new_loss_mask": new_loss_mask,
+                    }
+                )
+            # Distribute sequence across CP ranks
+            if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
+                from megatron.core.utils import get_batch_on_this_cp_rank
+
+                if self.pre_process:
+                    batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
+                batch = get_batch_on_this_cp_rank(batch)
+            else:
+                try:
+                    import transformer_engine_torch as tex
+                except ModuleNotFoundError as e:
+                    logging.error(
+                        "Please update Transformer Engine to >= 1.10 to use \
+                            Context Parallel with THD format data"
+                    )
+                    raise e
+                cp_size = ps.get_context_parallel_world_size()
+                cp_rank = ps.get_context_parallel_rank()
+                for key, data in batch.items():
+                    index = tex.thd_get_partitioned_indices(
+                        packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
+                    )
+                    batch[key] = data.index_select(1, index)
+
+            if self.pre_process:
+                combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+            if self.post_process:
+                new_labels = batch["new_labels"]
+                new_loss_mask = batch["new_loss_mask"]
+
+        if self.sequence_parallel_lm and self.pre_process:
+            combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
+                combined_embeddings
+            )  # [S/(CP*TP),B,H]
+
+        return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
 class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """Lightning Wrapper for Qwen2VL Model"""
@@ -831,6 +1037,7 @@ class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin)
         pixel_values_videos: Optional[torch.FloatTensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,                
     ) -> torch.Tensor:
         # pylint: disable=C0115,C0116
         output_tensor = self.module(
@@ -844,6 +1051,7 @@ class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin)
             pixel_values_videos=pixel_values_videos,
             image_grid_thw=image_grid_thw,
             video_grid_thw=video_grid_thw,
+            packed_seq_params=packed_seq_params,
         )
 
         return output_tensor

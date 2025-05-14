@@ -91,6 +91,7 @@ def main(args):
             tokenizer=tokenizer,
             image_processor=image_processor,
             num_workers=1,
+            packed_sequence=args.use_packed_sequence, 			
         )
     elif args.data_type == "energon":
         from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
@@ -288,6 +289,11 @@ if __name__ == "__main__":
     parser.add_argument('--enable_sp', action='store_true', help="enable sequence parallel")
     parser.add_argument(
         "--max_sequence_length", type=int, required=False, default=4096, help="Maximum sequence length"
+    )
+    parser.add_argument(
+        "--use_packed_sequence",
+        action="store_true",
+        help="enable sequence parallel"
     )
 
     args = parser.parse_args()

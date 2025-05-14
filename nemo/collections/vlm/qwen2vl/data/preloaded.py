@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
 )
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
+from megatron.core.packed_seq_params import PackedSeqParams
 
 def process_vision(processor, images, videos):
     # pylint: disable=C0115,C0116
@@ -552,6 +553,7 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
         tokenizer,
         image_processor,
         sequence_length=None,
+        packed_sequence: bool = False,        
     ):
 
         if data_path.endswith(".json"):
@@ -585,41 +587,58 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
 
         else:
             raise ValueError(f"Formatting of {data_path} is not supported in Qwen2VL.")
+        
+        self.packed_sequence = packed_sequence
 
     def collate_fn(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         """
         Collate function to bundle multiple samples into a single batch.
         """
         data_config = self.data_config
-        # FIXME: packed_sequence is not supported yet.
-        packed_sequence = "cu_seqlens" in instances[0]
-        max_len = max(instance['tokens'].shape[0] for instance in instances)
-        max_len = (max_len - 1) // 64 * 64 + 64
-        for instance in instances:
-            pad_len = max_len - instance['tokens'].shape[0]
-            instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-            instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
-            # FIXME: packed_sequence is not supported yet.
-            if packed_sequence and instance["cu_seqlens"][-1] != max_len:
-                instance["cu_seqlens"] = torch.cat((instance["cu_seqlens"], torch.IntTensor([max_len])), 0)
+        packed_sequence = self.packed_sequence
 
-        # FIXME: packed_sequence is not supported yet.
         if packed_sequence:
-            max_len_cu = max(instance['cu_seqlens'].shape[0] for instance in instances)
-            max_len_image = max(instance['image'].shape[0] for instance in instances)
+            tokens, labels, loss_mask, packed_seq_params = convert_to_packed(
+                tokens=[instance['tokens'] for instance in instances],
+                labels=[instance['labels'] for instance in instances],
+                ignore_index=IGNORE_INDEX,
+            )
+            attention_mask = None
+
+            batch = {
+                'input_ids': tokens,
+                'labels': labels,
+            }
+
+        else:  # regular dataset
+            max_len = max(instance['tokens'].shape[0] for instance in instances)
+            max_len = (max_len - 1) // 64 * 64 + 64
             for instance in instances:
-                pad_len_cu = max_len_cu - instance['cu_seqlens'].shape[0]
-                instance['cu_seqlens'] = F.pad(instance['cu_seqlens'], (0, pad_len_cu), 'constant', max_len)
+                pad_len = max_len - instance['tokens'].shape[0]
+                instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
+                instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
 
-                x = instance['pixel_values']
-                num_pad = max_len_image - x.shape[0]
-                pad_tensor = torch.zeros(num_pad, *x.shape[1:], dtype=x.dtype, device=x.device)
-                instance['pixel_values'] = torch.cat((x, pad_tensor), dim=0)
 
-        batch = {
-            'input_ids': torch.stack([instance['tokens'] for instance in instances]),
-            'labels': torch.stack([instance['labels'] for instance in instances]),
-        }
+            batch = {
+                'input_ids': torch.stack([instance['tokens'] for instance in instances]),
+                'labels': torch.stack([instance['labels'] for instance in instances]),
+            }
+
+            tokenizer = self.tokenizer
+            tokens = batch['input_ids']
+            labels = batch['labels']
+
+            attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+                data=tokens,
+                eod_token=tokenizer.eos_token_id,
+                eod_mask_loss=data_config.eod_mask_loss,
+                reset_attention_mask=data_config.reset_attention_mask,
+                reset_position_ids=data_config.reset_position_ids,
+            )
+            loss_mask[labels < 0] = 0.0
+
+
+        batch['loss_mask'] = loss_mask
 
         if 'pixel_values' in instances[0]:
             batch['pixel_values'] = torch.cat([instance['pixel_values'] for instance in instances], dim=0)
@@ -641,38 +660,10 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
         else:
             batch['video_grid_thw'] = None
 
-        tokenizer = self.tokenizer
-
-        tokens = batch['input_ids']
-        labels = batch['labels']
 
         if packed_sequence:
-            # FIXME: packed_sequence is not supported yet.
-            cu_seqlens = batch["cu_seqlens"]
-            position_ids = []
-            for cu_seqlen in cu_seqlens:
-                position_ids.append([])
-                for ind in range(0, len(cu_seqlen) - 1):
-                    seqlen = cu_seqlen[ind + 1] - cu_seqlen[ind]
-                    position_ids[-1].extend(list(range(seqlen)))
-            position_ids = torch.LongTensor(position_ids)
-            loss_mask = torch.ones(tokens.size(), dtype=torch.float, device=tokens.device)
-            attention_mask = torch.ones(tokens.size(), dtype=torch.long, device=tokens.device)
-        else:
-            attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-                data=tokens,
-                eod_token=tokenizer.eos_token_id,
-                eod_mask_loss=data_config.eod_mask_loss,
-                reset_attention_mask=data_config.reset_attention_mask,
-                reset_position_ids=data_config.reset_position_ids,
-            )
+            batch["packed_seq_params"] = packed_seq_params
 
-        loss_mask[labels < 0] = 0.0
-
-        batch['loss_mask'] = loss_mask
-
-        if packed_sequence:
-            batch["cu_seqlens"] = cu_seqlens
         return batch
 
 
@@ -696,7 +687,7 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
         num_workers: int = 8,
         pin_memory: bool = True,
         persistent_workers: bool = False,
-        use_packed_sequence: bool = False,
+        packed_sequence: bool = False,
         seed: int = 1234,
     ) -> None:
         super().__init__()
@@ -724,8 +715,22 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.seed = seed
-        self.use_packed_sequence = use_packed_sequence
+        self.packed_sequence = packed_sequence
         self.init_global_step = 0
+
+        if self.packed_sequence:
+            import dataclasses
+
+            def custom_on_megatron_step_start(self, step):
+                return dataclasses.replace(
+                    step,
+                    seq_length=self.seq_len,
+                    micro_batch_size=1,  # Override the micro_batch_size to 1 (used in PP)
+                    num_microbatches=self.num_microbatches,
+                    decoder_seq_length=self.decoder_seq_len,
+                )
+
+            MegatronDataSampler.on_megatron_step_start = custom_on_megatron_step_start 
 
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
@@ -735,20 +740,23 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
             dataloader_type="cyclic",
         )
 
+
     def setup(self, stage: str = "") -> None:
         # pylint: disable=C0115,C0116
         assert len(self.paths) == 1, "not yet support blend dataset in Qwen 2.0!"
-        if self.use_packed_sequence:
-            pass  # TODO
-        else:
-            # TODO:
-            # rng = torch.Generator().manual_seed(self.seed)
-            self._train_ds = Qwen2VLDataset(
-                self.paths[0], self.data_config, self.tokenizer, self.image_processor, sequence_length=self.seq_length
-            )
-            self._validation_ds = Qwen2VLDataset(
-                self.paths[0], self.data_config, self.tokenizer, self.image_processor, sequence_length=self.seq_length
-            )
+
+        # TODO:
+        # rng = torch.Generator().manual_seed(self.seed)
+        self._train_ds = Qwen2VLDataset(
+            self.paths[0], self.data_config, self.tokenizer, self.image_processor, 
+            sequence_length=self.seq_length,
+            packed_sequence=self.packed_sequence,
+        )
+        self._validation_ds = Qwen2VLDataset(
+            self.paths[0], self.data_config, self.tokenizer, self.image_processor, 
+            sequence_length=self.seq_length,
+            packed_sequence=self.packed_sequence,
+        )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         # pylint: disable=C0115,C0116
@@ -808,3 +816,67 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
                 consumed_samples=consumed_samples,
                 consistency_check=False,
             )
+
+
+def convert_to_packed(
+    tokens: List[torch.Tensor],
+    labels: List[torch.Tensor],
+    ignore_index: int,
+    pad_to_multiple_of: int = 64,
+):
+    """
+    Convert tokens, labels, and associated inputs into a packed version with padded sequence parameters.
+    This function is adatped from neva's convert_to_packed (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/vlm/neva/data/sequence_packing.py#L103). 
+    Some adjustments include: 
+        1) skip position ids generation
+        2) calculate media/text seqlen directly as media tokens are 1:1 placeholders in the 'tokens' parameter.
+
+    Args:
+        tokens (list[torch.Tensor]): List of token tensors for each instance.
+        labels (list[torch.Tensor]): List of label tensors for each instance.
+        num_image_embeddings_per_tile (int): Number of image embeddings per tile.
+        media_token_index (int): Token ID representing media.
+        ignore_index (int): Value to use for padding labels.
+        pad_to_multiple_of (int): Sequence length will be padded to a multiple of this value. Default is 8.
+    """
+    packed_tokens = []
+    packed_labels = []
+    seqlens_padded = []
+    cu_seqlens = [0]
+    cu_seqlens_padded = [0]
+
+    for instance_tokens, instance_labels in zip(tokens, labels):
+        seqlen = len(instance_tokens)
+        seqlen_padded = (seqlen + pad_to_multiple_of - 1) // pad_to_multiple_of * pad_to_multiple_of
+        pad_len = seqlen_padded - seqlen
+
+        if pad_len > 0:
+            instance_tokens = F.pad(instance_tokens, (0, pad_len), 'constant', 0)
+            instance_labels = F.pad(instance_labels, (0, pad_len), 'constant', ignore_index)
+
+        packed_tokens.append(instance_tokens)
+        packed_labels.append(instance_labels)
+        seqlens_padded.append(seqlen_padded)
+        cu_seqlens.append(cu_seqlens[-1] + seqlen)
+        cu_seqlens_padded.append(cu_seqlens_padded[-1] + seqlen_padded)
+
+    packed_tokens = torch.cat(packed_tokens, dim=0).unsqueeze(0)
+    packed_labels = torch.cat(packed_labels, dim=0).unsqueeze(0)
+
+    packed_loss_mask = torch.ones_like(packed_labels, dtype=torch.float, device=packed_labels.device)
+    packed_loss_mask[packed_labels < 0] = 0.0
+
+    cu_seqlens = torch.IntTensor(cu_seqlens)
+    cu_seqlens_padded = torch.IntTensor(cu_seqlens_padded)
+
+    packed_seq_params = PackedSeqParams(
+        cu_seqlens_q=cu_seqlens,
+        cu_seqlens_kv=cu_seqlens,
+        cu_seqlens_q_padded=cu_seqlens_padded,
+        cu_seqlens_kv_padded=cu_seqlens_padded,
+        max_seqlen_q=int(max(seqlens_padded)),
+        max_seqlen_kv=int(max(seqlens_padded)),
+        qkv_format='thd',
+    )
+
+    return packed_tokens, packed_labels, packed_loss_mask, packed_seq_params
