@@ -880,9 +880,7 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
 
     if 0 in mask:
         # traverse the list backward for first occurrence of masked token
-        context_end_idx = len(mask) - mask[::-1].index(
-            0
-        )
+        context_end_idx = len(mask) - mask[::-1].index(0)
     else:
         context_end_idx = len(mask)
 

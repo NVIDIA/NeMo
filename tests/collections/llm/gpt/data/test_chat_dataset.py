@@ -19,15 +19,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from datasets import Dataset
 
-from nemo.collections.llm.gpt.data.core import (
-    GPTSFTChatDataset,
-    create_sft_dataset,
-)
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
+from nemo.collections.llm.gpt.data.core import GPTSFTChatDataset, create_sft_dataset
 from nemo.collections.llm.gpt.data.utils import _chat_preprocess
 
 LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS = """{{- bos_token }}
@@ -174,6 +170,7 @@ def test_create_dataset(chat_data_module, temp_dataset_dir):
     test_dataset = chat_data_module._create_dataset(str(dataset_path), is_test=True)
     assert test_dataset is not None
 
+
 def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
 
     dataset_path = temp_dataset_dir / "chat_dataset.jsonl"
@@ -187,17 +184,20 @@ def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
                         "role": "assistant",
                         "content": "2",
                         "tool_calls": [
-                            {"type": "function", "function": {
-                                "name": "get_weather", "arguments": {"location": "Denver"}
-                            }},
+                            {
+                                "type": "function",
+                                "function": {"name": "get_weather", "arguments": {"location": "Denver"}},
+                            },
                             # additional tool calls should be quietly ignored
-                            {"type": "function", "function": {
-                                "name": "extra", "arguments": {"non-existing": "tool call"}
-                            }},
+                            {
+                                "type": "function",
+                                "function": {"name": "extra", "arguments": {"non-existing": "tool call"}},
+                            },
                         ],
                     },
                 ]
-            }, f
+            },
+            f,
         )
 
     tool_schemas = [
@@ -221,7 +221,7 @@ def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
         seq_length=512,
         prompt_template="{input} {output}",
         chat=True,
-        use_hf_tokenizer_chat_template = True,
+        use_hf_tokenizer_chat_template=True,
         tool_schemas=tool_schemas,
     )
 
@@ -281,6 +281,7 @@ def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
         """<|python_tag|><function=get_weather>{"location": "Denver"}</function>\n"""
         "<|eot_id|>-"
     )
+
 
 class TestPreprocess:
     tokenizer = AutoTokenizer(
@@ -409,9 +410,10 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
                     "tool_calls": [
                         {"type": "function", "function": {"name": "get_weather", "arguments": {"location": "Denver"}}},
                         # additional tool calls should be quietly ignored
-                        {"type": "function", "function": {
-                            "name": "extra", "arguments": {"non-existing": "tool call"}
-                        }},
+                        {
+                            "type": "function",
+                            "function": {"name": "extra", "arguments": {"non-existing": "tool call"}},
+                        },
                     ],
                 },
                 {"role": "tool", "content": '{"Denver": {"temperature": "72°F"}}'},
