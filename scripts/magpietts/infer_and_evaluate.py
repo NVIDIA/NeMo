@@ -104,6 +104,7 @@ def run_inference(
         confidence_level=0.95,
         use_local_transformer=False,
         maskgit_n_steps=3,
+        maskgit_noise_scale=0.0,
         legacy_codebooks=False
     ):
     # Load model
@@ -240,7 +241,8 @@ def run_inference(
                     apply_prior_to_layers=apply_prior_to_layers,
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
                     use_local_transformer_for_inference=use_local_transformer,
-                    maskgit_n_steps=maskgit_n_steps
+                    maskgit_n_steps=maskgit_n_steps,
+                    maskgit_noise_scale=maskgit_noise_scale
                 )
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
@@ -330,6 +332,7 @@ def main():
     parser.add_argument('--use_cfg', action='store_true')
     parser.add_argument('--use_local_transformer', action='store_true', help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.")
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
+    parser.add_argument('--maskgit_noise_scale', type=float, default=0.0)
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
@@ -384,6 +387,7 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
+                maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks
             )
         return
@@ -413,7 +417,8 @@ def main():
             start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
-            maskgit_n_steps=args.maskgit_n_steps,            
+            maskgit_n_steps=args.maskgit_n_steps,
+            maskgit_noise_scale=args.maskgit_noise_scale,
             legacy_codebooks=args.legacy_codebooks
         )
     else:
@@ -477,6 +482,7 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
+                maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks
             )
 
