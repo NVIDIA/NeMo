@@ -49,6 +49,7 @@ def _build_import_path(domain, subdomains: list, imp):
 
 def _get_class_from_path(domain, subdomains, imp):
     path = _build_import_path(domain, subdomains, imp)
+
     class_ = None
     result = None
 
@@ -68,7 +69,7 @@ def _get_class_from_path(domain, subdomains, imp):
 
         error = None
     except UnavailableError:
-        error = traceback.format_exc()
+        result = None
 
     except Exception:
         error = traceback.format_exc()
