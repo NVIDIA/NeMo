@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -296,7 +296,7 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         """
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return LlavaNextForConditionalGeneration(self.config)
 
     def apply(self, output_path: Path) -> Path:

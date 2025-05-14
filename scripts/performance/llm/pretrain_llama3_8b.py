@@ -17,7 +17,8 @@ from os.path import basename, splitext
 import nemo_run as run
 
 from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -65,13 +66,20 @@ def override_recipe_configs(
         enable_cuda_graphs=enable_cuda_graphs,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
+    if args.use_hf_tokenizer:
+        recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-8B")
+    else:
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
+        )
+        recipe.model.tokenizer = recipe.data.tokenizer
 
     return recipe
 
@@ -114,6 +122,9 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

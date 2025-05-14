@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -105,6 +105,9 @@ from nemo.collections.llm.gpt.model import (  # noqa: F401
     Llama2Config70B,
     Llama3Config8B,
     Llama3Config70B,
+    Llama4Config,
+    Llama4Experts16Config,
+    Llama4Experts128Config,
     Llama31Config8B,
     Llama31Config70B,
     Llama31Config405B,
@@ -263,6 +266,9 @@ __all__ = [
     "Llama31Config405B",
     "Llama32Config1B",
     "Llama32Config3B",
+    "Llama4Experts16Config",
+    "Llama4Experts128Config",
+    "Llama4Config",
     "Llama31NemotronNano8BConfig",
     "Llama31Nemotron70BConfig",
     "Llama33NemotronSuper49BConfig",

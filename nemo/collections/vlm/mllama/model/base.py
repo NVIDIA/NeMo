@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,13 +30,14 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import get_batch_on_this_cp_rank
 from PIL import Image as PIL_Image
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 from nemo.collections.vlm.mllama.model.language import CrossAttentionTextModel
 from nemo.collections.vlm.mllama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
@@ -73,14 +74,14 @@ def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "num_chunks",
         )
     )
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.update(
             (
                 "batch_images",
                 "aspect_ratio_ids",
             )
         )
-    if parallel_state.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
         required_keys.update(
             (
                 "labels",
@@ -93,7 +94,7 @@ def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
@@ -278,11 +279,11 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
         model = MLlamaBaseModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage()
+            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False)
             or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
-            post_process=ps.is_pipeline_last_stage(),
-            add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage()
+            post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
+            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
+            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
         )
 

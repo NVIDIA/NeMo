@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -172,10 +172,10 @@ class Gemma2Model(GPTModel):
         from nemo.collections.common.parts.utils import extend_instance
 
         super().configure_model()
-        if parallel_state.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
             # Apply Embedding Scaling: sqrt(hidden_size)
             extend_instance(self.module.embedding, EmbeddingScalingMixin)
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # Prevents final logits from growing excessively by scaling them to a fixed range
             extend_instance(self.module.output_layer, Gemma2OutputLayer)
 
@@ -295,7 +295,7 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
