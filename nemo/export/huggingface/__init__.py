@@ -14,6 +14,8 @@
 
 from .gemma import HFGemmaExporter
 from .llama import HFLlamaExporter
-from .utils import change_paths_to_absolute_paths, ckpt_load, torch_dtype_from_mcore_config
+from .mistral import HFMistralExporter
+from .mixtral import HFMixtralExporter
+from .utils import change_paths_to_absolute_paths, torch_dtype_from_mcore_config
 
-__all__ = ["HFLlamaExporter", "HFGemmaExporter", "change_paths_to_absolute_paths", "torch_dtype_from_mcore_config"]
+__all__ = ["HFLlamaExporter", "HFGemmaExporter", "HFMistralExporter", "HFMixtralExporter", "change_paths_to_absolute_paths", "torch_dtype_from_mcore_config"]

@@ -12,44 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import yaml
 from pathlib import Path
+
+import torch
+import yaml
 
 from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter, get_model
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
+from nemo.utils import logging
 
-GemmaModel = get_model("GemmaModel")
+MistralModel = get_model("MistralModel")
 
-@io_model_exporter(GemmaModel, "hf")
-class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
+@io_model_exporter(MistralModel, "hf")
+class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"]):
     """ """
 
-    def init(self) -> "GemmaForCausalLM":
+    def init(self, dtype=torch.bfloat16) -> "MistralForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return AutoModelForCausalLM.from_config(self.config)
+            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
-        """ """
-        target = self.init()
+        # TODO: Make it work with lazy init
+        # with torch.device("meta"):
+        #     target = self.init()
         source, source_config = ckpt_load(str(self))
         source = _ModelState(source, source_config)
+
+        target = self.init(torch_dtype_from_mcore_config(source_config))
         target = self.convert_state(source, target)
 
+        # TODO: Make sure we don't need to do this
         target = target.cpu()
         target.save_pretrained(output_path)
-        self.tokenizer.tokenizer.save_pretrained(output_path)
+        try:
+            self.tokenizer.tokenizer.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save tokenizer")
 
         return output_path
 
     def convert_state(self, source, target):
         """ """
         mapping = {
-            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
             "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
@@ -58,6 +66,16 @@ class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
         }
 
         transforms = [
+            io.state_transform(
+                source_key="embedding.word_embeddings.weight",
+                target_key="model.embed_tokens.weight",
+                fn=TransformFns.prune_padding,
+            ),
+            io.state_transform(
+                source_key="output_layer.weight",
+                target_key="lm_head.weight",
+                fn=TransformFns.prune_padding,
+            ),
             io.state_transform(
                 source_key="decoder.layers.*.self_attention.linear_qkv.weight",
                 target_key=(
@@ -73,16 +91,25 @@ class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
                 fn=TransformFns.split_fc1,
             ),
         ]
-
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        transformed = io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=transforms,
+        )
+        return transformed
 
     @property
-    def tokenizer(self):
-        """ """
+    def tokenizer(self) -> "TokenizerSpec":
+        """Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
         return get_tokenizer(str(self))
 
     @property
-    def config(self) -> "GemmaConfig":
+    def config(self) -> "MistralConfig":
         """ """
         model_yaml = Path(str(self)) / "context" / "model.yaml"
         if not model_yaml.exists():
@@ -93,24 +120,26 @@ class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
             type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
         )
 
+        if config['config']['seq_length'] is None:
+            config['config']['seq_length'] = 32768
+            logging.warning("seq_length is None, setting to 32768")
+
         source = dict_to_obj(config['config'])
 
-        from transformers import GemmaConfig as HFGemmaConfig
+        from transformers import MistralConfig as HfMistralConfig
 
-        return HFGemmaConfig(
-            architectures=["GemmaForCausalLM"],
+        return HfMistralConfig(
+            architectures=["MistralForCausalLM"],
+            sliding_window=source.window_size[0] if source.window_size is not None else None,
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
-            head_dim=(
-                source.kv_channels
-                if source.kv_channels is not None
-                else source.hidden_size // source.num_attention_heads
-            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
             vocab_size=self.tokenizer.vocab_size,
+            head_dim=source.kv_channels,
         )

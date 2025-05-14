@@ -18,17 +18,13 @@ from typing import Union
 import torch
 import yaml
 
-from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter, torch_dtype_from_mcore_config
+from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter, get_model
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
 
-try:
-    from nemo.collections.llm import LlamaModel
-except ImportError as e:
-    from nemo.export.huggingface.utils import DummyModel as LlamaModel
-
+LlamaModel = get_model("LlamaModel")
 
 # TODO: test multiple Llama model types
 @io_model_exporter(LlamaModel, "hf")

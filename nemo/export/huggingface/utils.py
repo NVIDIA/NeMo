@@ -26,25 +26,66 @@ from nemo.utils import logging
 llm_available = True
 try:
     from nemo.collections import llm  # noqa: F401
+    raise Exception("llm_available is true")
 except ImportError:
+    llm = None
     llm_available = False
     logging.warning(
-        "nemo.collections.llm module is not available," " model exporters will not be connected to llm.GPTModels"
+        "nemo.collections.llm module is not available, model exporters will not be connected to llm.GPTModels"
     )
 
 
-class DummyModel:
-    pass
+_EXPORTERS_REGISTRY = {}
+
+
+def get_model(name: str):
+    if llm_available:
+        model_cls = getattr(llm, name)
+        if isinstance(model_cls, type):
+            return model_cls
+
+    return type(name, (object,), {
+        "__module__": __name__,
+        "__doc__": f"Generated dummy class for missing model: {name}"
+    })
+
 
 
 def io_model_exporter(cls, format):
+    """
+    Wrapper around `nemo.lightning.io.model_exporter` that (1) registers the
+    exporter with the NeMo IO system and (2) stores a reference to the exporter
+    class in the local `_EXPORTERS_REGISTRY` so it can be retrieved through
+    `get_exporter`.
+    """
     if not llm_available:
-        noop = lambda _cls, *args, **kwargs: _cls
+        def noop(exporter_cls, *args, **kwargs):
+            key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
+            if format not in _EXPORTERS_REGISTRY:
+                _EXPORTERS_REGISTRY[format] = {}
+            _EXPORTERS_REGISTRY[format][key] = exporter_cls
+            return exporter_cls
+
         return noop
 
-    from nemo.lightning.io import model_exporter
+    from nemo.lightning.io import model_exporter as _model_exporter
+    base_decorator = _model_exporter(cls, format)
+    def decorator(exporter_cls):
+        decorated_cls = base_decorator(exporter_cls)
+        key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
+        if format not in _EXPORTERS_REGISTRY:
+            _EXPORTERS_REGISTRY[format] = {}
+        _EXPORTERS_REGISTRY[format][key] = decorated_cls
+        return decorated_cls
 
-    return model_exporter(cls, format)
+    return decorator
+
+
+def get_exporter(cls, format):
+    key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
+    if format not in _EXPORTERS_REGISTRY:
+        return None
+    return _EXPORTERS_REGISTRY[format].get(key, None)
 
 
 def torch_dtype_from_mcore_config(config) -> torch.dtype:
