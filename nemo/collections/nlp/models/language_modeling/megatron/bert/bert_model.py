@@ -583,7 +583,9 @@ class NeMoBertModel(MegatronModule):
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
 
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+        if parallel_state.is_pipeline_first_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        ):
             input_ids = bert_model_input
             position_ids = build_position_ids(input_ids)
         else:

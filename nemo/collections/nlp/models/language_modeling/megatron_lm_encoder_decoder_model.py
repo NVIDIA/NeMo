@@ -80,10 +80,7 @@ except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 __all__ = ["MegatronLMEncoderDecoderModel"]
 
@@ -950,7 +947,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             return None
 
         # only the last pipeline parallel stages return loss
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()) and len(step_outputs):
+        if parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        ) and len(step_outputs):
             averaged_loss = {k: torch.stack([x[k] for x in step_outputs]).mean() for k in step_outputs[0].keys()}
         else:
             # if we are here we assume that only loss is available and hidden transforms are disabled
@@ -1529,7 +1528,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 micro_batch_size=get_micro_batch_size(),
             )
             # get output tensor
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+            if parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range

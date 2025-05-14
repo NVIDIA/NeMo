@@ -85,10 +85,7 @@ except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 
@@ -639,9 +636,13 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+                if parallel_state.is_pipeline_first_stage(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                ):
                     required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+                if parallel_state.is_pipeline_last_stage(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                ):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
@@ -1451,7 +1452,9 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
                 continue
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
             loss_vals = [x['loss'] for x in output]
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+            if parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ):
                 # only the last pipeline parallel stages return loss with their batch size
                 if self.cfg.data.get('validation_drop_last', True):
                     loss = torch.stack(loss_vals).mean()

@@ -29,9 +29,9 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
 import dis
 import os
 from argparse import ArgumentParser
-from genericpath import isdir
 
 import torch
+from genericpath import isdir
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core import parallel_state

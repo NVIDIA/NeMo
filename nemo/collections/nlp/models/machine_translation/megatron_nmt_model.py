@@ -76,10 +76,7 @@ except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
 
 
 __all__ = ["MegatronNMTModel"]
@@ -469,7 +466,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         loss_list = []
         bleu_score_list = []
         for dataloader_idx, output in enumerate(outputs):
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+            if parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ):
                 # only the last pipeline parallel stages return loss
                 averaged_loss = torch.stack([x['loss'] for x in output]).mean()
             else:

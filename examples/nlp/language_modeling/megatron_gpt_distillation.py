@@ -182,9 +182,13 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+                if parallel_state.is_pipeline_first_stage(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                ):
                     required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+                if parallel_state.is_pipeline_last_stage(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                ):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')

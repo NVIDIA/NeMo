@@ -447,7 +447,9 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             if len(loss_vals) == 0:
                 logging.warning("validation_epoch_end: outputs is empty")
                 return
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+            if parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ):
                 # only the last pipeline parallel stages return loss
                 loss = torch.stack(loss_vals).mean()
             else:

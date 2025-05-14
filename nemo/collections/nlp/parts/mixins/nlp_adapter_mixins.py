@@ -115,7 +115,9 @@ class NLPAdapterModelMixin:
         return l
 
     def first_stage_of_pipeline(self):
-        return parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank())
+        return parallel_state.is_pipeline_first_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        )
 
     def _get_all_keys(
         self,

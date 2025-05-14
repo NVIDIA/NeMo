@@ -82,8 +82,12 @@ def build_model(
                 model_provider_func(
                     *args,
                     **kwargs,
-                    pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
-                    post_process=parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
+                    pre_process=parallel_state.is_pipeline_first_stage(
+                        ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                    ),
+                    post_process=parallel_state.is_pipeline_last_stage(
+                        ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                    ),
                 )
             )
     else:
@@ -91,12 +95,20 @@ def build_model(
             model = model_provider_func(
                 *args,
                 **kwargs,
-                pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
-                post_process=parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
+                pre_process=parallel_state.is_pipeline_first_stage(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                ),
+                post_process=parallel_state.is_pipeline_last_stage(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                ),
             )
         elif model_type == ModelType.encoder_and_decoder:
-            pre_process = parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank())
-            post_process = parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank())
+            pre_process = parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            )
+            post_process = parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            )
             # `add_encoder` & `add_decoder` logic.
             add_encoder, add_decoder = True, True
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
