@@ -133,7 +133,12 @@ Tensor Parallelism (TP) is a model-parallel partitioning method that distributes
 In addition to reducing model state memory usage, it also saves activation memory as the per-GPU tensor sizes shrink.
 However, the reduced per-GPU tensor size increases CPU overhead due to smaller per-GPU kernel workloads.
 
-.. image:: ../nlp/nemo_megatron/images/tp.gif
+.. image:: ../nlp/nemo_megatron/images/tp1.png
+    :align: center
+    :width: 800px
+    :alt: Tensor Parallel
+
+.. image:: ../nlp/nemo_megatron/images/tp2.png
     :align: center
     :width: 800px
     :alt: Tensor Parallel
@@ -283,8 +288,6 @@ Set expert parallelism directly from CLI:
       
       nemo llm pretrain --factory mixtral_8x7b trainer.strategy.expert_model_parallel_size=4
 
-For further information on configuration, refer to the following documentation: `NeMo Megatron GPT Config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_config.yaml#L68>`__.
-
 
 Enable Expert Tensor Parallelism
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -311,7 +314,7 @@ Set expert tensor parallelism directly from CLI:
 Expert Parallelism Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The NeMo Framework implementation of EP uses functionality from Megatron Core. Please consult the `Megatron Core MoE layer <https://github.com/NVIDIA/Megatron-LM/blob/e2ec14ab5690fead7e33760b0f8fb20c83b4fd1f/megatron/core/transformer/moe/moe_layer.py#L29>`_ for more MoE implementation details.
+The NeMo Framework implementation of EP uses functionality from Megatron Core. Please consult the `Megatron Core MoE layer <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/moe/moe_layer.py#L42>`_ for more MoE implementation details.
 
 
 
@@ -326,7 +329,7 @@ Sequence Parallelism
 
 Sequence Parallelism (SP) extends tensor-level model parallelism by distributing computing load and activation memory across multiple GPUs along the sequence dimension of transformer layers. This method is particularly useful for portions of the layer that have previously not been parallelized, enhancing overall model performance and efficiency.
 
-.. image:: ../nlp/nemo_megatron/images/sp.gif
+.. image:: ../nlp/nemo_megatron/images/sp.png
     :align: center
     :width: 800px
     :alt: Sequence Parallel
@@ -398,7 +401,7 @@ NeMo Framework leverages functionalities from both Megatron Core and Transformer
 
 Visit our source code for more insights into the implementation:
 - `Megatron Core wrappers for Transformer Engine <https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/extensions/transformer_engine.py>`_
-- `Transformer Engine attention modules <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention.py>`_
+- `Transformer Engine attention modules <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention>`_
 
 
 Parallelism Nomenclature

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -107,8 +107,6 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         self.image_processor = image_processor
         self.seq_length = seq_length
         self.decoder_seq_length = decoder_seq_length
-        self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
         self.num_workers = num_workers

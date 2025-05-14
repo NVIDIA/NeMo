@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+# Copyright (c) 2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,17 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-name: "CICD NeMo"
+name: CICD NeMo
 on:
+  schedule:
+    - cron: 0 0 * * *
   pull_request:
     branches:
-      - "main"
-      - "r**"
-      - "weekly-bump"
-    types: [labeled]
-  push:
-    branches:
       - main
+      - r**
+      - weekly-bump*
+    types: [labeled]
   workflow_dispatch:
     inputs:
       test_to_run:
@@ -31,7 +30,8 @@ on:
         description: Comma-separated list of tests to run. Use "all" to run the full test suite.
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}
+  # group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test_to_run: ${{ steps.test_to_run.outputs.main }}
-      build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
+      is_ci_workload: ${{ steps.is_ci_workload.outputs.main }}
+      no_fail_fast: ${{ steps.no_fail_fast.outputs.main }}
+      components_to_run: ${{ steps.components_to_run.outputs.main }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -47,30 +49,44 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select components to run
+        id: components_to_run
+        run: |
+          pip install -U pip
+          pip install git-python
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python .github/scripts/components_to_run.py --source-sha ${{ github.event.pull_request.head.sha }} --target-sha ${{ github.event.pull_request.base.sha }}
+          else
+            echo '["nemo2", "automodel", "export-deploy", "speech"]' | tee -a test_modules.json
+          fi
+
+          components_to_run=$(cat test_modules.json)
+
+          echo "main=${components_to_run}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Select tests to run
         id: test_to_run
         run: |
-          # For manual dispatch, we replace `all` with the actual job names          
-          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" == "all" ]]; then
-            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
-
-          # For manual dispatch with provided list of tests, do nothing
-          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" != "all" ]]; then
+          # For manual dispatch, we replace `all` with the actual job names
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             TESTS_TO_RUN=$TESTS_TO_RUN
 
-          # For correctly labeled PR, we replace `all` with the actual job names          
+          # For correctly labeled PR, we replace `all` with the actual job names
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
-            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
+            TESTS_TO_RUN=all
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
-            
+
           # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
-          elif [[ "$EVENT_NAME" == "push" ]]; then
-            TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
+          elif [[ "$EVENT_NAME" == "push" || "$EVENT_NAME" == "schedule" ]]; then
+            TESTS_TO_RUN=all
 
           else
             echo "Unsupported event_name $EVENT_NAME provided".
@@ -80,3206 +96,308 @@ jobs:
           parsed_string=$(echo "$TESTS_TO_RUN" | jq -c --raw-input 'split(",")')
           echo "main=${parsed_string}" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Parse manifest.json
-        id: manifest
+      - name: Check if this is a CI workload
+        shell: bash
+        id: is_ci_workload
         run: |
-          BUILD_ARGS=$(cat << EOF
-          BASE_IMAGE=$(cat requirements/manifest.json | jq -r '."ngc-pytorch"')
-          MLM_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".repo')
-          MLM_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies"."megatron-lm".ref')
-          TE_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.repo')
-          TE_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".transformer_engine.ref')
-          APEX_REPO=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.repo')
-          APEX_TAG=$(cat requirements/manifest.json | jq -r '."vcs-dependencies".apex.ref')
-          EOF
-          )
+          branch_name=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
-          echo "BUILD_ARGS<<EOF" >> $GITHUB_OUTPUT
-          echo "$BUILD_ARGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [[ "$branch_name" =~ ^bump-ci-container || "$EVENT_NAME" == "schedule" ]]; then
+            is_ci_workload=true
+            echo "main=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            is_ci_workload=false
+          fi
+
+          echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check if no-fail-fast is set
+        shell: bash
+        id: no_fail_fast
+        env:
+          HAS_FAIL_FAST_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
+        run: |
+          if [[ "$HAS_FAIL_FAST_LABEL" == "true" || "$EVENT_NAME" == "schedule" ]]; then
+            no_fail_fast=true
+          else
+            no_fail_fast=false
+          fi
+
+          echo "main=$no_fail_fast" | tee -a "$GITHUB_OUTPUT"
 
   code-linting:
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
+    if: needs.pre-flight.outputs.test_to_run != '[]'
     needs: [pre-flight]
     uses: ./.github/workflows/code-linting.yml
 
-  cicd-test-container-build:
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
+  cicd-wait-in-queue:
     needs: [pre-flight, code-linting]
+    runs-on: ubuntu-latest
+    environment: test
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && needs.pre-flight.outputs.is_ci_workload == 'false'
+    steps:
+      - name: Running CI tests
+        run: |
+          echo "Running CI tests"
+
+  cicd-test-container-build:
+    uses: ./.github/workflows/_build_container.yml
+    needs: [pre-flight, code-linting, cicd-wait-in-queue]
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success() 
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     with:
       image-name: nemo_container
-      dockerfile: Dockerfile.ci
-      image-label: nemo-core
-      build-args: |
-        IMAGE_LABEL=nemo-core
-        NEMO_TAG=${{ github.sha }}
-        NEMO_REPO=https://github.com/NVIDIA/NeMo
-        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
-      prune-filter-timerange: 24h
+      dockerfile: docker/Dockerfile.ci
 
   cicd-import-tests:
-    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     needs: [cicd-test-container-build, pre-flight]
     runs-on: self-hosted-azure-gpus-1
     steps:
+      - name: Create UUID
+        id: uuid
+        run: |
+          echo "id=$(uuidgen)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout NeMo
+        uses: actions/checkout@v2
+        with:
+          repository: NVIDIA/NeMo
+          path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
+
       - name: Run some checks
         run: |
-          docker run --rm --device=/dev/nvidia0 --gpus all --shm-size=8g --env TRANSFORMERS_OFFLINE=0 --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
+          docker run \
+              --rm \
+            --device=/dev/nvidia0 \
+            --gpus all \
+            --shm-size=8g \
+            --volume $(pwd)/${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo:/workspace \
+            --env TRANSFORMERS_OFFLINE=0 \
+            --env HYDRA_FULL_ERROR=1 --env PYTHONUNBUFFERED=1 nemoci.azurecr.io/nemo_container:${{ github.run_id }} bash -c '\
             # PyTorch Lightning version
             python -c "import lightning.pytorch; print(lightning.pytorch.__version__)"
 
             # PyTorch Lightning DDP Checks
-            CUDA_VISIBLE_DEVICES="0,1" Gotchapython "tests/core_ptl/check_for_ranks.py"
+            CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"
 
             # Basic Import Checks
             python tests/core_ptl/check_imports.py --domain asr
             python tests/core_ptl/check_imports.py --domain nlp
-            python tests/core_ptl/check_imports.py --domain tts        '
-
-  # L0: GPU unit tests
-  L0_Unit_Tests_GPU_ASR:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_ASR')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      TIMEOUT: 20
-      # TODO: remove this hack
-      SCRIPT: |
-        python -c "from nemo.collections.asr.models import ASRModel" && NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/asr -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Audio:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Audio')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      TIMEOUT: 20
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/audio -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Common:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Common')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/common -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_LLM:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_LLM')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/llm -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Multimodal:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Multimodal')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/multimodal -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_TTS:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_TTS')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/collections/tts -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Core:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Core')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      TIMEOUT: 20
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/core -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Hydra:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Hydra')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest tests/hydra -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Lightning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Lightning')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0,1 pytest tests/lightning -m "not pleasefixme" --with_downloads --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_GPU_Others:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_GPU_Others')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        NEMO_NUMBA_MINVER=0.53 CUDA_VISIBLE_DEVICES=0 pytest -m "not pleasefixme" --with_downloads \
-        --ignore=tests/collections/asr \
-        --ignore=tests/collections/audio \
-        --ignore=tests/collections/common \
-        --ignore=tests/collections/llm \
-        --ignore=tests/collections/multimodal \
-        --ignore=tests/collections/nlp \
-        --ignore=tests/collections/tts \
-        --ignore=tests/core \
-        --ignore=tests/core_ptl \
-        --ignore=tests/hydra \
-        --ignore=tests/lightning \
-        --ignore=tests/utils \
-        --cov-branch --cov-report=xml --cov=nemo
-
-  # L0: CPU unit tests
-  L0_Unit_Tests_CPU_ASR:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_ASR')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/asr -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Audio:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Audio')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/audio -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Common:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Common')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/common -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_LLM:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_LLM')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/llm -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Multimodal:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Multimodal')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/multimodal -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_TTS:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_TTS')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/collections/tts -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Core:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Core')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      TIMEOUT: 20
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/core tests/core_ptl -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Hydra:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Hydra')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/hydra -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Lightning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Lightning')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest tests/lightning -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat --cov-branch --cov-report=xml --cov=nemo
-
-  L0_Unit_Tests_CPU_Others:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Unit_Tests_CPU_Others')
-    with:
-      RUNNER: self-hosted-azure-cpu
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat \
-        --ignore=tests/collections/asr \
-        --ignore=tests/collections/audio \
-        --ignore=tests/collections/common \
-        --ignore=tests/collections/llm \
-        --ignore=tests/collections/multimodal \
-        --ignore=tests/collections/nlp \
-        --ignore=tests/collections/tts \
-        --ignore=tests/core \
-        --ignore=tests/core_ptl \
-        --ignore=tests/hydra \
-        --ignore=tests/lightning \
-        --ignore=tests/utils \
-        --cov-branch --cov-report=xml --cov=nemo
+            python tests/core_ptl/check_imports.py --domain tts
+          '
 
   L0_Setup_Test_Data_And_Models:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L0_Setup_Test_Data_And_Models')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python -m tests.setup --save_dir /home/TestData/nlp
-
-  # L2: Community llava multimodal Checkpoints tests
-  L2_Community_vita_Checkpoints_tests_Llama3:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Community_vita_Checkpoints_tests_Llama3')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
-
-  # L2: ASR dev run
-  ASR_dev_run_Speech_to_Text:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: bash tests/functional_tests/ASR_dev_run_Speech_to_Text.sh
-
-  ASR_dev_run_Speech_to_Text_WPE_CitriNet:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_CitriNet')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet.sh
-
-  ASR_dev_run_Speech_Pre-training_-_CitriNet:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_Pre-training_-_CitriNet')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/speech_pretraining/speech_pre_training.py \
-        --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_pre_training_results
-
-  Optional_ASR_dev_run_Speech_To_Text_Finetuning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_Finetuning')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/speech_to_text_finetune.py \
-        --config-path="conf/asr_finetune" --config-name="speech_to_text_finetune" \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
-        model.tokenizer.update_tokenizer=False \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_finetuning_results
-      IS_OPTIONAL: true
-
-  Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |-
-        python examples/asr/speech_to_text_finetune.py \
-        --config-path="conf/asr_finetune" --config-name="speech_to_text_hf_finetune" \
-        ~model.train_ds.hf_data_cfg \
-        model.train_ds.num_workers=1 \
-        model.train_ds.batch_size=2 model.validation_ds.batch_size=2 \
-        model.train_ds.streaming=true \
-        +model.train_ds.hf_data_cfg.path="librispeech_asr" \
-        +model.train_ds.hf_data_cfg.name=null \
-        +model.train_ds.hf_data_cfg.split="test.clean" \
-        +model.train_ds.hf_data_cfg.streaming=true \
-        +model.train_ds.hf_data_cfg.trust_remote_code=True \
-        ++model.train_ds.hf_data_cfg.cache_dir=/home/TestData/HF_HOME \
-        ~model.validation_ds.hf_data_cfg \
-        model.validation_ds.streaming=true \
-        +model.validation_ds.hf_data_cfg.path="librispeech_asr" \
-        +model.validation_ds.hf_data_cfg.name=null \
-        +model.validation_ds.hf_data_cfg.split="test.clean" \
-        +model.validation_ds.hf_data_cfg.streaming=true \
-        +model.validation_ds.hf_data_cfg.trust_remote_code=True \
-        ++model.validation_ds.hf_data_cfg.cache_dir=/home/TestData/HF_HOME \
-        ~model.test_ds \
-        init_from_nemo_model=/home/TestData/asr/stt_en_fastconformer_transducer_large.nemo \
-        model.tokenizer.update_tokenizer=False \
-        model.optim.sched.warmup_steps=0 \
-        +model.optim.sched.max_steps=3 \
-        trainer.max_epochs=null \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_finetuning_results
-      IS_OPTIONAL: true
-
-  ASR_dev_run_Speech_to_Text_WPE_-_Conformer:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run_Speech_to_Text_WPE_-_Conformer')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
-        --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-        model.tokenizer.type="wpe" \
-        model.train_ds.batch_size=4 \
-        model.validation_ds.batch_size=4 \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_to_text_wpe_conformer_results
-
-  # L2: ASR dev run - part two
-  ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
-        --config-path="../conf/squeezeformer" --config-name="squeezeformer_ctc_bpe" \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-        model.tokenizer.type="wpe" \
-        model.encoder.d_model=144 \
-        model.train_ds.batch_size=4 \
-        model.validation_ds.batch_size=4 \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_to_text_wpe_squeezeformer_results
-
-  L2_Speech_to_Text_EMA:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_to_Text_EMA')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/asr/asr_ctc/speech_to_text_ctc.py \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        trainer.devices=2 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        +exp_manager.ema.enable=True \
-        exp_manager.exp_dir=/tmp/speech_to_text_results
-
-  L2_Speech_to_Text_AED:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_to_Text_AED')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/speech_multitask/speech_to_text_aed.py \
-        model.prompt_format=canary \
-        model.model_defaults.asr_enc_hidden=256 \
-        model.model_defaults.lm_dec_hidden=256 \
-        model.encoder.n_layers=12 \
-        model.transf_encoder.num_layers=0 \
-        model.transf_decoder.config_dict.num_layers=12 \
-        model.train_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_train.json \
-        model.train_ds.batch_duration=60 \
-        model.train_ds.use_bucketing=false \
-        model.train_ds.shuffle_buffer_size=100 \
-        model.train_ds.num_workers=0 \
-        +model.train_ds.text_field="answer" \
-        +model.train_ds.lang_field="target_lang" \
-        model.validation_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_val.json \
-        +model.validation_ds.text_field="answer" \
-        +model.validation_ds.lang_field="target_lang" \
-        model.validation_ds.num_workers=0 \
-        model.test_ds.manifest_filepath=/home/TestData/asr/manifests/canary/an4_canary_val.json \
-        +model.test_ds.text_field="answer" \
-        +model.test_ds.lang_field="target_lang" \
-        model.test_ds.num_workers=0 \
-        spl_tokens.model_dir=/home/TestData/asr_tokenizers/canary/canary_spl_tokenizer_v32 \
-        model.tokenizer.langs.en.dir=/home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4 \
-        model.tokenizer.langs.en.type=bpe \
-        ++model.tokenizer.langs.es.dir=/home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4 \
-        ++model.tokenizer.langs.es.type=bpe \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_to_text_aed_results
-
-  # L2: Speaker dev run
-  L2_Speaker_dev_run_Speaker_Recognition:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Recognition')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/speaker_tasks/recognition/speaker_reco.py \
-        model.train_ds.batch_size=10 \
-        model.validation_ds.batch_size=2 \
-        model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-        model.decoder.num_classes=2 \
-        trainer.max_epochs=10 \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speaker_recognition_results
-
-  L2_Speaker_dev_run_Speaker_Diarization:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder.py \
-        model.diarizer.speaker_embeddings.model_path=titanet_large \
-        model.train_ds.batch_size=5 \
-        model.validation_ds.batch_size=5 \
-        model.train_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
-        model.validation_ds.emb_dir=examples/speaker_tasks/diarization/speaker_diarization_results \
-        model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/msdd_data.50step.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/msdd_data.50step.json \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speaker_diarization_results
-
-  L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py \
-        trainer.devices="[0]" \
-        batch_size=3 \
-        model.train_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_train/eesd_train_tiny.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
-        exp_manager.exp_dir=/tmp/speaker_diarization_results \
-        +trainer.fast_dev_run=True
-
-  L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
-        model_path=/home/TestData/an4_diarizer/diar_sortformer_4spk-v1-tiny.nemo \
-        dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
-        batch_size=1
-
-  L2_Speaker_dev_run_Speech_to_Label:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speech_to_Label')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/speech_classification/speech_to_label.py \
-        model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-        model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-        model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-        ~model.preprocessor.window_size \
-        ~model.preprocessor.window_stride \
-        ~model.preprocessor.window \
-        ~model.preprocessor.n_mels \
-        ~model.preprocessor.n_mfcc \
-        ~model.preprocessor.n_fft \
-        exp_manager.exp_dir=/tmp/speech_to_label_results
-
-  L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_with_asr_infer.py \
-        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-        diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-        diarizer.speaker_embeddings.parameters.save_embeddings=True \
-        diarizer.speaker_embeddings.parameters.window_length_in_sec=[1.5] \
-        diarizer.speaker_embeddings.parameters.shift_length_in_sec=[0.75] \
-        diarizer.speaker_embeddings.parameters.multiscale_weights=[1.0] \
-        diarizer.asr.model_path=QuartzNet15x5Base-En \
-        diarizer.asr.parameters.asr_based_vad=True \
-        diarizer.out_dir=/tmp/speaker_diarization_asr_results
-
-  L2_Speaker_dev_run_Clustering_Diarizer_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Clustering_Diarizer_Inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/speaker_tasks/diarization/clustering_diarizer/offline_diar_infer.py \
-        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-        diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-        diarizer.speaker_embeddings.parameters.save_embeddings=True \
-        diarizer.speaker_embeddings.parameters.window_length_in_sec=1.5 \
-        diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
-        diarizer.speaker_embeddings.parameters.multiscale_weights=null \
-        diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-        diarizer.out_dir=/tmp/clustering_diarizer_results
-
-  L2_Speaker_dev_run_Neural_Diarizer_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Neural_Diarizer_Inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/speaker_tasks/diarization/neural_diarizer/multiscale_diar_decoder_infer.py \
-        diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-        diarizer.msdd_model.model_path=/home/TestData/an4_diarizer/diar_msdd_telephonic.nemo \
-        diarizer.speaker_embeddings.parameters.save_embeddings=True \
-        diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-        diarizer.out_dir=/tmp/neural_diarizer_results
-
-  L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tools/speech_data_simulator/multispeaker_simulator.py \
-        --config-path=conf --config-name=data_simulator.yaml \
-        data_simulator.random_seed=42 \
-        data_simulator.manifest_filepath=/home/TestData/LibriSpeechShort/dev-clean-align-short.json \
-        data_simulator.outputs.output_dir=/tmp/test_simulator \
-        data_simulator.session_config.num_sessions=2 \
-        data_simulator.session_config.session_length=60
-
-  # L2: ASR Multi-dataloader dev run
-  L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/asr_ctc/speech_to_text_ctc.py \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        trainer.max_epochs=1 \
-        trainer.max_steps=1 \
-        +trainer.num_sanity_val_steps=1 \
-        exp_manager.exp_dir=/tmp/speech_to_text_results
-
-  L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/speech_classification/speech_to_label.py \
-        model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-        model.validation_ds.manifest_filepath=[/home/TestData/speech_commands/test_manifest.json,/home/TestData/speech_commands/test_manifest.json] \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        trainer.max_epochs=1 \
-        trainer.max_steps=1 \
-        +trainer.num_sanity_val_steps=1 \
-        model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-        ~model.preprocessor.window_size \
-        ~model.preprocessor.window_stride \
-        ~model.preprocessor.window \
-        ~model.preprocessor.n_mels \
-        ~model.preprocessor.n_mfcc \
-        ~model.preprocessor.n_fft \
-        exp_manager.exp_dir=/tmp/speech_to_label_results
-
-  # L2: ASR Adapters
-  L2_ASR_Adapters_Linear_Adapters:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Adapters_Linear_Adapters')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/asr_adapters/train_asr_adapter.py \
-        model.pretrained_model="stt_en_conformer_ctc_small" \
-        model.adapter.adapter_name="an4" \
-        model.adapter.linear.in_features=176 \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        trainer.max_steps=5 \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_to_text_adapters_results
-
-  L2_ASR_Adapters_RelPos_MHA_Adapters:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_ASR_Adapters_RelPos_MHA_Adapters')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/asr/asr_adapters/train_asr_adapter.py \
-        model.pretrained_model="stt_en_conformer_ctc_small" \
-        model.adapter.adapter_name="encoder:an4" \
-        model.adapter.adapter_type="tiny_attn" \
-        model.adapter.tiny_attn.n_feat=176 \
-        model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        trainer.max_steps=5 \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=True \
-        exp_manager.exp_dir=/tmp/speech_to_text_adapters_mha_results
-
-  # L2: OOMptimizer
-  L2_Speech_Estimate_Duration_Bins:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Estimate_Duration_Bins')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        set -x
-        # 1D buckets [SSL, CTC]
-        python scripts/speech_recognition/estimate_duration_bins.py \
-          /home/TestData/an4_dataset/an4_train.json \
-          --buckets 5 
-        # 2D buckets [CTC, RNNT, TDT] / with tokenizer
-        python scripts/speech_recognition/estimate_duration_bins_2d.py \
-          /home/TestData/an4_dataset/an4_train_lang.json \
-          --tokenizer /home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4/tokenizer.model \
-          --buckets 5 \
-          --sub-buckets 2
-        # TODO(pzelasko): Figure out how to quote the value in the test properly for CI to accept it...
-        # 2D buckets with prompt [AED/Canary, SpeechLM] / with aggregate tokenizer + prompt format 
-        # python scripts/speech_recognition/estimate_duration_bins_2d.py \
-        #   /home/TestData/an4_dataset/an4_train_lang.json \
-        #   --tokenizer /home/TestData/asr_tokenizers/canary/canary_spl_tokenizer_v32/tokenizer.model \
-        #      /home/TestData/asr_tokenizers/canary/en/tokenizer_spe_bpe_v1024_max_4/tokenizer.model \
-        #      /home/TestData/asr_tokenizers/canary/es/tokenizer_spe_bpe_v1024_max_4/tokenizer.model \
-        #   --langs spl_tokens en es \
-        #   --prompt-format canary \
-        #   --prompt '[{"role":"user","slots":{"source_lang":"en","target_lang":"en","task":"asr","pnc":"yes"}}]' \
-        #   --buckets 5 \
-        #   --sub-buckets 2
-
-  # L2: OOMptimizer
-  L2_Speech_Batch_Size_OOMptimizer:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Batch_Size_OOMptimizer')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        # 1D bucketing
-        python scripts/speech_recognition/oomptimizer.py \
-          -c /home/TestData/oomptimizer/fast-conformer_ctc_bpe.yaml \
-          -m nemo.collections.asr.models.EncDecCTCModelBPE \
-          -b "[5.0,10.0]"
-        # 2D bucketing
-        python scripts/speech_recognition/oomptimizer.py \
-          -c /home/TestData/oomptimizer/fast-conformer_ctc_bpe.yaml \
-          -m nemo.collections.asr.models.EncDecCTCModelBPE \
-          -b "[[5.0,30],[5.0,45],[10.0,57],[10.0,71]]"
-
-  # L2: OOMptimizer Canary (has a different batch schema)
-  Optional_L2_Speech_Batch_Size_OOMptimizer_Canary:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Optional_L2_Speech_Batch_Size_OOMptimizer_Canary')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/speech_recognition/oomptimizer.py \
-          -c /home/TestData/oomptimizer/fast-conformer_aed.yaml \
-          -m nemo.collections.asr.models.EncDecMultiTaskModel \
-          -b "[[5.0,30],[5.0,45],[10.0,57],[10.0,71]]"
-      IS_OPTIONAL: true
-
-  # L2: Speech Transcription
-  L2_Speech_Transcription_Speech_to_Text_Transcribe:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Speech_to_Text_Transcribe')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/asr/transcribe_speech.py \
-        pretrained_name="QuartzNet15x5Base-En" \
-        audio_dir="/home/TestData/an4_transcribe/test_subset/" \
-        output_filename="/tmp/stt_test_res.json" \
-        amp=true
-
-  # L2: Speech Transcription
-  L2_Speech_Transcription_Canary_Transcribe_Full_Manifest:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Full_Manifest')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/asr/transcribe_speech.py \
-        dataset_manifest=/home/TestData/asr/canary/dev-other-wav-10-canary-fields.json \
-        output_filename=/tmp/preds.json \
-        batch_size=10 \
-        pretrained_name=nvidia/canary-1b \
-        num_workers=0 \
-        amp=false \
-        compute_dtype=bfloat16 \
-        matmul_precision=medium
-      AFTER_SCRIPT: |
-        rm -rf /tmp/preds.json transcribe.log
-
-  L2_Speech_Transcription_Canary_Transcribe_With_Prompt:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_With_Prompt')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/asr/transcribe_speech.py \
-        dataset_manifest=/home/TestData/asr/canary/dev-other-wav-10.json \
-        output_filename=preds.json \
-        batch_size=10 \
-        pretrained_name=nvidia/canary-1b \
-        num_workers=0 \
-        amp=false \
-        compute_dtype=bfloat16 \
-        matmul_precision=medium \
-        +prompt.source_lang="en" \
-        +prompt.target_lang="en" \
-        +prompt.task="asr" \
-        +prompt.pnc="no"
-      AFTER_SCRIPT: |
-        rm -rf preds.json transcribe.log
-
-  L2_Speech_Transcription_Canary_Transcribe_Audio_Dir:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Speech_Transcription_Canary_Transcribe_Audio_Dir')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/asr/transcribe_speech.py \
-        audio_dir=/home/TestData/asr/canary/dev-other-wav \
-        output_filename=preds.json \
-        batch_size=10 \
-        pretrained_name=nvidia/canary-1b \
-        num_workers=0 \
-        amp=false \
-        compute_dtype=bfloat16 \
-        matmul_precision=medium
-      AFTER_SCRIPT: |
-        rm -rf preds.json
-      IS_OPTIONAL: true
-
-  # L2: Segmentation Tool
-  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        cd tools/ctc_segmentation && \
-        TIME=`date +"%Y-%m-%d-%T"` && \
-        /bin/bash run_segmentation.sh \
-        --MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" \
-        --DATA_DIR=/home/TestData/ctc_segmentation/eng \
-        --OUTPUT_DIR=/tmp/ctc_seg_en/output${TIME} \
-        --LANGUAGE=en \
-        --USE_NEMO_NORMALIZATION="TRUE" && \
-        python /home/TestData/ctc_segmentation/verify_alignment.py \
-        -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
-        -g /tmp/ctc_seg_en/output${TIME}/verified_segments/nv_test_segments.txt;
-
-  L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        cd tools/ctc_segmentation && \
-        TIME=`date +"%Y-%m-%d-%T"` && \
-        /bin/bash run_segmentation.sh \
-        --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
-        --DATA_DIR=/home/TestData/ctc_segmentation/ru \
-        --OUTPUT_DIR=/tmp/ctc_seg_ru/output${TIME} \
-        --LANGUAGE=ru \
-        --ADDITIONAL_SPLIT_SYMBOLS=";" && \
-        python /home/TestData/ctc_segmentation/verify_alignment.py \
-        -r /home/TestData/ctc_segmentation/ru/valid_ru_segments_1.7.txt \
-        -g /tmp/ctc_seg_ru/output${TIME}/verified_segments/ru_segments.txt;
-
-  # L2: G2P Models
-  L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        cd examples/tts/g2p && \
-            TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_CONFORMER=output_ctc_${TIME} && \
-            python g2p_train_and_evaluate.py \
-                train_manifest=/home/TestData/g2p/g2p.json \
-                validation_manifest=/home/TestData/g2p/g2p.json \
-                model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
-                model.tokenizer.dir=/home/TestData/g2p/tokenizer_spe_unigram_v512 \
-                trainer.max_epochs=1 \
-                model.max_source_len=64 \
-                trainer.devices=1 \
-                do_training=True \
-                do_testing=True \
-                exp_manager.exp_dir=${OUTPUT_DIR_CONFORMER} \
-                +exp_manager.use_datetime_version=False\
-                +exp_manager.version=test \
-                --config-name=g2p_conformer_ctc && \
-            python g2p_inference.py \
-                pretrained_model=${OUTPUT_DIR_CONFORMER}/G2P-Conformer-CTC/test/checkpoints/G2P-Conformer-CTC.nemo \
-                manifest_filepath=/home/TestData/g2p/g2p.json \
-                phoneme_field=text
-
-    # TODO: pleasefixme @redoctopus
-    # - name: ByT5G2P training, evaluation and inference
-    #   run: |
-    #     cd examples/tts/g2p && \
-    #         TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_T5=output_byt5_${TIME} && \
-    #         python g2p_train_and_evaluate.py \
-    #             train_manifest=/home/TestData/g2p/g2p.json \
-    #             validation_manifest=/home/TestData/g2p/g2p.json \
-    #             model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
-    #             trainer.max_epochs=1 \
-    #             model.max_source_len=64 \
-    #             trainer.devices=1 \
-    #             do_training=True \
-    #             do_testing=True \
-    #             exp_manager.exp_dir=${OUTPUT_DIR_T5} \
-    #             +exp_manager.use_datetime_version=False\
-    #             +exp_manager.version=test && \
-    #         python g2p_inference.py \
-    #             pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
-    #             manifest_filepath=/home/TestData/g2p/g2p.json \
-    #             phoneme_field=text
-    #   }
-    # }
-    # - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-    # if: "failure()"
-
-  L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        cd examples/tts/g2p && \
-            TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
-            python g2p_heteronym_classification_train_and_evaluate.py \
-                train_manifest=/home/TestData/g2p/manifest.json \
-                validation_manifest=/home/TestData/g2p/manifest.json \
-                test_manifest=/home/TestData/g2p/manifest.json \
-                model.wordids=/home/TestData/g2p/wordids.tsv \
-                trainer.max_epochs=1 \
-                model.max_seq_length=64 \
-                do_training=True \
-                do_testing=True \
-                exp_manager.exp_dir=${OUTPUT_DIR} \
-                +exp_manager.use_datetime_version=False\
-                +exp_manager.version=test && \
-            python g2p_heteronym_classification_inference.py \
-                manifest=/home/TestData/g2p/manifest.json \
-                pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
-                output_manifest=preds.json
-
-  # TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
-  # is in the release container
-  # L2: NMT Attention is All You Need Training
-  L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/nlp/machine_translation/enc_dec_nmt.py \
-          --config-path=conf \
-          --config-name=aayn_base \
-          do_testing=false \
-          model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-          model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-          model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-          model.encoder.num_layers=1 \
-          model.encoder.hidden_size=64 \
-          model.encoder.inner_size=256 \
-          model.decoder.num_layers=1 \
-          model.decoder.hidden_size=64 \
-          model.decoder.inner_size=256 \
-          +model.optim.capturable=True \
-          trainer.devices=1 \
-          trainer.accelerator="gpu" \
-          +trainer.val_check_interval=2 \
-          +trainer.limit_val_batches=1 \
-          +trainer.max_steps=2 \
-          trainer.precision=16 \
-          +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
-          +exp_manager.create_checkpoint_callback=true
-          
-        python examples/nlp/machine_translation/enc_dec_nmt.py \
-          --config-path=conf \
-          --config-name=aayn_base \
-          do_testing=true \
-          model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-          model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-          model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-          model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-          model.encoder.num_layers=1 \
-          model.encoder.hidden_size=64 \
-          model.encoder.inner_size=256 \
-          model.decoder.num_layers=1 \
-          model.decoder.hidden_size=64 \
-          model.decoder.inner_size=256 \
-          +model.optim.capturable=True \
-          trainer.devices=1 \
-          trainer.accelerator="gpu" \
-          +trainer.val_check_interval=10 \
-          +trainer.limit_val_batches=1 \
-          +trainer.limit_test_batches=1 \
-          +trainer.max_steps=10 \
-          +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
-          +exp_manager.create_checkpoint_callback=true \
-          +exp_manager.resume_if_exists=True
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/machine_translation/nmt_results
-  L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        cd examples/nlp/machine_translation && \
-        python enc_dec_nmt.py \
-        --config-path=conf \
-        --config-name=aayn_base \
-        do_testing=true \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-        model.encoder.pre_ln=true \
-        model.decoder.pre_ln=true \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=true \
-        +trainer.limit_test_batches=2 \
-        exp_manager=null
-
-  L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        cd examples/nlp/machine_translation && \
-        python enc_dec_nmt.py \
-        --config-path=conf \
-        --config-name=aayn_base \
-        do_testing=true \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
-        model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
-        model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
-        model.test_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
-        model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
-        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_4k_ende.model \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=true \
-        +trainer.limit_test_batches=2 \
-        exp_manager=null
-
-  # L2: NMT Attention is All You Need Inference
-  L2_NMT_Attention_is_All_You_Need_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Inference')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        cd examples/nlp/machine_translation && \
-        python nmt_transformer_infer.py \
-        --model=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
-        --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
-        --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
-        --target_lang en \
-        --source_lang de
-
-  # L2: NMT Attention is All You Need Finetuning
-  L2_NMT_Attention_is_All_You_Need_Finetuning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Attention_is_All_You_Need_Finetuning')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        cd examples/nlp/machine_translation && \
-        python enc_dec_nmt_finetune.py \
-        model_path=/home/TestData/nlp/nmt/toy_data/enes_v16k_s100k_6x6.nemo \
-        trainer.devices=1 \
-        ~trainer.max_epochs \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        +trainer.val_check_interval=10 \
-        +trainer.limit_val_batches=1 \
-        +trainer.limit_test_batches=1 \
-        +trainer.max_steps=10 \
-        +exp_manager.exp_dir=examples/nlp/machine_translation/nmt_finetune \
-        +exp_manager.create_checkpoint_callback=True \
-        +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
-        +exp_manager.checkpoint_callback_params.mode=max \
-        +exp_manager.checkpoint_callback_params.save_best_model=true
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/machine_translation/nmt_finetune
-
-  # L2: NMT Tarred Dataset Creation
-  L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        cd examples/nlp/machine_translation && \
-        python enc_dec_nmt.py \
-        --config-path=conf \
-        --config-name=aayn_base \
-        do_training=false \
-        model.preproc_out_dir=$PWD/preproc_out_dir \
-        model.train_ds.use_tarred_dataset=true \
-        model.train_ds.n_preproc_jobs=2 \
-        model.train_ds.lines_per_dataset_fragment=500 \
-        model.train_ds.num_batches_per_tarfile=10 \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.encoder_tokenizer.vocab_size=2000 \
-        model.decoder_tokenizer.vocab_size=2000 \
-        ~model.test_ds \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.fast_dev_run=true \
-        exp_manager=null
-
-  L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        cd examples/nlp/machine_translation && \
-        python create_tarred_parallel_dataset.py \
-        --src_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        --tgt_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        --out_dir $PWD/out_dir \
-        --encoder_tokenizer_vocab_size=2000 \
-        --decoder_tokenizer_vocab_size=2000 \
-        --tokens_in_batch=1000 \
-        --lines_per_dataset_fragment=500 \
-        --num_batches_per_tarfile=10 \
-        --n_preproc_jobs=2
-
-  L2_Megatron_NMT_Training_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Megatron_NMT_Training_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/nlp/machine_translation/megatron_nmt_training.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
-        +trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation="swiglu" \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method="block" \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation="swiglu" \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method="block" \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.micro_batch_size=2 \
-        model.global_batch_size=4 \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.train_ds.num_workers=1 \
-        model.validation_ds.num_workers=1 \
-        ~model.test_ds \
-        model.train_ds.dataset_type=text_memmap \
-        model.encoder_tokenizer.library=sentencepiece \
-        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
-        model.decoder_tokenizer.library=sentencepiece \
-        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model
-        # Change val_check_interval to 1 for resume as the len(dataloder) is 1 due to max_steps being the same as that of training and Lightning 2.0 raises an error
-        # if val_check_interval > len(dataloder: https://github.com/Lightning-AI/lightning/blob/2.0.6/src/lightning/pytorch/loops/fit_loop.py#L259 at the beginning of fit_loop.run()
-        python examples/nlp/machine_translation/megatron_nmt_training.py \
-        trainer.devices=2 \
-        trainer.accelerator=gpu \
-        trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=1 \
-        +trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=10 \
-        trainer.precision=16 \
-        trainer.gradient_clip_val=1.0 \
-        exp_manager.exp_dir=examples/nlp/machine_translation/megatron_nmt_results \
-        model.tensor_model_parallel_size=2 \
-        model.seq_length=128 \
-        model.encoder.num_layers=4 \
-        model.encoder.hidden_size=64 \
-        model.encoder.num_attention_heads=8 \
-        model.encoder.activation="swiglu" \
-        model.encoder.masked_softmax_fusion=False \
-        model.encoder.bias_activation_fusion=False \
-        model.encoder.activations_checkpoint_method="block" \
-        model.encoder.activations_checkpoint_num_layers=1 \
-        model.decoder.num_layers=2 \
-        model.decoder.hidden_size=64 \
-        model.decoder.num_attention_heads=8 \
-        model.decoder.activation="swiglu" \
-        model.decoder.masked_softmax_fusion=False \
-        model.decoder.bias_activation_fusion=False \
-        model.decoder.activations_checkpoint_method="block" \
-        model.decoder.activations_checkpoint_num_layers=1 \
-        model.micro_batch_size=2 \
-        model.global_batch_size=4 \
-        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-        model.train_ds.num_workers=1 \
-        model.validation_ds.num_workers=1 \
-        ~model.test_ds \
-        model.train_ds.dataset_type=text_memmap \
-        model.encoder_tokenizer.library=sentencepiece \
-        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
-        model.decoder_tokenizer.library=sentencepiece \
-        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model
-      AFTER_SCRIPT: |
-        rm -rf examples/nlp/machine_translation/megatron_nmt_results
-
-  L2_VLM_HF_Transformer_PEFT:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_VLM_HF_Transformer_PEFT_FSDP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_FSDP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --strategy fsdp2 --devices 2
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_VLM_HF_Transformer_PEFT_4bit:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_PEFT_4bit')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/peft_hf.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3 --use-4bit
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_VLM_HF_Transformer_SFT_FSDP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_VLM_HF_Transformer_SFT_FSDP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/vlm/hf/sft_fsdp2.py --model /home/TestData/vlm/qwen2-2b/ --max-steps 3
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PEFT_notebook:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_notebook')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        jupyter nbconvert --to script tutorials/llm/automodel/peft.ipynb --output _peft
-        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/automodel/_peft.py
-        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/automodel/_peft.py
-        cp tutorials/llm/automodel/_peft.py /tmp/_peft.py
-        grep -iv push_to_hub /tmp/_peft.py > tutorials/llm/automodel/_peft.py
-        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/automodel/_peft.py
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PEFT:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 --ckpt-folder /tmp/hf_peft_ckpt
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PEFT_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_nemorun')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py \
-        --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PEFT_2gpu:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy ddp \
-          --ckpt-folder /tmp/hf_peft_ckpt_ddp
-
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy ddp \
-          --ckpt-folder /tmp/hf_peft_ckpt_ddp --auto-resume
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PEFT_2gpu_FSDP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_FSDP2') || needs.pre-flight.outputs.all == 'true'
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-         --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-         --max-steps 3 \
-         --devices 2 \
-         --strategy fsdp2 \
-         --ckpt-folder /tmp/hf_peft_ckpt_fsdp2
-
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_hf.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy fsdp2 \
-          --ckpt-folder /tmp/hf_peft_ckpt_fsdp2 --auto-resume
-
-        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/peft/automodel.py \
-          --model /home/TestData/akoumparouli/hf_mixtral_2l/ \
-          --max-steps 3 \
-          --devices 2 \
-          --strategy fsdp2
-
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PEFT_2gpu_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PEFT_2gpu_nemorun')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/peft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy ddp --auto-resume
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_FSDP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_FSDP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2
-        TRANSFORMERS_OFFLINE=1 torchrun --nproc-per-node=2 tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3 --devices 2 --strategy fsdp2 --auto-resume
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_FSDP2_2gpu:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_FSDP2_2gpu')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 \
-              python tests/collections/llm/hf/sft_fsdp2.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2
-        TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/automodel/hf_home python examples/llm/sft/automodel.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy fsdp2
-
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PT_2gpu:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PT_2gpu_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_2gpu_nemorun')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PT:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_PT_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_nemorun')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_notebook:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_notebook')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        jupyter nbconvert --to script tutorials/llm/automodel/sft.ipynb --output _sft
-        sed -i "s#meta-llama/Llama-3.2-1B#/home/TestData/akoumparouli/hf_mixtral_2l/#g" tutorials/llm/automodel/_sft.py
-        sed -i "s/max_steps = 100/max_steps = 10/g" tutorials/llm/automodel/_sft.py
-        cp tutorials/llm/automodel/_sft.py /tmp/_sft.py
-        grep -iv push_to_hub /tmp/_sft.py > tutorials/llm/automodel/_sft.py
-        TRANSFORMERS_OFFLINE=1 python3 tutorials/llm/automodel/_sft.py
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --max-steps 3
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_nemorun:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_nemorun')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft_nemorun.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --max-steps 10
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  L2_HF_Transformer_SFT_TE_Acceleration:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SFT_TE_Acceleration')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/sft.py --model /home/TestData/akoumparouli/hf_mixtral_2l/ --model-accelerator te --max-steps 3
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-      IS_OPTIONAL: true
-
-  L2_HF_Transformer_PT_TE_Acceleration:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_PT_TE_Acceleration')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/llm/hf/pretrain.py --model /home/TestData/nlp/hf_gemma/hf_gemma_2b --model-accelerator te --max-steps 10
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  # L2: SpeechLM tests
-  L2_HF_Transformer_SpeechLM_SFT_2gpu:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_HF_Transformer_SpeechLM_SFT_2gpu') || needs.pre-flight.outputs.all == 'true'
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 python tests/collections/speechlm/hf/sft.py --model /home/TestData/speechlm/whisper-small/ --max-steps 10 --devices 2 --strategy ddp
-      AFTER_SCRIPT: |
-        rm -rf nemo_experiments
-
-  # L2: TTS Fast dev runs 1
-  L2_TTS_Fast_dev_runs_1_Tacotron_2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Tacotron_2')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python examples/tts/tacotron2.py \
-        train_dataset=/home/TestData/an4_dataset/an4_train.json \
-        validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-        trainer.devices=1 \
-        trainer.accelerator="gpu" \
-        +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
-        trainer.strategy=auto \
-        model.decoder.decoder_rnn_dim=256 \
-        model.decoder.attention_rnn_dim=1024 \
-        model.decoder.prenet_dim=128 \
-        model.postnet.postnet_n_convolutions=3 \
-        model.train_ds.dataloader_params.batch_size=4 \
-        model.train_ds.dataloader_params.num_workers=0 \
-        model.validation_ds.dataloader_params.batch_size=4 \
-        model.validation_ds.dataloader_params.num_workers=0 \
-        ~model.text_normalizer \
-        ~model.text_normalizer_call_kwargs \
-        ~trainer.check_val_every_n_epoch
-
-  L2_TTS_Fast_dev_runs_1_WaveGlow:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_WaveGlow')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/tts/waveglow.py \
-        train_dataset=/home/TestData/an4_dataset/an4_train.json \
-        validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-        trainer.devices="[0]" \
-        +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
-        trainer.strategy=auto \
-        model.train_ds.dataloader_params.batch_size=4 \
-        model.train_ds.dataloader_params.num_workers=0 \
-        model.validation_ds.dataloader_params.batch_size=4 \
-        model.validation_ds.dataloader_params.num_workers=0 \
-        model.waveglow.n_flows=4 \
-        model.waveglow.n_wn_layers=2 \
-        model.waveglow.n_wn_channels=32 \
-        ~trainer.check_val_every_n_epoch
-
-  L2_TTS_Fast_dev_runs_1_FastPitch:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_FastPitch')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/tts/fastpitch.py \
-        --config-name fastpitch_align_v1.05 \
-        train_dataset=/home/TestData/an4_dataset/an4_train.json \
-        validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-        sup_data_path=/home/TestData/an4_dataset/beta_priors \
-        trainer.devices="[0]" \
-        +trainer.limit_train_batches=1 \
-        +trainer.limit_val_batches=1 \
-        trainer.max_epochs=1 \
-        trainer.strategy=auto \
-        model.pitch_mean=212.35873413085938 \
-        model.pitch_std=68.52806091308594 \
-        model.train_ds.dataloader_params.batch_size=4 \
-        model.train_ds.dataloader_params.num_workers=0 \
-        model.validation_ds.dataloader_params.batch_size=4 \
-        model.validation_ds.dataloader_params.num_workers=0 \
-        model.symbols_embedding_dim=64 \
-        model.input_fft.d_inner=384 \
-        model.input_fft.n_layer=2 \
-        model.output_fft.d_inner=384 \
-        model.output_fft.n_layer=2 \
-        ~trainer.check_val_every_n_epoch \
-        ~model.text_normalizer \
-        ~model.text_normalizer_call_kwargs
-
-  # OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS:
-  #   needs: [pre-flight, cicd-test-container-build]
-  #   runs-on: self-hosted-azure
-  #   timeout-minutes: 10
-  #   container:
-  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-  #     options:
-  #       # --user 0:128
-  #       --device=/dev/nvidia0
-  #       --gpus all
-  #       --shm-size=8g
-  #       --env TRANSFORMERS_OFFLINE=0
-  #       --env HYDRA_FULL_ERROR=1
-  #       --volume /mnt/datadrive/TestData:/home/TestData
-  #   steps:
-  #       - name: Checkout repository
-  #         uses: actions/checkout@v4
-  #       - run: |
-  #           python examples/tts/radtts.py \
-  #           train_dataset=/home/TestData/an4_dataset/an4_train.json \
-  #           validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-  #           sup_data_path=/home/TestData/an4_dataset/radtts_beta_priors \
-  #           trainer.devices="[0]" \
-  #           +trainer.limit_train_batches=1 \
-  #           +trainer.limit_val_batches=1 \
-  #           trainer.max_epochs=1 \
-  #           trainer.strategy=auto \
-  #           model.pitch_mean=212.35873413085938 \
-  #           model.pitch_std=68.52806091308594 \
-  #           model.train_ds.dataloader_params.batch_size=4 \
-  #           model.train_ds.dataloader_params.num_workers=0 \
-  #           model.validation_ds.dataloader_params.batch_size=4 \
-  #           model.validation_ds.dataloader_params.num_workers=0 \
-  #           export_dir=/home/TestData/radtts_test \
-  #           model.optim.lr=0.0001 \
-  #           model.modelConfig.decoder_use_partial_padding=True \
-  #           ~trainer.check_val_every_n_epoch \
-  #           ~model.text_normalizer \
-  #           ~model.text_normalizer_call_kwargs
-  #       #- uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-  #       #  if: "failure()"
-
-  L2_TTS_Fast_dev_runs_1_Hifigan:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_1_Hifigan')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python examples/tts/hifigan.py \
-        train_dataset=/home/TestData/an4_dataset/an4_train.json \
-        validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-        trainer.devices="[0]" \
-        +trainer.limit_train_batches=1 \
-        +trainer.limit_val_batches=1 \
-        +trainer.max_epochs=1 \
-        trainer.strategy=auto \
-        model.train_ds.dataloader_params.batch_size=4 \
-        model.train_ds.dataloader_params.num_workers=0 \
-        model.validation_ds.dataloader_params.batch_size=4 \
-        model.validation_ds.dataloader_params.num_workers=0 \
-        model.generator.upsample_initial_channel=64 \
-        +model.debug=true \
-        ~trainer.check_val_every_n_epoch
-
-  # L2: NeRF
-  # L2_NeRF_DreamFusion:
-  #   needs: [pre-flight, cicd-test-container-build]
-  #   runs-on: self-hosted-azure
-  #   container:
-  #     image: nemoci.azurecr.io/nemo_container:${{ github.run_id }}
-  #     options:
-  #       # --user 0:128
-  #       --device=/dev/nvidia0
-  #       --gpus all
-  #       --shm-size=8g
-  #       --env TRANSFORMERS_OFFLINE=0
-  #       --env HYDRA_FULL_ERROR=1
-  #       --volume /mnt/datadrive/TestData:/home/TestData
-  #   steps:
-  #       - name: Checkout repository
-  #         uses: actions/checkout@v4
-  #       - run: |
-  #           python examples/multimodal/text_to_image/nerf/main.py \
-  #           trainer.num_nodes=1 \
-  #           trainer.devices="[0]" \
-  #           trainer.max_steps=1000 \
-  #           model.prompt="a DSLR photo of a delicious hamburger" \
-  #           exp_manager.exp_dir=examples/multimodal/text_to_image/nerf/dreamfusion_results
-  #
-  #           rm -rf examples/multimodal/text_to_image/nerf/dreamfusion_results
-  #       - uses: "NVIDIA/NeMo/.github/actions/cancel-workflow@main"
-  #         if: "failure()"
-
-  Speech_Checkpoints_tests:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'Speech_Checkpoints_tests')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      TIMEOUT: 20
-      SCRIPT: |
-        CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
-            pretrained_name=QuartzNet15x5Base-En  \
-            dataset_manifest=/home/TestData/librispeech/librivox-dev-other.json \
-            batch_size=64 \
-            tolerance=0.1012
-      AFTER_SCRIPT: |
-        rm -f examples/asr/evaluation_transcripts.json
-
-  L2_Stable_Diffusion_Training:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_Stable_Diffusion_Training')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        rm -rf examples/multimodal/text_to_image/sd_train_results
-
-        python examples/multimodal/text_to_image/stable_diffusion/sd_train.py \
-        trainer.devices=1 \
-        trainer.max_steps=3 \
-        +trainer.val_check_interval=10 \
-        trainer.limit_val_batches=2 \
-        trainer.gradient_clip_val=0 \
-        exp_manager.exp_dir=examples/multimodal/text_to_image/sd_train_results \
-        exp_manager.create_checkpoint_callback=False \
-        exp_manager.resume_if_exists=False \
-        model.resume_from_checkpoint=null \
-        model.precision=16 \
-        model.micro_batch_size=1 \
-        model.global_batch_size=1 \
-        model.first_stage_key=moments \
-        model.cond_stage_key=encoded \
-        +model.load_vae=False \
-        +model.load_unet=False \
-        +model.load_encoder=False \
-        model.parameterization=v \
-        model.load_only_unet=False \
-        model.text_embedding_dropout_rate=0.0 \
-        model.inductor=True \
-        model.inductor_cudagraphs=False \
-        model.capture_cudagraph_iters=15 \
-        +model.unet_config.num_head_channels=64 \
-        +model.unet_config.use_linear_in_transformer=True \
-        model.unet_config.context_dim=1024 \
-        model.unet_config.use_flash_attention=null \
-        model.unet_config.resblock_gn_groups=16 \
-        model.unet_config.unet_precision=fp16 \
-        +model.unet_config.timesteps=1000 \
-        model.optim.name=megatron_fused_adam \
-        +model.optim.capturable=True \
-        +model.optim.master_weights=True \
-        model.optim.weight_decay=0.01 \
-        model.first_stage_config.from_pretrained=null \
-        model.data.num_workers=16 \
-        model.data.synthetic_data=True
-      AFTER_SCRIPT: |
-        rm -rf examples/multimodal/text_to_image/sd_train_results
-
-  L2_NeMo_2_GPT_Pretraining_no_transformer_engine:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_Pretraining_no_transformer_engine')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        pip uninstall -y apex ## TODO: remove when apex is no longer a dependency
-        pip uninstall -y transformer_engine
-
-        python tests/collections/llm/megatron_gpt_pretraining.py \
-        --devices=2 \
-        --max-steps=3 \
-        --experiment-dir=tests/collections/llm/gpt_pretrain_results \
-        --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
-        --index-mapping-dir=tests/collections/llm/gpt_index_mappings \
-        --no-masked-softmax-fusion
-
-        python tests/collections/llm/megatron_gpt_pretraining.py \
-        --devices=2 \
-        --max-steps=6 \
-        --experiment-dir=tests/collections/llm/gpt_pretrain_results \
-        --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
-        --index-mapping-dir=tests/collections/llm/gpt_index_mappings \
-        --no-masked-softmax-fusion
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/gpt_pretrain_results
-        rm -rf tests/collections/llm/gpt_index_mappings
-
-  L2_NeMo_2_llama3_pretraining_recipe:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_pretraining_recipe')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/llama3_pretraining.py \
-        --seq-length 1024 \
-        --devices=2 \
-        --max-steps=6 \
-        --early-stop=3 \
-        --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
-        --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
-        --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
-        --index-mapping-dir=/tmp/llm_tests/llama_index_mappings \
-
-        python tests/collections/llm/llama3_pretraining.py \
-        --seq-length 1024 \
-        --devices=2 \
-        --max-steps=6 \
-        --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
-        --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
-        --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
-        --index-mapping-dir=/tmp/llm_tests/llama_index_mappings \
-        --cp 1 --tp 2 --sp 1
-
-  L2_NeMo_2_llama3_fault_tolerance_plugin:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_fault_tolerance_plugin')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        mkdir -p /tmp/llm_tests/llama_pretrain_results \
-        export FAULT_TOL_CFG_PATH="/tmp/llm_tests/llama_pretrain_results/sample_job_ft_cfg.yml"; \
-        export FAULT_TOL_FINISHED_FLAG_FILE="/tmp/llm_tests/llama_pretrain_results/sample_job_finished_flag"; \
-        python tests/collections/llm/test_fault_nvrx.py \
-        --devices=2 \
-        --crash-step=16 \
-        --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
-        --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
-        --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
-        --index-mapping-dir=/tmp/llm_tests/llama_index_mappings \
-        2>&1 | tee /tmp/llm_tests/llama_pretrain_results/run.log \
-
-  L2_NeMo_2_llama3_straggler_detection:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_llama3_straggler_detection')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        mkdir -p /tmp/llm_tests/llama_pretrain_results \
-        export FAULT_TOL_CFG_PATH="/tmp/llm_tests/llama_pretrain_results/sample_job_ft_cfg.yml"; \
-        export FAULT_TOL_FINISHED_FLAG_FILE="/tmp/llm_tests/llama_pretrain_results/sample_job_finished_flag"; \
-        python tests/collections/llm/test_fault_nvrx.py \
-        --devices=2 \
-        --check-report=True \
-        --experiment-dir=/tmp/llm_tests/llama_pretrain_results \
-        --data-path=/home/TestData/nlp/megatron_llama/data/rp2_sample_sentencepiece_preproc_text_document \
-        --tokenizer-path=/home/TestData/nlp/megatron_llama/tokenizer.model \
-        --index-mapping-dir=/tmp/llm_tests/llama_index_mappings \
-        2>&1 | tee /tmp/llm_tests/llama_pretrain_results/run.log \
-
-  L2_NeMo_2_GPT_DDP_Param_Parity_check:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_DDP_Param_Parity_check')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        TORCHDYNAMO_DISABLE=1 python tests/lightning/test_ddp_parity_checker.py \
-        --vocab-path=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        --merges-path=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        --data-path=/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document
-
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/gpt_pretrain_results
-        rm -rf tests/collections/llm/gpt_index_mappings
-
-  L2_NeMo_2_Hyena_DDP_Pretraining_Test:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Hyena_DDP_Pretraining_Test')
-    with:
-      RUNNER: self-hosted-azure # Assume runner has 2 GPUs
-      SCRIPT: |
-        python tests/collections/llm/gpt/model/test_hyena.py \
-        --mock-data \
-        --experiment-dir=tests/collections/llm/hyena_pretrain_results/${{ github.run_id }} \
-        --model-size=7b_nv \
-        --num-layers=4 \
-        --hybrid-override-pattern=SDH* \
-        --no-activation-checkpointing \
-        --add-bias-output \
-        --max-steps=5 \
-        --warmup-steps=1 \
-        --micro-batch-size=2 \
-        --global-batch-size=4 \
-        --no-wandb \
-        --seq-length=128 \
-        --hidden-dropout=0.01 \
-        --attention-dropout=0.01 \
-        --devices=2 \
-        --debug-ddp-parity-freq=1
-
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/hyena_pretrain_results/${{ github.run_id }}
-
-  L2_NeMo_2_SSM_Pretraining:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_SSM_Pretraining')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-
-        python tests/collections/llm/gpt/model/megatron_ssm_pretraining.py \
-        --devices 1 \
-        --max-steps 10 \
-        --experiment-dir /tmp/nlp_megatron_mamba_nemo-ux-mamba_cicd_test_pretrain/${{ github.run_id }} \
-        --data-path /home/TestData/nlp/megatron_mamba/toy_ssm_dataset/legal_pile_text_document
-
-  L2_NeMo_2_SSM_Finetuning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_SSM_Finetuning')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-
-        python tests/collections/llm/gpt/model/megatron_ssm_finetuning.py \
-        --devices 1 \
-        --max-steps 10 \
-        --experiment-dir /tmp/nlp_megatron_mamba_nemo-ux-mamba_cicd_test_sft/${{ github.run_id }} \
-        --model-path /home/TestData/nlp/megatron_mamba/model_optim_rng.pt \
-        --ckpt_load_strictness log_all
-
-  L2_NeMo_2_HF_MODEL_IMPORT:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_HF_MODEL_IMPORT')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt/model/test_model_import.py
-
-      AFTER_SCRIPT: |
-        rm -rf ~/.cache/nemo/models
-
-  L2_NeMo_2_jit_callback:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_jit_callback')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/test_nemo_jit_cb.py
-
-  L2_NeMo_2_T5_Pretraining:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Pretraining')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/megatron_t5_pretraining.py \
-        --devices=2 \
-        --max-steps=3 \
-        --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
-        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
-        --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
-
-        python tests/collections/llm/megatron_t5_pretraining.py \
-        --devices=2 \
-        --max-steps=6 \
-        --experiment-dir=tests/collections/llm/t5_pretrain_results/${{ github.run_id }} \
-        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document \
-        --index-mapping-dir=tests/collections/llm/t5_index_mappings/${{ github.run_id }}
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_pretrain_results/${{ github.run_id }}
-        rm -rf tests/collections/llm/t5_index_mappings/${{ github.run_id }}
-
-  L2_NeMo_2_T5_Finetuning:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_Finetuning')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/megatron_t5_finetuning.py \
-        --devices=2 \
-        --max-steps=250 \
-        --experiment-dir=tests/collections/llm/t5_finetune_results/${{ github.run_id }} \
-        --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_finetune_results/${{ github.run_id }}
-
-  L2_NeMo_2_T5_LoRA:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_T5_LoRA')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/megatron_t5_finetuning.py \
-        --devices=2 \
-        --max-steps=250 \
-        --peft=lora \
-        --experiment-dir=tests/collections/llm/t5_peft_results/${{ github.run_id }} \
-        --checkpoint-path=/home/TestData/nlp/megatron_t5/220m/nemo2.0_t5_220m_padding_attnmasktype_150steps
-      AFTER_SCRIPT: |
-        rm -rf tests/collections/llm/t5_peft_results/${{ github.run_id }}
-
-  L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/vlm/neva_pretrain.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --tp=2 \
-        --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
-
-  L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/vlm/neva_pretrain.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --pp=2 \
-        --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
-
-  L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/vlm/neva_pretrain.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --cp=2 --use_packed_sequence \
-        --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
-
-
-  L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/vlm/neva_finetune.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --tp=2 \
-        --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
-
-  L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/vlm/neva_finetune.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --pp=2 \
-        --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
-
-  L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python scripts/vlm/neva_finetune.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --cp=2 --use_packed_sequence \
-        --log_dir=/tmp/nemo2_neva_results/${{ github.run_id }}
-
-  L2_NeMo_2_NEVA_LOAD_GENERATE:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NEVA_LOAD_GENERATE')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-         python scripts/vlm/neva_generate.py --load_from_hf
-
-  L2_NEMO_2_MLLAMA_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_MLLAMA_Inference')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python scripts/vlm/mllama_generate.py \
-        --local_model_path /home/TestData/nemo2_ckpt/Llama-3.2-11B-Vision-Instruct \
-        --processor_name /home/TestData/HF_HOME/hub/models--meta-llama--Llama-3.2-11B-Vision-Instruct/snapshots/9eb2daaa8597bf192a8b0e73f848f3a102794df5 \
-        --num_tokens_to_generate 3
-
-  L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        TRANSFORMERS_OFFLINE=1 \
-        torchrun --nproc_per_node=2 /opt/NeMo/scripts/vlm/mllama_finetune.py \
-        --devices=2 --data_type=mock --use_toy_model \
-        --mbs=2 --gbs=4 --max_steps=4 \
-        --tp=2 \
-        --log_dir=/tmp/nemo2_mllama_results/${{ github.run_id }}
-
-  L2_NeMo_2_Mixtral_Pretraining:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_Pretraining')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python3 tests/collections/llm/megatron_mixtral_pretraining.py \
-        --experiment-dir=/tmp/mixtral_pretrain_results \
-        --data-path=/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document
-
-  L2_NeMo_2_GPT_SFT_TP1PP1_MBS1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1
-
-  L2_NeMo_2_GPT_SFT_TP1PP1_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 2
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 2
-
-  L2_NeMo_2_GPT_SFT_TP1PP2_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP2_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 2 \
-        --mbs 2
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 2 \
-        --mbs 2
-
-  L2_NeMo_2_GPT_SFT_TP2PP1_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP2PP1_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 2 \
-        --pp_size 1 \
-        --mbs 2
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 2 \
-        --pp_size 1 \
-        --mbs 2
-
-  L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft none \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1
-
-  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 2
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 2
-
-  L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 2 \
-        --mbs 2
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 2 \
-        --mbs 2
-
-  L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 2 \
-        --pp_size 1 \
-        --mbs 2
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 2 \
-        --pp_size 1 \
-        --mbs 2
-
-  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-  L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft dora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft dora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-  L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft canonical_lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft canonical_lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 --packed
-
-  L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 3 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 \
-        --dataset chat
-
-        python tests/collections/llm/gpt_finetuning.py \
-        --restore_path /home/TestData/nemo2_ckpt/llama_68M_v3 \
-        --devices 2 \
-        --max_steps 6 \
-        --experiment_dir /tmp/nemo2_gpt_finetune/${{ github.run_id }} \
-        --peft lora \
-        --tp_size 1 \
-        --pp_size 1 \
-        --mbs 1 \
-        --dataset chat
-
-  L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --ep 1 \
-        --tp 2 \
-        --mbs 1 \
-        --model mixtral \
-        --use-exclude
-
-  L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --ep 1 \
-        --mbs 2 \
-        --model mixtral
-
-  L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --tp 1 \
-        --mbs 1 \
-        --model mixtral \
-        --dist-opt
-
-  L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --tp 2 \
-        --mbs 1 \
-        --model mixtral \
-        --dist-opt
-
-  L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --tp 1 \
-        --mbs 1 \
-        --model mistral \
-        --dist-opt
-
-  L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --ep 1 \
-        --tp 2 \
-        --mbs 1 \
-        --model mistral \
-        --dist-opt \
-        --use-exclude
-
-  L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/lora_mistralai.py \
-        --max-steps 3 \
-        --tp 2 \
-        --mbs 1 \
-        --model mistral \
-        --dist-opt
-
-  L2_NEMO_2_LoRA_MERGE:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_MERGE')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-
-        python tests/collections/llm/peft/lora_merge.py \
-        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
-        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }} \
-        --legacy_ckpt
-
-  L2_NEMO_2_LoRA_Export:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_Export')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-
-        python tests/collections/llm/peft/lora_export.py \
-        --lora_checkpoint_path=/home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
-        --output_path=/tmp/nemo2_lora_merge/${{ github.run_id }}
-
-  L2_NEMO_2_LoRA_Inference:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NEMO_2_LoRA_Inference')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-
-        python scripts/llm/generate.py \
-          --model_path /home/TestData/nemo2_ckpt/llama_lora_ci_checkpoint_v2/ \
-          --tp 1 \
-          --pp 1 \
-          --devices 1 \
-          --top_p 0.0 \
-          --top_k 1 \
-          --num_tokens_to_generate 3 \
-          --legacy_ckpt
-
-  L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        bash tests/collections/llm/bitexact/mixtral/run.sh
-
-  L2_NeMo_2_PTQ_Llama2_FP8_trtllm:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_trtllm')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
-
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_engine --export_format trtllm --legacy_ckpt
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_ckpt
-        rm -rf /tmp/nemo2_ptq_engine
-
-  L2_NeMo_2_PTQ_Llama2_FP8_nemo:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_PTQ_Llama2_FP8_nemo')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
-
-        python scripts/llm/ptq.py -nc /tmp/nemo2_ckpt -algo fp8 -out /tmp/nemo2_ptq_ckpt --export_format nemo --legacy_ckpt
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_ckpt
-        rm -rf /tmp/nemo2_ptq_ckpt
-
-  L2_NeMo_2_Distill_Llama3_TP1PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Distill_Llama3_TP1PP2') || needs.pre-flight.outputs.all == 'true'
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
-
-        python scripts/llm/gpt_distillation.py \
-          --name nemo2_llama_distill \
-          --teacher_path /tmp/nemo2_ckpt \
-          --student_path /tmp/nemo2_ckpt \
-          --tokenizer gpt2 \
-          --tp_size 1 \
-          --cp_size 1 \
-          --pp_size 2 \
-          --devices 2 \
-          --log_dir /tmp/distill_logs \
-          --max_steps 5 \
-          --gbs 4 \
-          --mbs 1 \
-          --data_paths 1.0 /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
-          --index_mapping_dir examples/nlp/language_modeling/gpt_index_mappings \
-          --seq_length 2048 \
-          --warmup_steps 1 \
-          --val_check_interval 5 \
-          --log_interval 5 \
-          --limit_val_batches 2 \
-          --legacy_ckpt
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_ckpt
-        rm -rf /tmp/distill_logs
-
-  L2_NeMo_2_Prune_Llama_TP1PP2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Prune_Llama_TP1PP2') || needs.pre-flight.outputs.all == 'true'
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
-
-        python scripts/llm/gpt_prune.py \
-          --restore_path /tmp/nemo2_ckpt \
-          --legacy_ckpt \
-          --tokenizer gpt2 \
-          --tp_size 1 \
-          --pp_size 2 \
-          --devices 2 \
-          --seq_length 128 \
-          --mbs 2 \
-          --num_train_samples 32 \
-          --data_paths 1.0 /home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document \
-          --index_mapping_dir examples/nlp/language_modeling/gpt_index_mappings \
-          --prune_hidden_size 64 \
-          --prune_ffn_hidden_size 128 \
-          --prune_num_attention_heads 4 \
-          --prune_num_query_groups 4 \
-          --prune_num_layers 2 \
-          --save_path /tmp/pruned-llama
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_ckpt /tmp/pruned-llama
-
-  L2_NeMo_2_Export_In_Framework:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Export_In_Framework')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/llm/test_hf_import.py \
-          --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf \
-          --output_path /tmp/nemo2_ckpt
-
-        python tests/setup/data/create_sample_lambada.py \
-          --output_file /tmp/lambada.json
-
-        python tests/export/nemo_export.py \
-          --model_name test \
-          --model_type llama \
-          --checkpoint_dir /tmp/nemo2_ckpt \
-          --min_tps 1 \
-          --in_framework True \
-          --test_deployment True \
-          --run_accuracy True \
-          --test_data_path /tmp/lambada.json \
-          --accuracy_threshold 0.0 \
-          --debug
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_ckpt /tmp/lambada.json
-
-  L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python tests/collections/vlm/test_llava_next_train.py \
-        --devices=1 \
-        --max-steps=5 \
-        --experiment-dir=/tmp/nemo2_llava_next_results/${{ github.run_id }}
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_llava_next_results
-
-  L2_NeMo_2_VLLM_EXPORT:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_VLLM_EXPORT')
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/setup/models/create_hf_model.py \
-          --model_name_or_path /home/TestData/nlp/megatron_llama/llama-ci-hf \
-          --output_dir /tmp/llama_head64 \
-          --config_updates "{\"hidden_size\": 512, \"num_attention_heads\": 4, \"numx_hidden_layers\": 2, \"num_key_value_heads\": 4, \"intermediate_size\": 1024, \"head_dim\": 128, \"num_hidden_layers\": 2, \"torch_dtype\": \"float16\" }" && \
-          \
-        python tests/collections/llm/test_hf_import.py --hf_model /tmp/llama_head64 --output_path /tmp/nemo2_ckpt && \
-          \
-        /opt/venv/bin/python tests/export/nemo_export.py \
-          --min_tps 1 \
-          --max_tps 1 \
-          --use_vllm True \
-          --model_type llama \
-          --max_output_len 128 \
-          --test_deployment True \
-          --model_name nemo2_ckpt \
-          --model_dir /tmp/vllm_from_nemo2 \
-          --checkpoint_dir /tmp/nemo2_ckpt
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/llama_head64
-        rm -rf /tmp/nemo2_ckpt
-        rm -rf /tmp/vllm_from_nemo2
-
-  L2_NeMo_2_EVAL:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_EVAL')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        python tests/evaluation/test_evaluation.py \
-        --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
-        --max_batch_size=4 \
-        --trtllm_dir='/tmp/trtllm_dir' \
-        --eval_type='arc_challenge' \
-        --limit=1
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/trtllm_dir
-
-  L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124')
-    with:
-      RUNNER: self-hosted-azure-gpus-1
-      SCRIPT: |
-        mkdir examples/llm/auto_configurator/auto_conf_logs
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --run_number=1
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --run_number=2
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --run_number=3
-
-        python examples/llm/auto_configurator/auto_config.py \
-        --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs \
-        --get_results
-      AFTER_SCRIPT: |
-        rm -rf examples/llm/auto_configurator/auto_conf_logs
-
-  L2_SpeechLM_LoRA_TP1PP1_MBS2:
-    needs: [pre-flight, cicd-test-container-build]
-    uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_SpeechLM_LoRA_TP1PP1_MBS2') || needs.pre-flight.outputs.all == 'true'
-    with:
-      RUNNER: self-hosted-azure
-      SCRIPT: |
-        python tests/collections/speechlm/speech_to_text_llm_train.py \
-          --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
-          --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
-          --restore_path /home/TestData/nemo2_ckpt/llama_68M \
-          --devices 2 \
-          --max_steps 500 \
-          --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
-          --peft lora \
-          --tp_size 1 \
-          --pp_size 1 \
-          --mbs 2
-
-        python tests/collections/speechlm/speech_to_text_llm_train.py \
-          --train_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
-          --val_manifest /home/TestData/speechlm/speechlm_data/speech_to_text_debug2/debug_2.json \
-          --restore_path /home/TestData/nemo2_ckpt/llama_68M \
-          --devices 2 \
-          --max_steps 600 \
-          --experiment_dir /tmp/nemo2_speechlm_lora/${{ github.run_id }} \
-          --peft lora \
-          --tp_size 1 \
-          --pp_size 1 \
-          --mbs 2
-
-      AFTER_SCRIPT: |
-        rm -rf /tmp/nemo2_speechlm_lora/${{ github.run_id }}
+    needs: [pre-flight, cicd-test-container-build, cicd-wait-in-queue]
+    runs-on: self-hosted-azure
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+
+      - name: main
+        uses: NVIDIA/NeMo/.github/actions/test-template@main
+        with:
+          runner: ${{ runner.name }}
+          script: L0_Setup_Test_Data_And_Models
+          tests_to_run: '["L0_Setup_Test_Data_And_Models"]'
+
+  cicd-main-unit-tests:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/cicd-main-unit-tests.yml
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-export-deploy:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-export-deploy.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'export-deploy')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-speech:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-speech.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'speech')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-automodel:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-automodel.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+
+  cicd-main-nemo2:
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-nemo2.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'nemo2')
+          || needs.pre-flight.outputs.components_to_run == '["all"]'
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   Nemo_CICD_Test:
     needs:
       - pre-flight
+      - cicd-test-container-build
       - cicd-import-tests
-
-      - L0_Unit_Tests_GPU_ASR
-      - L0_Unit_Tests_GPU_Audio
-      - L0_Unit_Tests_GPU_Common
-      - L0_Unit_Tests_GPU_LLM
-      - L0_Unit_Tests_GPU_Multimodal
-      - L0_Unit_Tests_GPU_TTS
-      - L0_Unit_Tests_GPU_Core
-      - L0_Unit_Tests_GPU_Hydra
-      - L0_Unit_Tests_GPU_Lightning
-      - L0_Unit_Tests_GPU_Others
-
-      - L0_Unit_Tests_CPU_ASR
-      - L0_Unit_Tests_CPU_Audio
-      - L0_Unit_Tests_CPU_Common
-      - L0_Unit_Tests_CPU_LLM
-      - L0_Unit_Tests_CPU_Multimodal
-      - L0_Unit_Tests_CPU_TTS
-      - L0_Unit_Tests_CPU_Core
-      - L0_Unit_Tests_CPU_Hydra
-      - L0_Unit_Tests_CPU_Lightning
-      - L0_Unit_Tests_CPU_Others
-
-      - ASR_dev_run_Speech_to_Text
-      - ASR_dev_run_Speech_to_Text_WPE_CitriNet
-      - ASR_dev_run_Speech_Pre-training_-_CitriNet
-      - Optional_ASR_dev_run_Speech_To_Text_Finetuning
-      - Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning
-      - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
-      - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
-      - L2_Speech_to_Text_EMA
-      - L2_Speaker_dev_run_Speaker_Recognition
-      - L2_Speaker_dev_run_Speaker_Diarization
-      - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
-      - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
-      - L2_Speaker_dev_run_Speech_to_Label
-      - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
-      - L2_Speaker_dev_run_Clustering_Diarizer_Inference
-      - L2_Speaker_dev_run_Neural_Diarizer_Inference
-      - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
-      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
-      - L2_ASR_Adapters_Linear_Adapters
-      - L2_ASR_Adapters_RelPos_MHA_Adapters
-      - L2_Speech_Transcription_Speech_to_Text_Transcribe
-      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
-      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
-      - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
-      - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
-      - L2_NMT_Attention_is_All_You_Need_Inference
-      - L2_NMT_Attention_is_All_You_Need_Finetuning
-      - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
-      - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
-      - L2_Megatron_NMT_Training_TP2
-      - L2_TTS_Fast_dev_runs_1_Tacotron_2
-      - L2_TTS_Fast_dev_runs_1_WaveGlow
-      - L2_TTS_Fast_dev_runs_1_FastPitch
-      #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
-      - L2_TTS_Fast_dev_runs_1_Hifigan
-      - Speech_Checkpoints_tests
-      - L2_Stable_Diffusion_Training
-      - L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2
-      - L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2
-      - L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2
-      - L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2
-      - L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2
-      - L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2
-      - L2_NeMo_2_NEVA_LOAD_GENERATE
-      - L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
-      - L2_NEMO_2_MLLAMA_Inference
-      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
-      - L2_NeMo_2_GPT_DDP_Param_Parity_check
-      - L2_NeMo_2_HF_MODEL_IMPORT
-      - L2_NeMo_2_llama3_pretraining_recipe
-      - L2_NeMo_2_llama3_fault_tolerance_plugin
-      - L2_NeMo_2_llama3_straggler_detection
-      - L2_HF_Transformer_PEFT_notebook
-      - L2_HF_Transformer_PEFT
-      - L2_HF_Transformer_PEFT_nemorun
-      - L2_HF_Transformer_PEFT_2gpu
-      - L2_HF_Transformer_PEFT_2gpu_FSDP2
-      - L2_HF_Transformer_PEFT_2gpu_nemorun
-      - L2_HF_Transformer_SFT_notebook
-      - L2_HF_Transformer_SFT
-      - L2_HF_Transformer_SFT_nemorun
-      - L2_HF_Transformer_SFT_2gpu
-      - L2_HF_Transformer_SFT_2gpu_FSDP2
-      - L2_VLM_HF_Transformer_PEFT
-      - L2_VLM_HF_Transformer_PEFT_FSDP2
-      - L2_VLM_HF_Transformer_PEFT_4bit
-      - L2_VLM_HF_Transformer_SFT_FSDP2
-      - L2_HF_Transformer_SFT_2gpu_nemorun
-      - L2_HF_Transformer_SFT_TE_Acceleration
-      - L2_HF_Transformer_PT
-      - L2_HF_Transformer_PT_nemorun
-      - L2_HF_Transformer_PT_2gpu
-      - L2_HF_Transformer_PT_2gpu_nemorun
-      - L2_HF_Transformer_PT_TE_Acceleration
-      - L2_HF_Transformer_SpeechLM_SFT_2gpu
-      - L2_NeMo_2_SSM_Pretraining
-      - L2_NeMo_2_SSM_Finetuning
-      - L2_NeMo_2_Hyena_DDP_Pretraining_Test
-      - L2_NeMo_2_T5_Pretraining
-      - L2_NeMo_2_T5_Finetuning
-      - L2_NeMo_2_T5_LoRA
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
-      - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
-      - L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
-      - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude
-      - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude
-      - L2_NEMO_2_LoRA_MERGE
-      - L2_NEMO_2_LoRA_Export
-      - L2_NEMO_2_LoRA_Inference
-      - L2_NeMo_2_Mixtral_Pretraining
-      - L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124
-      - L2_Speech_to_Text_AED
-      - L2_Speech_Estimate_Duration_Bins
-      - L2_Speech_Batch_Size_OOMptimizer
-      # - Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
-      - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
-      - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
-      - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
-      - L2_NeMo_2_PTQ_Llama2_FP8_nemo
-      - L2_NeMo_2_Distill_Llama3_TP1PP2
-      - L2_NeMo_2_Prune_Llama_TP1PP2
-      - L2_NeMo_2_Export_In_Framework
-      - L2_NeMo_2_jit_callback
-      - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
-      - L2_HF_Transformer_SFT_FSDP2_2gpu
-      - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
-      - L2_NeMo_2_VLLM_EXPORT
-      - L2_NeMo_2_EVAL
-      - L2_SpeechLM_LoRA_TP1PP1_MBS2
-
-    if: always() && github.event != 'push'
+      - L0_Setup_Test_Data_And_Models
+      - cicd-main-unit-tests
+      - cicd-main-nemo2
+      - cicd-main-export-deploy
+      - cicd-main-automodel
+      - cicd-main-speech
+    if: always()
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
-      - name: Evaluate conclusion
-        if: ${{ always() }}
-        id: pipeline-conclusion
-        run: |
-          # Slack notifications are send only on test failure (not cancelled):
-          FAILED=${{ contains(needs.*.outputs.conclusion, 'failure') && github.event.label.name == 'Run CICD' }}
-          echo "FAILED=$FAILED" >> $GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          # Mark as successful if no job was cancelled:
-          SUCCESS=${{ !contains(needs.*.outputs.conclusion, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
-          echo "SUCCESS=$SUCCESS" >> $GITHUB_OUTPUT
+      - name: Get workflow result
+        id: result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
+        run: |
+          # Get workflow run details and check job conclusions
+          LATEST_ATTEMPT=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion != null) | .conclusion] | last')
+          NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
+          NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
+
+          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && ("$HAS_LABEL" == "true" || "$IS_SCHEDULED" == "true") ]]; then
+            RESULT="success"
+          elif [[ $NUM_CANCELLED -gt 0 ]]; then
+            RESULT="cancelled"
+          else
+            RESULT="failure"
+          fi
+
+          # Output the final status
+          echo "code=$RESULT" | tee -a $GITHUB_OUTPUT
 
       - name: Checkout for GH CLI
         uses: actions/checkout@v4
 
       - name: Remove label if not cancelled
-        if: ${{ !contains(needs.*.result, 'cancelled') && github.event.label.name == 'Run CICD' && github.event.pull_request.head.repo.full_name == github.repository }}
+        if: |
+          steps.result.outputs.code != 'cancelled' 
+          && github.event.label.name == 'Run CICD' 
+          && github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
         run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
 
-      # This should depend on all the tests so we block/unblock based on all tests passing
-      - name: Pipeline successful, set exit code to 0
-        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' }}
-        run: exit 0
-
       - name: Pipeline successful, add PR comment
-        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'true' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'success' 
+          && github.event_name == 'pull_request' 
+          && env.SLACK_WEBHOOK != ''
         uses: peter-evans/create-or-update-comment@v4
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -3290,114 +408,53 @@ jobs:
           body: |
             [🤖]: Hi @${{ github.event.pull_request.user.login }} 👋,
 
-            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully
+            We wanted to let you know that a [CICD pipeline](https://github.com/${{ env.REPOSITORY }}/actions/runs/${{ env.RUN_ID }}) for this PR just finished successfully.
 
-            So it might be time to merge this PR or get some approvals
+            So it might be time to merge this PR or get some approvals.
 
-            I'm just a bot so I'll leave it you what to do next.
-
-            //cc @pablo-garay @ko3n1g
+            //cc @chtruong814 @ko3n1g @pablo-garay @thomasdhc
 
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.pipeline-conclusion.outputs.FAILED == 'true' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'failure' 
+          && github.event.label.name == 'Run CICD' 
+          && env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_WEBHOOK_ADMIN: <!subteam^${{ secrets.SLACK_WEBHOOK_ADMIN }}>
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           PR_NUMBER: ${{ github.event.number }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -x
+          pip install PyGithub
+          export BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
-          PR_INFO=$(curl -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER
-          )
-          PR_URL=$(echo -E $PR_INFO | jq '.html_url' | tr -d '"')
-          PR_TITLE=$(echo -E $PR_INFO | jq '.title' | tr -d '"')
+          python .github/scripts/notify.py
 
-          PIPELINE_URL=$SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID
-          BASE_MESSAGE='
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "🚨 *CI/CD failure at <'$PIPELINE_URL'|NeMo CI>*."
-                  }
-                }
-              ]
-            }
-          '
-
-          # Since this workflow contains more than 100 jobs, we need to iterate over job pages
-          JOBS='[]'
-          PAGE=1
-          while : ; do
-            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
-            RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
-            JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
-            if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
-              break
-            else
-              PAGE=$(( PAGE + 1))
-            fi
-          done
-
-          SUMMARY="[]"
-          echo "Failed jobs: " | tee -a $GITHUB_STEP_SUMMARY
-          while IFS= read -r JOB; do
-            JOB_NAME="$(echo $JOB | jq '.key' | tr -d '"') / main"
-            JOB_ID=$(echo $JOBS | jq --arg job_name "$JOB_NAME" '.[] | select(.name == $job_name) | .id')
-            JOB_URL="https://github.com/$REPOSITORY/actions/runs/$RUN_ID/job/$JOB_ID"
-
-            echo "* [$JOB_NAME]($JOB_URL)" | tee -a $GITHUB_STEP_SUMMARY
-
-            LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
-            LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
-            LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
-            
-            SUMMARY=$(echo "$SUMMARY" | jq \
-              --arg pr "<$PR_URL|$PR_TITLE>" \
-              --arg job "<$JOB_URL|$JOB_NAME>" \
-              --arg logs "$(echo -e "$LOGS")" \
-              --arg author "<https://github.com/$GITHUB_ACTOR|$GITHUB_ACTOR>" \
-              --arg branch "<https://github.com/$REPOSITORY/tree/$BRANCH|$BRANCH>"\
-              '. += [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": (
-                    "PR: " + $pr
-                    + "\nJob: " + $job
-                    + "\nAuthor: " + $author
-                    + "\nBranch: " + $branch
-                    + "\nLogs:" + $logs
-                  )
-                }
-              }
-            ]')
-          done <<<$(echo '${{ toJSON(needs) }}' | jq -c 'to_entries | .[] | select(.value.outputs.conclusion == "failure")')
-
-          MESSAGE=$(echo $BASE_MESSAGE | jq -c --argjson summary "$SUMMARY" '.blocks += $summary')
-
-          curl -X POST -H "Content-type: application/json" --data "$MESSAGE" $SLACK_WEBHOOK
-
-      - name: "Pipeline not successful, set exit code to 1"
-        if: ${{ always() && steps.pipeline-conclusion.outputs.SUCCESS == 'false' }}
-        run: exit 1
+      - name: Exit
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ steps.result.outputs.code }}
+        run: |
+          if [ $RESULT == "success" ]; then
+            exit 0
+          else
+            exit 1
+          fi
 
   Coverage:
     runs-on: ubuntu-latest
-    needs: [Nemo_CICD_Test]
+    needs: [pre-flight, Nemo_CICD_Test]
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success() 
+        || needs.Nemo_CICD_Test.result == 'success'
+      )
+      && !cancelled()
     strategy:
       matrix:
         flag: [unit-test, e2e]
@@ -3419,7 +476,7 @@ jobs:
           ls -al .
           ls -al coverage-*/
           coverage combine --keep $(ls coverage-*/.coverage)
-          coverage report
+          coverage report -i
           rm -rf coverage-*
           ls -al
 
@@ -3429,3 +486,11 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
           flags: ${{ matrix.flag }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.flag }}-aggregated
+          path: |
+            .coverage
+          include-hidden-files: true

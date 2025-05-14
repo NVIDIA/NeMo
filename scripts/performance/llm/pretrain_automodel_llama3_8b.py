@@ -16,9 +16,10 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm import MockDataModule
+from nemo import lightning as nl
+from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, get_user_configs, slurm_executor
@@ -36,7 +37,7 @@ def override_recipe_configs(
     micro_batch_size: int = 1,
 ):
     """
-    Use MockdataModule for benchmarking purposes
+    Use HFMockdataModule for benchmarking purposes
 
     """
     model_name = "meta-llama/Meta-Llama-3-8B"
@@ -48,7 +49,7 @@ def override_recipe_configs(
     pretrain.trainer.val_check_interval = 100
     pretrain.log.ckpt.save_top_k = -1
     pretrain.data = run.Config(
-        MockDataModule,
+        HFMockDataModule,
         seq_length=seq_length,
         global_batch_size=global_batch_size,
         micro_batch_size=micro_batch_size,
@@ -73,8 +74,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "8b", args)
-    breakpoint()
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, _ = kwargs
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size = kwargs[:8]
 
     recipe = override_recipe_configs(
         args,
@@ -103,10 +103,17 @@ if __name__ == "__main__":
     )
 
     plugins = [
-        PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None),
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        ),
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

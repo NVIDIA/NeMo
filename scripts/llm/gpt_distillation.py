@@ -15,8 +15,10 @@
 import os
 from argparse import ArgumentParser
 
+import torch
 from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
@@ -71,6 +73,13 @@ if __name__ == "__main__":
         pipeline_model_parallel_size=args.pp_size,
         context_parallel_size=args.cp_size,
         sequence_parallel=(args.tp_size > 1),
+        ddp=DistributedDataParallelConfig(
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            check_for_nan_in_grad=True,
+            average_in_collective=True,
+        ),
         ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
     )
     trainer = nl.Trainer(
@@ -82,7 +91,12 @@ if __name__ == "__main__":
         limit_val_batches=args.limit_val_batches,
         strategy=strategy,
         accelerator="gpu",
-        plugins=nl.MegatronMixedPrecision(precision=args.precision),
+        plugins=nl.MegatronMixedPrecision(
+            precision=args.precision,
+            params_dtype=torch.bfloat16 if "bf16" in args.precision else torch.float32,
+            autocast_enabled=False,
+            grad_reduce_in_fp32=True,
+        ),
     )
 
     # Set up dataset

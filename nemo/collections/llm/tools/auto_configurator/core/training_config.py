@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,13 +22,12 @@ GPT_BASED_MODELS = [
     "gpt3",
     "bert",
     "llama",
-    "baichuan2",
-    "chatglm",
-    "qwen2",
+    "qwen",
     "mixtral",
     "mistral",
     "gemma",
     "nemotron",
+    "starcoder",
 ]
 
 
@@ -36,7 +35,8 @@ def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,
 ) -> Tuple[dict, dict]:
-    """Generates the grid of all possible configurations for the given model, and stores each different configuration in a yaml file.
+    """Generates the grid of all possible configurations for the given model,
+        and stores each different configuration in a yaml file.
 
     Args:
         base_cfg (dict): base configuration of the model to be trained.
@@ -55,16 +55,9 @@ def generate_grid_search_configs(
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
 
     seq_length = base_cfg.model.config.seq_length
-    num_layers = (
-        base_cfg.model.config.num_layers
-        if model_name in GPT_BASED_MODELS
-        else base_cfg.model.config.encoder.num_layers
-    )
+    num_layers = base_cfg.model.config.num_layers
 
-    if model_name in GPT_BASED_MODELS:
-        act_method = None
-    else:
-        act_method = base_cfg.model.config.encoder.activations_checkpoint_method
+    act_method = None
 
     params = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
@@ -76,7 +69,6 @@ def generate_grid_search_configs(
 
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
-
     valid_tp_pp_list = []
     for tp in params.tp:
         for pp in params.pp:
@@ -85,12 +77,8 @@ def generate_grid_search_configs(
                     for mbs in params.mbs:
                         num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
                         base_cfg.data.global_batch_size = params.gbs
-                        if model_name in GPT_BASED_MODELS:
-                            att_heads = base_cfg.model.config.num_attention_heads
-                            num_layers = base_cfg.model.config.num_layers
-                        else:
-                            att_heads = base_cfg.model.config.encoder.num_attention_heads
-                            num_layers = base_cfg.model.config.encoder.num_layers
+                        att_heads = base_cfg.model.config.num_attention_heads
+                        num_layers = base_cfg.model.config.num_layers
                         model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
                         mod_gbs = params.gbs % (mbs * num_gpus / model_parallelism)
                         mod_att_heads = att_heads % tp
@@ -144,6 +132,8 @@ def generate_grid_search_configs(
                 "model_name": model_name,
                 "model_size": model_size_in_b,
             }
+
+            act_layers = None
             if act_ckpt_layers[0] is not None:
                 if act_layers is not None and act_layers != "auto":
                     act_ckpt_layers = act_layers
@@ -255,6 +245,8 @@ class GPT3GridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
+        """Initialize model parallelism parameters"""
+
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
@@ -569,9 +561,10 @@ class T5GridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
+        """Initialize model parallelism parameters"""
+
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
-        seq_length = self.seq_length
 
         if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
@@ -709,9 +702,10 @@ class BertGridSearch:
     max_model_parallel: int = 8
 
     def init_params(self):
+        """Initialize model parallelism parameters"""
+
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
-        seq_length = self.seq_length
 
         if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
@@ -825,7 +819,8 @@ def _calculate_tp_pp_mbs_grid(
     seq_length: int,
     train_cfg: dict,
 ) -> Tuple[int, int, int]:
-    """Selects grid search space for TP, PP, MBS parameters for any model, and calls the necessary heuristics function accordingly.
+    """Selects grid search space for TP, PP, MBS parameters for any model,
+        and calls the necessary heuristics function accordingly.
 
     Args:
         model_size_in_b (float): number of parameters in the model.
@@ -875,21 +870,23 @@ def _calculate_tp_pp_mbs_grid(
     params = search_class(**kwargs)
     params.init_params()
 
+    mode = train_cfg.mode
     # Override the tp, pp, mbs search if indicated in the config params.
-    if tp_sizes is not None and tp_sizes != "auto":
+    if (tp_sizes is not None and tp_sizes != "auto") or mode == "finetune":
         params.tp = tp_sizes
-    if pp_sizes is not None and pp_sizes != "auto":
+    if (pp_sizes is not None and pp_sizes != "auto") or mode == "finetune":
         params.pp = pp_sizes
-    if cp_sizes is not None and cp_sizes != "auto":
+    if (cp_sizes is not None and cp_sizes != "auto") or mode == "finetune":
         params.cp = cp_sizes
-    if ep_sizes is not None and ep_sizes != "auto":
+    if (ep_sizes is not None and ep_sizes != "auto") or mode == "finetune":
         params.ep = ep_sizes
-    if mbs_sizes is not None and mbs_sizes != "auto":
+    if (mbs_sizes is not None and mbs_sizes != "auto") or mode == "finetune":
         params.mbs = mbs_sizes
-    if gbs_size is not None and gbs_size != "auto":
+    if (gbs_size is not None and gbs_size != "auto") or mode == "finetune":
         params.gbs = gbs_size
-    if min_model_parallel_size is not None and min_model_parallel_size != "auto":
+    if (min_model_parallel_size is not None and min_model_parallel_size != "auto") or mode == "finetune":
         params.min_model_parallel = min_model_parallel_size
-    if max_model_parallel_size is not None and max_model_parallel_size != "auto":
+    if (max_model_parallel_size is not None and max_model_parallel_size != "auto") or mode == "finetune":
         params.max_model_parallel = max_model_parallel_size
+
     return params

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import os.path
 from typing import Iterable, List, Optional, Union
 
 import numpy
+import vllm.envs as envs
 import wrapt
 from vllm import RequestOutput, SamplingParams
 from vllm.config import (
@@ -26,6 +27,7 @@ from vllm.config import (
     LoadConfig,
     LoadFormat,
     LoRAConfig,
+    ObservabilityConfig,
     ParallelConfig,
     SchedulerConfig,
     VllmConfig,
@@ -90,6 +92,9 @@ class vLLMExporter(ITritonDeployable):
 
     def __init__(self):
         self.request_id = 0
+        # TODO: Support v1 vllm engine
+        if envs.VLLM_USE_V1:
+            envs.set_vllm_use_v1(False)
 
     def export(
         self,
@@ -282,10 +287,7 @@ class vLLMExporter(ITritonDeployable):
                 device_config=device_config,
                 load_config=load_config,
                 lora_config=lora_config,
-                speculative_config=None,
-                decoding_config=None,
-                observability_config=None,
-                prompt_adapter_config=None,
+                observability_config=ObservabilityConfig(),
             ),
             executor_class=executor_class,
             log_stats=log_stats,

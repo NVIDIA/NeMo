@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -104,10 +104,6 @@ def main(args) -> None:
     else:
         model = vlm.MLlamaModel(vlm.MLlamaConfig11BInstruct(), tokenizer=tokenizer)
         model = fabric.load_model(args.local_model_path, model)
-
-    model = model.module.cuda()
-    model.eval()
-    model = model.to(torch.bfloat16)
 
     # Load the image
     raw_images = [load_image(url) for url in args.image_url]

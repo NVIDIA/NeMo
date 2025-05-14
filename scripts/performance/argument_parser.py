@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo_run.config import NEMORUN_HOME
+from nemo_run.config import get_nemorun_home
 
 from .utils import DEFAULT_NEMO_HOME
 
@@ -44,9 +44,9 @@ def parse_cli_args():
         "-l",
         "--log_dir",
         type=str,
-        help=f"Directory for logging experiment results. Defaults to {NEMORUN_HOME}",
+        help=f"Directory for logging experiment results. Defaults to {get_nemorun_home()}",
         required=False,
-        default=NEMORUN_HOME,
+        default=get_nemorun_home(),
     )
     parser.add_argument(
         "-t",
@@ -77,11 +77,37 @@ def parse_cli_args():
         required=False,
         default="bf16",
     )
+    fp8_recipe_msg = (
+        "FP8 recipe. Options- ds (per-tensor delayed scaling), cs (per-tensor current scaling), mxfp8. Defaults to ds"
+    )
+    parser.add_argument(
+        "-fr",
+        "--fp8_recipe",
+        type=str,
+        choices=["ds", "cs", "mxfp8"],
+        help=fp8_recipe_msg,
+        required=False,
+        default="ds",
+    )
     parser.add_argument(
         "-en",
         "--enable_nsys",
         help="Enable Nsys profiling. Diabled by default",
         action="store_true",
+    )
+    parser.add_argument(
+        "-em",
+        "--enable_memory_profile",
+        help="Enable memory usage profiling. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-mp",
+        "--memory_profile_out_path",
+        type=str,
+        help="Path to the output file of memory profiling",
+        required=False,
+        default=None,
     )
     parser.add_argument(
         "-tb",
@@ -249,18 +275,69 @@ def parse_cli_args():
         required=False,
         default=100,
     )
+
+    def bool_arg(arg):
+        if arg.lower() in ['true', '1', 't', 'yes', 'y']:
+            return True
+        elif arg.lower() in ['false', '0', 'f', 'no', 'n']:
+            return False
+        else:
+            raise ValueError(f"Invalid value for boolean argument: {arg}")
+
     parser.add_argument(
         "-cg",
         "--cuda_graphs",
         help="Enable CUDA graphs. Disabled by default",
-        action="store_true",
+        type=bool_arg,
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
+    )
+    parser.add_argument(
+        "-fsdp",
+        "--use_mcore_fsdp",
+        help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-rl",
+        "--recompute_layers",
+        type=int,
+        help="Number of Transformer layers to recompute, where all the intermediate "
+        "activations of a Transformer layer are computed. Defaults to None",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-ol",
+        "--activation_offload_layers",
+        type=int,
+        help="Number of Transformer layers to offload to the CPU memory. Defaults to None",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--nccl_communicator_config_path",
+        type=str,
+        help="Path to NCCL communicator config yaml file",
+        required=False,
+        default=None,
     )
 
     def list_of_strings(arg):
         return arg.split(',')
 
+    parser.add_argument(
+        "-rm",
+        "--recompute_modules",
+        nargs="*",
+        const=None,
+        type=str,
+        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None",
+        required=False,
+        default=None,
+    )
     parser.add_argument(
         "-cm",
         "--custom_mounts",
@@ -268,6 +345,12 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+    parser.add_argument(
+        "--use_hf_tokenizer",
+        help="Use HuggingFace tokenizer. Disabled by default. Null tokenizer will be used if not provided.",
+        action="store_true",
+        required=False,
     )
 
     return parser

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -315,7 +315,7 @@ class FluxControlNet(VisionModule):
         single_block_samples = ()
         for id_block, block in enumerate(self.single_blocks):
             with self.get_fp8_context():
-                hidden_states = block(
+                hidden_states, _ = block(
                     hidden_states=hidden_states,
                     rotary_pos_emb=rotary_pos_emb,
                     emb=vec_emb,
@@ -343,7 +343,7 @@ class FluxControlNet(VisionModule):
         controlnet_single_block_samples = (
             None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
         )
-        logging.info(controlnet_double_block_samples[0].sum())
+
         return controlnet_double_block_samples, controlnet_single_block_samples
 
 

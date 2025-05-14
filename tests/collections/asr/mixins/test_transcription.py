@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -404,4 +404,46 @@ class TestTranscriptionMixin:
 
         # check timestamp
         assert output[0].timestamp['segment'][0]['start'] == pytest.approx(0.48)
+        assert output[0].timestamp['segment'][0]['end'] == pytest.approx(0.72)
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_timestamps_with_transcribe_hybrid_ctc_head(self, audio_files, fast_conformer_hybrid_model):
+        audio1, audio2 = audio_files
+
+        fast_conformer_hybrid_model.change_decoding_strategy(decoder_type='ctc')
+
+        output = fast_conformer_hybrid_model.transcribe([audio1, audio2], timestamps=True)
+
+        # check len of output
+        assert len(output) == 2
+
+        # check hypothesis object
+        assert isinstance(output[0], Hypothesis)
+        # check transcript
+        assert output[0].text == 'Stop'
+        assert output[1].text == 'Start.'
+
+        # check timestamp
+        assert output[0].timestamp['segment'][0]['start'] == pytest.approx(0.4)
+        assert output[0].timestamp['segment'][0]['end'] == pytest.approx(0.72)
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_timestamps_with_transcribe_canary_flash(self, audio_files, canary_1b_flash):
+        audio1, audio2 = audio_files
+
+        output = canary_1b_flash.transcribe([audio1, audio2], timestamps=True)
+
+        # check len of output
+        assert len(output) == 2
+
+        # check hypothesis object
+        assert isinstance(output[0], Hypothesis)
+        # check transcript
+        assert output[0].text == 'Stop'
+        assert output[1].text == 'start'
+
+        # check timestamp
+        assert output[0].timestamp['segment'][0]['start'] == pytest.approx(0.32)
         assert output[0].timestamp['segment'][0]['end'] == pytest.approx(0.72)
