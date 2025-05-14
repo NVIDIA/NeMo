@@ -22,6 +22,10 @@ import pytest
 
 from datasets import Dataset
 
+from nemo.collections.llm.gpt.data.core import (
+    GPTSFTChatDataset,
+    create_sft_dataset,
+)
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
 from nemo.collections.llm.gpt.data.utils import _chat_preprocess
@@ -53,7 +57,8 @@ LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS = """{{- bos_token }}
     {%- endfor %}
     {{- 'Think very carefully before calling functions.\n' }}
     {{- 'Only call them if they are relevant to the prompt.\n' }}
-    {{- 'If you choose to call a function ONLY reply in the following format with no natural language surrounding it:\n\n' }}
+    {{- 'If you choose to call a function ONLY reply in the following format with no natural ' }}
+    {{- 'language surrounding it:\n\n' }}
     {{- '<function=example_function_name>{"example_name": "example_value"}</function>\n\n' }}
     {{- 'Reminder:\n' }}
     {{- '- Function calls MUST follow the specified format, start with <function= and end with </function>\n' }}
@@ -72,7 +77,8 @@ LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS = """{{- bos_token }}
         {%- if message.get('tool_calls') is not none %}
             {%- set tool_call = message['tool_calls'][0] %}
             {%- generation %}
-                {{- '<|python_tag|><function=' + tool_call.function.name + '>' + tool_call.function.arguments | tojson + '</function>\n<|eot_id|>' }}
+                {{- '<|python_tag|><function=' + tool_call.function.name + '>' }}
+                {{- tool_call.function.arguments | tojson + '</function>\n<|eot_id|>' }}
             {%- endgeneration %}
         {%- else %}
             {%- generation %}
@@ -168,6 +174,113 @@ def test_create_dataset(chat_data_module, temp_dataset_dir):
     test_dataset = chat_data_module._create_dataset(str(dataset_path), is_test=True)
     assert test_dataset is not None
 
+def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
+
+    dataset_path = temp_dataset_dir / "chat_dataset.jsonl"
+    with open(dataset_path, "w") as f:
+        json.dump(
+            {
+                "messages": [
+                    {"role": "system", "content": "you are a robot"},
+                    {"role": "user", "content": "Choose a number that is greater than 0 and less than 2\n"},
+                    {
+                        "role": "assistant",
+                        "content": "2",
+                        "tool_calls": [
+                            {"type": "function", "function": {
+                                "name": "get_weather", "arguments": {"location": "Denver"}
+                            }},
+                            # additional tool calls should be quietly ignored
+                            {"type": "function", "function": {
+                                "name": "extra", "arguments": {"non-existing": "tool call"}
+                            }},
+                        ],
+                    },
+                ]
+            }, f
+        )
+
+    tool_schemas = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Fetches the current weather for a given location.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"location": {"type": "string", "description": "The name of the location."}},
+                    "required": ["location"],
+                },
+            },
+        }
+    ]
+
+    dataset = create_sft_dataset(
+        path=dataset_path,
+        tokenizer=mock_tokenizer,
+        seq_length=512,
+        prompt_template="{input} {output}",
+        chat=True,
+        use_hf_tokenizer_chat_template = True,
+        tool_schemas=tool_schemas,
+    )
+
+    assert isinstance(dataset, GPTSFTChatDataset)
+    assert dataset.max_seq_length == 512
+
+    assert dataset.tool_schemas == tool_schemas
+
+    data = [dataset[idx] for idx in list(range(0, len(dataset)))]
+
+    collated = dataset.collate_fn(data)
+    assert len(collated["tokens"]) == len(data)
+
+    tokens = collated["tokens"][0]
+    loss = collated["loss_mask"][0]
+
+    tokens_copy = copy.deepcopy(tokens)
+    tokens_copy[loss == 0] = mock_tokenizer.text_to_ids("-")[0]
+
+    hf_tokenizer = mock_tokenizer.tokenizer
+    full_string = hf_tokenizer.convert_tokens_to_string(mock_tokenizer.ids_to_tokens(tokens))
+    assistant_message_only = hf_tokenizer.convert_tokens_to_string(mock_tokenizer.ids_to_tokens(tokens_copy))
+
+    assert full_string == (
+        "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\n\n"
+        "Cutting Knowledge Date: December 2023\nToday Date: 14 May 2025\n\n"
+        "You are a helpful assistant.\n"
+        "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
+        "You have access to the following functions to supplement your existing knowledge:\n\n"
+        "Use the function 'get_weather' to 'Fetches the current weather for a given location.':\n"
+        '{"name": "get_weather", "description": "Fetches the current weather for a given location.", '
+        '"parameters": {"type": "object", "properties": {"location": {"type": "string", '
+        '"description": "The name of the location."}}, "required": ["location"]}}\n\n'
+        "Think very carefully before calling functions.\n"
+        "Only call them if they are relevant to the prompt.\n"
+        "If you choose to call a function ONLY reply in the following format with no natural language "
+        "surrounding it:\n\n"
+        "<function=example_function_name>{\"example_name\": \"example_value\"}</function>\n\n"
+        "Reminder:\n"
+        "- Function calls MUST follow the specified format, start with <function= and end with </function>\n"
+        "- Required parameters MUST be specified\n"
+        "- Only call one function at a time\n"
+        "- Put the entire function call reply on one line\n"
+        "- Do not call functions if they are not relevant to the prompt"
+        "<|eot_id|><|start_header_id|>system<|end_header_id|>\n\nyou are a robot"
+        "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
+        "Choose a number that is greater than 0 and less than 2"
+        "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        "<|python_tag|><function=get_weather>{\"location\": \"Denver\"}</function>\n"
+        "<|eot_id|><|end_of_text|>"
+    )
+
+    assert assistant_message_only == (
+        "------------------------------------------------------------------------------------------------------------"
+        "------------------------------------------------------------------------------------------------------------"
+        "-------------------------------------------------------------------\n\n"
+        """<|python_tag|><function=get_weather>{"location": "Denver"}</function>\n"""
+        "<|eot_id|>-"
+    )
 
 class TestPreprocess:
     tokenizer = AutoTokenizer(
@@ -195,13 +308,22 @@ class TestPreprocess:
         # input_ids contain tokenized messages with chat template applied
         # Note: the NIM chat template did not include the date_time or knowledge cutoff date_string
         # for non-tool calling applications
-        'input_ids': [128000, 128006, 9125, 128007, 271, 9514, 527, 264, 12585, 128009, 128006, 882, 128007, 271, 25017, 264, 1396, 430, 374, 7191, 1109, 220, 15, 323, 2753, 1109, 220, 17, 128009, 128006, 78191, 128007, 271, 16, 128009, 128001], # noqa: F401
+        'input_ids': [
+            128000, 128006, 9125, 128007, 271, 9514, 527, 264, 12585, 128009, 128006, 882, 128007, 271,
+            25017, 264, 1396, 430, 374, 7191, 1109, 220, 15, 323, 2753, 1109, 220, 17, 128009, 128006, 78191,
+            128007, 271, 16, 128009, 128001
+        ],
         # mask corresponds to tokens of input_ids where 1 represents output tokens for the role `assistant` in both
         # context and answer for multi-turn, and 0 to mask all other tokens, e.g. system, user, and tool calling.
-        'mask': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1], # noqa: F401
+        'loss_mask': [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1
+        ],
         # context_ids contain tokenized messages with chat template applied for all messages except assistant's last
         # generated output
-        'context_ids': [128000, 128006, 9125, 128007, 271, 9514, 527, 264, 12585, 128009, 128006, 882, 128007, 271, 25017, 264, 1396, 430, 374, 7191, 1109, 220, 15, 323, 2753, 1109, 220, 17, 128009, 128006, 78191, 128007, 271], # noqa: F401
+        'context_ids': [
+            128000, 128006, 9125, 128007, 271, 9514, 527, 264, 12585, 128009, 128006, 882, 128007, 271, 25017, 264,
+            1396, 430, 374, 7191, 1109, 220, 15, 323, 2753, 1109, 220, 17, 128009, 128006, 78191, 128007, 271
+        ],
         # answer_ids contain tokenized messages with chat template applied for only the assistant's last generated
         # output
         'answer_ids': [16, 128009, 128001]
@@ -287,10 +409,9 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
                     "tool_calls": [
                         {"type": "function", "function": {"name": "get_weather", "arguments": {"location": "Denver"}}},
                         # additional tool calls should be quietly ignored
-                        {
-                            "type": "function",
-                            "function": {"name": "extra", "arguments": {"non-existing": "tool call"}},
-                        },
+                        {"type": "function", "function": {
+                            "name": "extra", "arguments": {"non-existing": "tool call"}
+                        }},
                     ],
                 },
                 {"role": "tool", "content": '{"Denver": {"temperature": "72°F"}}'},
@@ -319,7 +440,8 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         assistant_mask = [i for i, mask in enumerate(tokenized_chat["mask"]) if mask == 1]
         assistant_generated_tokens = [tokenized_chat["input_ids"][idx] for idx in assistant_mask]
         assert (
-            '1<|eot_id|><|python_tag|><function=get_weather>{"location": "Denver"}</function>\n<|eot_id|>The current weather in Denver is 72°F and sunny.<|eot_id|><|end_of_text|>'
+            '1<|eot_id|><|python_tag|><function=get_weather>{"location": "Denver"}</function>\n<|eot_id|>'
+            'The current weather in Denver is 72°F and sunny.<|eot_id|><|end_of_text|>'
             == self.tokenizer.tokenizer.decode(assistant_generated_tokens)
         )
         # Verify context includes assistant output
@@ -364,7 +486,8 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         assistant_mask = [i for i, mask in enumerate(tokenized_chat["mask"]) if mask == 1]
         assistant_generated_tokens = [tokenized_chat["input_ids"][idx] for idx in assistant_mask]
         assert (
-            '1<|eot_id|><|python_tag|><function=launch>{"location": "Denver"}</function>\n<|eot_id|>Starting the eotw at Denver! Have a nice Day.<|eot_id|><|end_of_text|>'
+            '1<|eot_id|><|python_tag|><function=launch>{"location": "Denver"}</function>\n<|eot_id|>'
+            'Starting the eotw at Denver! Have a nice Day.<|eot_id|><|end_of_text|>'
             == self.tokenizer.tokenizer.decode(assistant_generated_tokens)
         )
         assert "<|start_header_id|>assistant<|end_header_id|>" not in decoded_answer

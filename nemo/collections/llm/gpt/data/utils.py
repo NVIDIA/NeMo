@@ -19,6 +19,7 @@ import logging
 import multiprocessing as mp
 import os
 import pickle
+import re
 import time
 from functools import lru_cache, partial
 from typing import Any, Callable, List, Optional, Type
@@ -43,6 +44,8 @@ TYPE_INSTRUCTION = {
     'TEXT_TO_VALUE': "",
     'VALUE_TO_TEXT': '',
 }
+
+GENERATION_REGEX = re.compile(r'\{%-?\s+generation\s+-?%\}')
 
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
@@ -852,16 +855,14 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
     else:
         chat = source
 
-    template_has_generation_kwd = (
-        '{% generation %}' in tokenizer.tokenizer.chat_template
-    )  # assistant mask only works if chat template has generation keyword
+    # assistant mask only works if chat template has generation keyword
+    template_has_generation_kwd = GENERATION_REGEX.search(tokenizer.tokenizer.chat_template) is not None
 
     tokenized_chat = tokenizer.tokenizer.apply_chat_template(
         chat,
         tools=tools,
         tokenize=True,
         return_dict=True,
-        return_tensors='pt',
         return_assistant_tokens_mask=template_has_generation_kwd,
     )
 
@@ -869,16 +870,22 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
     # which indicates end of context and beginning of answer
     input_ids = tokenized_chat.get("input_ids")
     if template_has_generation_kwd:
-        mask = torch.tensor(tokenized_chat['assistant_masks']).to(bool)
+        mask = tokenized_chat['assistant_masks']
     else:
-        mask = torch.ones_like(input_ids)
+        mask = [1] * len(input_ids)
+
     if tokenizer.eos_id and input_ids[-1] != tokenizer.eos_id:
         input_ids += [tokenizer.eos_id]
         mask += [1]
 
-    context_end_idx = len(mask) - mask[::-1].index(
-        0
-    )  # traverse the list backward for first occurrence of masked token
+    if 0 in mask:
+        # traverse the list backward for first occurrence of masked token
+        context_end_idx = len(mask) - mask[::-1].index(
+            0
+        )
+    else:
+        context_end_idx = len(mask)
+
     context_ids = input_ids[:context_end_idx]
     answer_ids = input_ids[context_end_idx:]
 

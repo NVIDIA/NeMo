@@ -959,6 +959,11 @@ class GPTSFTChatDataset(GPTSFTDataset):
         use_hf_tokenizer_chat_template: bool = True,
         tool_schemas: Optional[str | dict] = None,
     ):
+        self.use_hf_tokenizer_chat_template = use_hf_tokenizer_chat_template
+        self.tool_schemas = tool_schemas
+        if isinstance(self.tool_schemas, str):
+            self.tool_schemas = json.loads(self.tool_schemas)
+
         super().__init__(
             file_path,
             tokenizer,
@@ -990,10 +995,6 @@ class GPTSFTChatDataset(GPTSFTDataset):
             get_attention_mask_from_fusion,
             sanity_check_dist_workers,
         )
-        self.use_hf_tokenizer_chat_template = use_hf_tokenizer_chat_template
-        self.tool_schemas = tool_schemas
-        if isinstance(self.tool_schemas, str):
-            self.tool_schemas = json.loads(self.tool_schemas)
 
         if (
             self.use_hf_tokenizer_chat_template
