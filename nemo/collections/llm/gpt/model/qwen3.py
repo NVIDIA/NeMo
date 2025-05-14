@@ -51,6 +51,9 @@ class Qwen3Config(Qwen2Config):
 
 @dataclass
 class Qwen3MoEConfig(Qwen3Config):
+    """
+    Base config for Qwen 3 MoE Models
+    """
     num_moe_experts: int = 128
     moe_router_load_balancing_type: str = "aux_loss"
     moe_aux_loss_coeff: float = 1e-3
