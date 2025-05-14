@@ -58,7 +58,7 @@ class BacthedBeamCTCState:
 
     decoder_outputs: torch.Tensor  # logprobs from decoder
     decoder_output_lengths: torch.Tensor  # lengths of the decoder outputs (i.e. max time for each utterance)
-    last_timesteps: torch.Tensor   # last time step for each utterance (used to check if the decoding is finished)
+    last_timesteps: torch.Tensor  # last time step for each utterance (used to check if the decoding is finished)
 
     vocab: torch.Tensor  # vocabulary of the model. Constant
     vocab_blank_mask: torch.Tensor  # mask for blank token in the vocabulary. Constant
