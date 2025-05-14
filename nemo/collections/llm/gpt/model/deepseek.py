@@ -678,10 +678,10 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
 
         # Figure out the number of zeros in the prefix of moe_layer_freq array
         # for the HF first_k_dense_replace parameter and validate the reminder:
-        i = 0
-        while i < len(source.moe_layer_freq) and source.moe_layer_freq[i] == 0:
-            i += 1
-        assert all(x == 1 for x in source.moe_layer_freq[i:])
+        k = 0
+        while k < len(source.moe_layer_freq) and source.moe_layer_freq[k] == 0:
+            k += 1
+        assert all(x == 1 for x in source.moe_layer_freq[k:])
 
         return HFDeepseekV3Config(
             architectures=["DeepseekV3ForCausalLM"],
@@ -697,7 +697,7 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             num_key_value_heads=source.kv_channels,
             n_routed_experts=source.num_moe_experts,
             moe_intermediate_size=source.moe_ffn_hidden_size,
-            first_k_dense_replace=i,
+            first_k_dense_replace=k,
             num_experts_per_tok=source.moe_router_topk,
             n_group=source.moe_router_num_groups,
             topk_group=source.moe_router_group_topk,
