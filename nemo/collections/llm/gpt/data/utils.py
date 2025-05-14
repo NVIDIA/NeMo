@@ -821,14 +821,14 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
 
     Input source is expected HuggingFace AutoTokenizer format
         {"messages": [
-            {"role": "system","content":"<text>"}, 
-            {"role": "user","content":"<text>"}, 
+            {"role": "system","content":"<text>"},
+            {"role": "user","content":"<text>"},
             {"role": "assistant","content":"<text>"}
         ]}
     Input source as conversations format is also supported and is converted to HF format, however mask and type are
     ignored. Mask will apply to all non-assistant output tokens.
         {"conversations": [
-            {"from": "User","value":"<text>"}, 
+            {"from": "User","value":"<text>"},
             {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
         ]}
     """
