@@ -191,7 +191,7 @@ def drop_layers(model, layers_to_drop: List[int]):
 
 
 def mcore_model_customize(cfg, model):
-    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
@@ -578,7 +578,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
             if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
-                ignore_virtual=False
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
             ):
                 extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
@@ -1292,9 +1292,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.add('cu_seqlens')
                 if 'cu_seqlens_unpadded' in batch:
                     required_keys.add('cu_seqlens_unpadded')
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
@@ -1585,7 +1585,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def on_validation_epoch_end(self):
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
             # only the last pipeline parallel stages return loss with their batch size
             if self.validation_drop_last:
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()

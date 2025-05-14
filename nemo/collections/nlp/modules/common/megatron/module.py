@@ -296,7 +296,7 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False) and self.training:
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()) and self.training:
             outputs = float16_to_fp32(outputs)
         return outputs
 

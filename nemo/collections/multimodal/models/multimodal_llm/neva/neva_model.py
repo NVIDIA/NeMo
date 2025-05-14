@@ -1017,7 +1017,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     else:
                         batch[k] = batch[k].cuda(non_blocking=True)
             else:
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -1032,7 +1032,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                                 if k in ['tokens', 'position_ids', 'attention_mask', 'media', 'cu_seqlens']
                                 else None
                             )
-                elif parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                elif parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -1159,7 +1159,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if not self.validation_step_outputs:
             return
 
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()

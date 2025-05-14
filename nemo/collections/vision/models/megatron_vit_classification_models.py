@@ -390,7 +390,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             # launch grad reductions
             # Note: grads in first pipeline stage have already been
             # reduced
-            if not parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+            if not parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                 self.reduce_overlap_gradients()
         elif self.megatron_amp_O2:
             # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
@@ -487,11 +487,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 tokens, labels = batch
             else:
                 # Vision transformer doesn't need attention mask
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     # Fist pipeline stage needs only the tokens and position_ids
                     tokens = batch[0].cuda(non_blocking=True)
                     labels = None
-                elif parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                elif parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     # Last pipeline stage needs only the labels and loss_mask
                     labels = batch[1].cuda(non_blocking=True)
                     tokens = None
@@ -537,7 +537,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         if not self.validation_step_outputs:
             return None
 
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
             loss_outputs = [output[0] for output in self.validation_step_outputs]
             acc_outputs = [output[1] for output in self.validation_step_outputs]
 

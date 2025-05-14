@@ -74,14 +74,14 @@ def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "num_chunks",
         )
     )
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
         required_keys.update(
             (
                 "batch_images",
                 "aspect_ratio_ids",
             )
         )
-    if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
         required_keys.update(
             (
                 "labels",

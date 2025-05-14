@@ -277,11 +277,11 @@ class MegatronRetroModel(MegatronGPTModel):
                 required_keys.update(batch.keys())
             else:
                 required_keys.add('attention_mask')
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     required_keys.update(
                         ('tokens', 'position_ids', 'context_input_ids', 'context_position_ids', 'context_mask')
                     )
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion:
                 required_keys.remove('attention_mask')
