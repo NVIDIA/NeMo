@@ -15,12 +15,12 @@
 
 from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
 from nemo.collections.multimodal.data.energon.config import (
+    AudioToken,
     ImageTextSample,
     ImageToken,
-    AudioToken,
-    VideoToken,
     LLaVATemplateConfig,
     MultiModalSampleConfig,
+    VideoToken,
 )
 from nemo.collections.multimodal.data.energon.sample_encoder import (
     BaseSampleEncoder,

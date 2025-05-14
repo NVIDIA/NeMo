@@ -30,12 +30,12 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.enums import AttnBackend
 
 from nemo import lightning as nl
-from nemo.collections import llm, vlm, avlm
+from nemo.collections import avlm, llm, vlm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 def main(args):
@@ -63,9 +63,7 @@ def main(args):
         decoder_seq_length = int(args.seq_length * 2)
 
     if args.data_type == "energon":
-        from nemo.collections.avlm.data.energon import AVLMDataModule
-        from nemo.collections.avlm.data.energon import AVLMSampleConfig
-        from nemo.collections.avlm.data.energon import AVLMTaskEncoder
+        from nemo.collections.avlm.data.energon import AVLMDataModule, AVLMSampleConfig, AVLMTaskEncoder
 
         data_path = args.data_path
 

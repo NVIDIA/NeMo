@@ -18,17 +18,18 @@ Example:
 """
 
 import argparse
+
 import torch
+from megatron.core.transformer.enums import AttnBackend
 
 import nemo.lightning as nl
-from nemo.collections import llm, vlm, avlm
-from nemo.utils import logging
-from megatron.core.transformer.enums import AttnBackend
-from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.avlm.data.energon import AVLMSampleConfig, AVLMEnergonQASample
-from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMSampleEncoderQA
+from nemo.collections import avlm, llm, vlm
+from nemo.collections.avlm.data.energon import AVLMEnergonQASample, AVLMSampleConfig
 from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSample
+from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMSampleEncoderQA
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
+from nemo.utils import logging
 
 
 def nucleus_sampling(logits, top_p=0.9, temperature=1.0, top_k=None):
@@ -79,7 +80,7 @@ def generate(model, sample_encoder, sample, tokens_to_generate=20, top_p=0.9, te
         .expand_as(encoded_sample.tokens)
     ).cuda()
 
-    from itertools import groupby, chain
+    from itertools import chain, groupby
 
     def mark_ignore_spans(tokens, values_list):
         return list(

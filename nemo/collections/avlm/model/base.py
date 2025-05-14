@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
-from contextlib import contextmanager
 
 import lightning.pytorch as L
 import torch
@@ -32,7 +32,6 @@ from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-
 from nemo.collections.multimodal.data.energon.config import AudioToken, ImageToken, MultiModalSampleConfig
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
