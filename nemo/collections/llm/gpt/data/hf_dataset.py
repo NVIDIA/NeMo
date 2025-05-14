@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -398,7 +398,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             raise ValueError("split_names must None/str/list")
 
         for split_name in split_names:
-            if not self.dataset_splits[split_name] is None:
+            if self.dataset_splits[split_name] is not None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
 
@@ -578,10 +578,12 @@ class SquadHFDataModule(HFDatasetDataModule):
             f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
-            context_ids.insert(0, self.tokenizer.bos_id)
-        if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
-            answer_ids.append(self.tokenizer.eos_id)
+        bos_id = getattr(self.tokenizer, "bos_id", None)
+        eos_id = getattr(self.tokenizer, "eos_id", None)
+        if len(context_ids) > 0 and bos_id is not None and context_ids[0] != bos_id:
+            context_ids.insert(0, bos_id)
+        if len(answer_ids) > 0 and eos_id is not None and answer_ids[-1] != eos_id:
+            answer_ids.append(eos_id)
 
         return dict(
             labels=(context_ids + answer_ids)[1:],
@@ -738,11 +740,11 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        input_ids = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
         labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
 
         batch = {
-            "tokens": tokens,
+            "input_ids": input_ids,
             "labels": labels,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,10 +49,9 @@ def generate(model, processor, raw_image, text):
     ]
 
     input_text = processor.apply_chat_template(messages, add_generation_prompt=True)
-
-    input_ids = processor.tokenizer(input_text, return_tensors='pt').input_ids.cuda()
     inputs = processor(input_text, raw_image, return_tensors='pt').to(0, torch.float32)
 
+    input_ids = inputs['input_ids'].cuda()
     input_ids[input_ids == 32000] = -200
     media = inputs['pixel_values'].cuda()
     media = media.reshape(media.size(1), 3, 336, 336)
