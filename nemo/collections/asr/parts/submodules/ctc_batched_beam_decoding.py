@@ -660,7 +660,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
 
         # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
-        torch.where(self.state.active_mask, next_labels, self.state.INACTIVE_SCORE, out=next_labels)
+        torch.where(self.state.active_mask, next_labels, self.state.NON_EXISTENT_LABEL, out=next_labels)
         self.state.batched_hyps.add_results_no_checks_(next_indices, next_labels, next_scores)
         self.state.batched_hyps.recombine_hyps_()
 
