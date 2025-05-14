@@ -44,8 +44,8 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
-    from transformers import Gemma3ForCausalLM
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+    from transformers import Gemma3ForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
