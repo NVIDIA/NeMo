@@ -117,6 +117,7 @@ def create_sft_dataset(
     elif chat:
         return GPTSFTChatDataset(
             **gpt_sft_dataset_kwargs,
+            use_hf_tokenizer_chat_template=use_hf_tokenizer_chat_template,
             **kwargs,
         )
     else:

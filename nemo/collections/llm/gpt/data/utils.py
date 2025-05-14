@@ -861,6 +861,7 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
         tools=tools,
         tokenize=True,
         return_dict=True,
+        return_tensors='pt',
         return_assistant_tokens_mask=template_has_generation_kwd,
     )
 
@@ -871,9 +872,10 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
         mask = torch.tensor(tokenized_chat['assistant_masks']).to(bool)
     else:
         mask = torch.ones_like(input_ids)
-    if tokenizer.eos_id:
+    if tokenizer.eos_id and input_ids[-1] != tokenizer.eos_id:
         input_ids += [tokenizer.eos_id]
         mask += [1]
+
     context_end_idx = len(mask) - mask[::-1].index(
         0
     )  # traverse the list backward for first occurrence of masked token

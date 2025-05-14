@@ -156,9 +156,8 @@ def get_tokenizer(
         merges_file=merges_file,
         **special_tokens_dict,
         use_fast=use_fast,
+        chat_template=chat_template,
     )
-    if chat_template:
-        tokenizer.tokenizer.chat_template = chat_template
     return tokenizer
 
 
