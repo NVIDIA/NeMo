@@ -19,6 +19,7 @@ import numpy as np
 import torch
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BatchedBeamHyps
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -185,6 +186,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         beam_threshold: float = 20.0,
         ngram_lm_model: str = None,
         allow_cuda_graphs: bool = True,
+        wb_model: str = None,
+        wb_alpha: float = 1.0,
     ):
         """
         Init method.
@@ -200,10 +203,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             allow_cuda_graphs: whether to allow CUDA graphs. Defaults to True.
         """
 
-        print("Parammmmssss")
-        print("Alpha: ", ngram_lm_alpha)
-        print("lm_model: ", ngram_lm_model)
-
         super().__init__()
         self._blank_index = blank_index
 
@@ -213,6 +212,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.allow_cuda_graphs = allow_cuda_graphs
         self.return_best_hypothesis = return_best_hypothesis
 
+        self.wb_model = wb_model
+        self.wb_alpha = wb_alpha
         self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
@@ -225,11 +226,18 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
+        
+        print("wbwbwbwbwbwbwbwb")
+        print(wb_model)
+        print(wb_alpha)
 
         self.ngram_lm_batch = None
         if ngram_lm_model is not None:
             assert self._blank_index != 0
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+        if wb_model is not None:
+            assert self._blank_index != 0
+            self.wb_batch = GPUBoostingTreeModel.from_file(lm_path=wb_model, vocab_size=self._blank_index)
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -311,6 +319,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             batch_lm_states = self.ngram_lm_batch.get_init_states(
                 batch_size=curr_batch_size * self.beam_size, bos=True
             )
+        if self.wb_batch is not None:
+            self.wb_batch.to(decoder_outputs.device)
+            batch_wb_states = self.wb_batch.get_init_states(
+                batch_size=curr_batch_size * self.beam_size, bos=False
+            )
 
         for frame_idx in range(curr_max_time):
             active_mask = frame_idx < decoder_output_lengths.unsqueeze(1)
@@ -322,6 +335,9 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             if self.ngram_lm_batch is not None:
                 lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states.view(-1))
                 log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
+            if self.wb_batch is not None:
+                wb_scores, batch_wb_states_candidates = self.wb_batch.advance(states=batch_wb_states.view(-1))
+                log_probs[..., :-1] += self.wb_alpha * wb_scores.view(curr_batch_size, self.beam_size, -1)
 
             # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
             repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
@@ -369,6 +385,33 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 ).squeeze(-1)
 
                 batch_lm_states = torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states).view(-1)
+            if self.wb_batch is not None:
+                last_labels = torch.gather(batched_beam_hyps.last_label, dim=-1, index=next_indices)
+                blank_mask = next_labels == self._blank_index
+                repeating_mask = next_labels == last_labels
+                preserve_state_mask = repeating_mask | blank_mask | ~active_mask
+
+                # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
+                next_labels_masked = torch.where(blank_mask, 0, next_labels)
+
+                # step 2.4.2: gathering LM states of extended hypotheses
+                # batch_lm_states: [(BxBeam)]
+                # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+                next_indices_extended = next_indices[:, :, None].expand(
+                    curr_batch_size, self.beam_size, batch_wb_states_candidates.shape[-1]
+                )
+                batch_wb_states_candidates = batch_wb_states_candidates.view(curr_batch_size, self.beam_size, -1)
+                batch_wb_states_candidates = torch.gather(
+                    batch_wb_states_candidates, dim=1, index=next_indices_extended
+                )
+                batch_wb_states_prev = torch.gather(
+                    batch_wb_states.view(curr_batch_size, self.beam_size), dim=1, index=next_indices
+                )
+                batch_wb_states = torch.gather(
+                    batch_wb_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
+                ).squeeze(-1)
+
+                batch_wb_states = torch.where(preserve_state_mask, batch_wb_states_prev, batch_wb_states).view(-1)
 
             # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
             next_labels = torch.where(active_mask, next_labels, NON_EXISTENT_LABEL_VALUE)

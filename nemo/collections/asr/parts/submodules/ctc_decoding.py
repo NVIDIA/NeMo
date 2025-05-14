@@ -302,6 +302,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                wb_model=self.cfg.beam.get('wb_model', None),
+                wb_alpha=self.cfg.beam.get('wb_alpha', 1.0),
             )
 
             self.decoding.override_fold_consecutive_value = False
@@ -363,6 +365,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.decoding.override_fold_consecutive_value = False
 
         elif self.cfg.strategy == 'beam_batch':
+            print("A"*10)
             self.decoding = ctc_beam_decoding.BeamBatchedCTCInfer(
                 blank_index=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
@@ -374,6 +377,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                wb_model=self.cfg.beam.get('wb_model', None),
+                wb_alpha=self.cfg.beam.get('wb_alpha', None),
             )
 
             self.decoding.override_fold_consecutive_value = False

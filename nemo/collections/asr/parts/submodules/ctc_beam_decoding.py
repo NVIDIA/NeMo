@@ -913,6 +913,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         beam_threshold: float = 20.0,
         ngram_lm_model: str = None,
         allow_cuda_graphs: bool = True,
+        wb_model: str = None,
+        wb_alpha: float = 1.0,
     ):
         super().__init__(blank_id=blank_index, beam_size=beam_size)
 
@@ -952,6 +954,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             beam_threshold=beam_threshold,
             ngram_lm_model=ngram_lm_model,
             allow_cuda_graphs=allow_cuda_graphs,
+            wb_model=wb_model,
+            wb_alpha=wb_alpha,
         )
 
     @typecheck()
@@ -1026,6 +1030,9 @@ class BeamCTCInferConfig:
     kenlm_path: Optional[str] = None  # Deprecated
     ngram_lm_alpha: Optional[float] = 1.0
     ngram_lm_model: Optional[str] = None
+    wb_model: Optional[str] = None
+    wb_alpha: Optional[float] = 1.0
+    
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
