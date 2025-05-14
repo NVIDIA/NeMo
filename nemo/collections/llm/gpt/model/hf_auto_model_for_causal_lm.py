@@ -186,7 +186,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def _configure_model(self, attn_implementation):
         """helper method; see also configure_model."""
         # create all your layers here
-        auto_cls = AutoModelForCausalLM
         quantization_config = None
         if self.load_in_4bit:
             quantization_config = BitsAndBytesConfig(
