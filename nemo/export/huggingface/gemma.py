@@ -15,9 +15,7 @@
 
 from pathlib import Path
 
-import yaml
-
-from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter
+from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 
@@ -86,16 +84,7 @@ class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
     @property
     def config(self) -> "GemmaConfig":
         """ """
-        model_yaml = Path(str(self)) / "context" / "model.yaml"
-        if not model_yaml.exists():
-            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
-        with open(model_yaml, 'r') as stream:
-            config = yaml.safe_load(stream)
-        dict_to_obj = lambda d: (
-            type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
-        )
-
-        source = dict_to_obj(config['config'])
+        source = load_config(str(self))
 
         from transformers import GemmaConfig as HFGemmaConfig
 

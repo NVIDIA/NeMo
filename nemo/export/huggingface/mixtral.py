@@ -12,36 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from pathlib import Path
 
-from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
+from nemo.export.huggingface.utils import ckpt_load, get_tokenizer, io_model_exporter, get_model, load_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
 
-MistralModel = get_model("MistralModel")
+MixtralModel = get_model("MixtralModel")
 
 
-@io_model_exporter(MistralModel, "hf")
-class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"]):
-    """ """
+@io_model_exporter(MixtralModel, "hf")
+class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"]):
+    """NeMo to HF exporter"""
 
-    def init(self, dtype=torch.bfloat16) -> "MistralForCausalLM":
+    def init(self) -> "MixtralForCausalLM":
+        """HFMixtralExporter initialization"""
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+            return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        """export to hf format"""
         # TODO: Make it work with lazy init
         # with torch.device("meta"):
         #     target = self.init()
         source, source_config = ckpt_load(str(self))
         source = _ModelState(source, source_config)
-
-        target = self.init(torch_dtype_from_mcore_config(source_config))
+        
+        target = self.init()
         target = self.convert_state(source, target)
 
         # TODO: Make sure we don't need to do this
@@ -50,17 +51,36 @@ class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"])
         try:
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
-            logging.warning("Failed to save tokenizer")
+            # TODO: Optional -- maybe fetch from remote HF?
+            logging.warning(f"Only huggingface tokenizer is supported for Mixtral HF export. Tokenizer will not be saved.")
+        
 
         return output_path
 
+
     def convert_state(self, source, target):
-        """ """
+        """convert state"""
+
+        # TODO: Make it work via state_transform
+        experts = {k: v for k, v in source._state_dict.items() if "experts" in k}
+        non_experts = {k: v for k, v in source._state_dict.items() if "experts" not in k}
+        transformed_experts = {}
+        for k, v in experts.items():
+            for i in range(v.shape[0]):
+                new_key = k.replace("experts.experts", f"experts.experts.{i}")
+                transformed_experts[new_key] = v[i]
+        
+        source._state_dict = transformed_experts | non_experts
+
+
         mapping = {
             "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
-            "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
             "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
-            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.layers.*.pre_mlp_layernorm.weight": "model.layers.*.post_attention_layernorm.weight",
+            # MoE
+            "decoder.layers.*.mlp.experts.experts.*.linear_fc2.weight": "model.layers.*.block_sparse_moe.experts.*.w2.weight",  # pylint: disable=line-too-long
+            "decoder.layers.*.mlp.router.weight": "model.layers.*.block_sparse_moe.gate.weight",
+            # lm-head
             "decoder.final_layernorm.weight": "model.norm.weight",
         }
 
@@ -85,18 +105,21 @@ class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"])
                 fn=TransformFns.split_qkv,
             ),
             io.state_transform(
-                source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key="decoder.layers.*.mlp.experts.experts.*.linear_fc1.weight",
+                target_key=(
+                    "model.layers.*.block_sparse_moe.experts.*.w1.weight",
+                    "model.layers.*.block_sparse_moe.experts.*.w3.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
         ]
-        transformed = io.apply_transforms(
+
+        return io.apply_transforms(
             source,
             target,
             mapping=mapping,
             transforms=transforms,
         )
-        return transformed
 
     @property
     def tokenizer(self) -> "TokenizerSpec":
@@ -108,24 +131,31 @@ class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"])
         return get_tokenizer(str(self))
 
     @property
-    def config(self) -> "MistralConfig":
-        """ """
+    def config(self) -> "MixtralConfig":
+        """return hf-config from mcore"""
         source = load_config(str(self))
 
-        from transformers import MistralConfig as HfMistralConfig
+        from transformers import MixtralConfig as HfMixtralConfig
 
-        return HfMistralConfig(
-            architectures=["MistralForCausalLM"],
-            sliding_window=source.window_size[0] if source.window_size is not None else None,
+        return HfMixtralConfig(
+            architectures=["MixtralForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
-            num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.seq_length,
-            initializer_range=source.init_method_std,
-            rms_norm_eps=source.layernorm_epsilon,
-            num_key_value_heads=source.num_query_groups,
+            max_position_embeddings=source.max_position_embeddings,
+            seq_length=source.max_position_embeddings,
+            # RoPe
             rope_theta=source.rotary_base,
+            # transformer config
+            num_attention_heads=source.num_attention_heads,
+            num_key_value_heads=source.num_query_groups,
+            num_local_experts=source.num_moe_experts,
+            num_experts_per_tok=source.moe_router_topk,
+            # norm
+            rms_norm_eps=source.layernorm_epsilon,
+            # init
+            initializer_range=source.init_method_std,
+            # vocab
             vocab_size=self.tokenizer.vocab_size,
             head_dim=source.kv_channels,
         )

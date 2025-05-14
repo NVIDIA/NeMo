@@ -16,10 +16,8 @@ from pathlib import Path
 from typing import Union
 
 import torch
-import yaml
 
-from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config, torch_dtype_from_mcore_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
@@ -198,17 +196,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         Returns:
             HFLlamaConfig: HF configuration for Llama models
         """
-        # source: LlamaConfig = io.load_context(str(self), subpath="model.config")
-        model_yaml = Path(str(self)) / "context" / "model.yaml"
-        if not model_yaml.exists():
-            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
-        with open(model_yaml, 'r') as stream:
-            config = yaml.safe_load(stream)
-        dict_to_obj = lambda d: (
-            type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
-        )
-
-        source = dict_to_obj(config['config'])
+        source = load_config(str(self))
 
         if self.is_llama4(source):
             # Separate Llama4 from Llama2/3 for clarity
@@ -217,8 +205,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         from transformers import LlamaConfig as HFLlamaConfig
 
         rope_scaling = None
-        # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
-        if True or isinstance(source, Llama31Config):  # TODO check for llama31 and llama32 explicitly
+        if hasattr(source, 'scale_factor') and hasattr(source, 'low_freq_factor'):
             rope_scaling = {
                 'factor': source.scale_factor,
                 'low_freq_factor': float(source.low_freq_factor),
@@ -305,50 +292,6 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
             # no rope
         )
         return config
-
-    def ckpt_load(self, path: Path):
-        """
-        This function loads the state dict directly from a distributed checkpoint, and modify the state dict
-        so that it is consistent with the key names you would get from loading the checkpoint into a model.
-        This is a more memory-efficient method to obtain a state dict without initializing the nemo model.
-
-        Args:
-            path (Path): The path from which the model will be loaded.
-
-        Returns
-        -------
-            Tuple[Dict, Any]: The loaded state dict and the yaml config object.
-        """
-        model_yaml = path / "context" / "model.yaml"
-        if not model_yaml.exists():
-            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
-        with open(model_yaml, 'r') as stream:
-            config = yaml.safe_load(stream)
-
-        state_dict = {}
-
-        dict_to_obj = lambda d: (
-            type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
-        )
-        config_obj = dict_to_obj(config['config'])
-        langauge_layers = config_obj.num_layers
-
-        distributed_model_weights = load_distributed_model_weights(path, True).items()
-
-        for k, v in distributed_model_weights:
-            if '_extra_state' in k:
-                continue
-            new_k = k.replace("module.", "")
-            if 'layers' in new_k and v.size(0) == langauge_layers:
-                # Only split layers
-                for i in range(v.size(0)):
-                    state_dict[new_k.replace('layers', f'layers.{str(i)}')] = v[i]
-            state_dict[new_k] = v
-
-        if self.is_llama4(config_obj):
-            return self._modify_llama4_source_state(state_dict, config_obj), config_obj
-
-        return _ModelState(state_dict, config_obj), config_obj
 
     def _modify_llama4_source_state(self, state_dict, source_config):
         """

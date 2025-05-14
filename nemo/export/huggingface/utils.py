@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 
 import torch
 import yaml
@@ -134,6 +134,26 @@ def change_paths_to_absolute_paths(tokenizer_config: Dict[Any, Any], nemo_checkp
     return tokenizer_config
 
 
+def load_config(path: Union[str, Path]):
+    """ Load the config from the NeMo model.
+
+    Args:
+        path (str | Path): The path to the NeMo model.
+
+    Returns:
+        Config: The config from the NeMo model.
+    """
+    model_yaml = Path(path) / "context" / "model.yaml"
+    if not model_yaml.exists():
+        raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
+    with open(model_yaml, 'r') as stream:
+        config = yaml.safe_load(stream)
+    dict_to_obj = lambda d: (
+        type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
+    )
+    
+    return dict_to_obj(config['config'])
+
 def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
     """
     This function loads the state dict directly from a distributed checkpoint, and modify the state dict
@@ -147,23 +167,14 @@ def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
     -------
         Tuple[Dict, Any]: The loaded state dict and the yaml config object.
     """
+    config_obj = load_config(checkpoint_path)
+    
     path = Path(checkpoint_path)
-    model_yaml = path / "context" / "model.yaml"
-    if not model_yaml.exists():
-        raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
-    with open(model_yaml, 'r') as stream:
-        config = yaml.safe_load(stream)
-
-    state_dict = {}
-
-    dict_to_obj = lambda d: (
-        type('Config', (), {kk: dict_to_obj(vv) for kk, vv in d.items()}) if isinstance(d, dict) else d
-    )
-    config_obj = dict_to_obj(config['config'])
     langauge_layers = config_obj.num_layers
 
     distributed_model_weights = load_distributed_model_weights(path, True).items()
 
+    state_dict = {}
     for k, v in distributed_model_weights:
         if '_extra_state' in k:
             continue
