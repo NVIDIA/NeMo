@@ -552,7 +552,7 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
 class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
     """Export Gemma3 to HF format"""
 
-    def init(self):
+    def init(self) -> "Gemma3ForCausalLM":
         from transformers import Gemma3ForCausalLM
         from transformers.modeling_utils import no_init_weights
 
