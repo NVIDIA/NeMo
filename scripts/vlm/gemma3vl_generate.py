@@ -138,7 +138,7 @@ def main(args) -> None:
 
     stop_tokens = [1, 126]
     # Greedy generation loop
-    for step in range(10):
+    for step in range(20):
         with torch.no_grad():
             if torch.distributed.get_rank() == 0:
                 print(step)

@@ -471,6 +471,7 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
         return output_path
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         mapping = {
             # word emebdding
             "model.embed_tokens.weight": "embedding.word_embeddings.weight",
@@ -512,12 +513,14 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        # pylint: disable=C0115,C0116
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
 
     @property
     def config(self) -> Gemma3Config:
+        # pylint: disable=C0115,C0116
         from transformers import Gemma3Config as HFGemma3Config
         from transformers import GenerationConfig
 
@@ -546,16 +549,17 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
 
 @io.model_exporter(Gemma3Model, "hf")
 class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
-    """ """
+    """Export Gemma3 to HF format"""
 
-    def init(self) -> "Gemma3ForCausalLM":
-        from transformers import AutoModelForCausalLM
+    def init(self):
+        from transformers import Gemma3ForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return AutoModelForCausalLM.from_config(self.config)
+            return Gemma3ForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        # pylint: disable=C0115,C0116
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
@@ -567,6 +571,7 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
         return output_path
 
     def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116
         mapping = {
             # word emebdding
             "embedding.word_embeddings.weight": "model.embed_tokens.weight",
@@ -608,10 +613,12 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
 
     @property
     def tokenizer(self):
+        # pylint: disable=C0115,C0116
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> "transformers.Gemma3TextConfig":
+    def config(self):
+        # pylint: disable=C0115,C0116
         source: Gemma3Config = io.load_context(str(self)).model.config
 
         from transformers import Gemma3TextConfig as HFGemma3TextConfig

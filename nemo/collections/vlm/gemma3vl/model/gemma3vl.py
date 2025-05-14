@@ -87,7 +87,7 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
         return output_path
 
     def convert_state(self, source, target):
-        # pylint: disable=C0301
+        # pylint: disable=C0301,C0116
         mapping = {
             # vision model
             "vision_tower.vision_model.embeddings.patch_embedding.weight": "vision_model.conv1.weight",
@@ -145,6 +145,7 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
+        # pylint: disable=C0115,C0116
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
@@ -183,9 +184,9 @@ class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma
 
 @io.model_exporter(Gemma3VLModel, "hf")
 class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGeneration"]):
-    """ """
+    """Export Gemma3 VL to HF"""
 
-    def init(self) -> "Gemma3ForConditionalGeneration":
+    def init(self):
         from transformers import Gemma3ForConditionalGeneration
         from transformers.modeling_utils import no_init_weights
 
@@ -193,6 +194,7 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
             return Gemma3ForConditionalGeneration.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
+        # pylint: disable=C0115,C0116
         target = self.init()
         source, _ = self.nemo_load(str(self))
         target = self.convert_state(source, target)
@@ -202,7 +204,7 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
         self.tokenizer.save_pretrained(output_path)
 
     def convert_state(self, source, target):
-        # pylint: disable=C0301
+        # pylint: disable=C0115,C0116,C0301
         mapping = {
             # vision model
             "vision_model.conv1.weight": "vision_tower.vision_model.embeddings.patch_embedding.weight",
@@ -261,10 +263,12 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
 
     @property
     def tokenizer(self):
+        # pylint: disable=C0115,C0116
         return io.load_context(str(self)).model.tokenizer.tokenizer
 
     @property
-    def config(self) -> "transformers.Gemma3TextConfig":
+    def config(self):
+        # pylint: disable=C0115,C0116
         source: Gemma3VLConfig = io.load_context(str(self)).model.config
         source_text: Gemma3Config = source.language_transformer_config
 

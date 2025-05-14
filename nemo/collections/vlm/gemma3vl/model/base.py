@@ -333,7 +333,7 @@ class MCoreGemma3VLModel(MegatronModule):
         # D: language model hidden size
         batch_size = input_ids.shape[0]
 
-        ### Compute images embedding
+        # Compute images embedding
         has_images = pixel_values is not None
         if use_inference_kv_cache:
             # If running inference, we can skip media token computation if they were computed already earlier
@@ -373,7 +373,7 @@ class MCoreGemma3VLModel(MegatronModule):
         if not self.add_decoder:
             return image_embedding, loss_mask
 
-        ### Adjust prompt sequence length before any compute
+        # Adjust prompt sequence length before any compute
         language_seq_len = input_ids.shape[1]
         # Truncate input with max sequence length
         if language_seq_len > self.max_seq_len:
@@ -393,7 +393,7 @@ class MCoreGemma3VLModel(MegatronModule):
                 labels = F.pad(labels, (0, padded_seq_len))
                 loss_mask = F.pad(loss_mask, (0, padded_seq_len))
 
-        ### Compute language embedding
+        # Compute language embedding
         if self.pre_process:
             safe_input_ids = input_ids
             # Replace image_token_id with 0 to avoid embedding index error
@@ -410,7 +410,7 @@ class MCoreGemma3VLModel(MegatronModule):
         else:
             language_embedding = None
 
-        ### Process inputs
+        # Process inputs
         # (B, T, D), (B, 1, T, T)
         combined_embedding, attention_mask = self._preprocess_data(
             input_ids=input_ids,
@@ -425,7 +425,7 @@ class MCoreGemma3VLModel(MegatronModule):
         elif combined_embedding is not None:
             combined_embedding = combined_embedding.transpose(1, 0).contiguous()
 
-        ### Run decoder model
+        # Run decoder model
         output = self.language_model(
             input_ids=None,
             position_ids=None,
