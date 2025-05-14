@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import types
-import sys
-import importlib
 import contextlib
+import importlib
+import os
+import sys
+import types
+
 import pytest
+
 
 ################################################################################
 #  A light-weight dummy torch.distributed implementation
@@ -76,14 +78,15 @@ FirstRankPerNode = importlib.import_module("nemo.automodel.dist_utils").FirstRan
 # Helper: reset dummy state between tests
 @contextlib.contextmanager
 def fresh_dummy_dist():
-    dummy_dist.__init__()           # reset counters / flags
+    dummy_dist.__init__()  # reset counters / flags
     yield
-    dummy_dist.__init__()           # clean up afterwards
+    dummy_dist.__init__()  # clean up afterwards
 
 
 ###############################################################################
 #                                   TESTS
 ###############################################################################
+
 
 def test_single_gpu(monkeypatch):
     """No process-group, no env → behaves like single-GPU."""
@@ -92,7 +95,7 @@ def test_single_gpu(monkeypatch):
 
     with fresh_dummy_dist():
         with FirstRankPerNode() as first:
-            assert first is True                # LOCAL_RANK==0 by default
+            assert first is True  # LOCAL_RANK==0 by default
         assert dummy_dist.barrier_calls == 0
         assert dummy_dist.destroy_calls == 0
 
@@ -110,10 +113,10 @@ def test_auto_bootstrap(monkeypatch):
 
     with fresh_dummy_dist():
         with FirstRankPerNode() as first:
-            assert first is False               # local_rank == 1
+            assert first is False  # local_rank == 1
         assert dummy_dist.init_calls == 1
-        assert dummy_dist.barrier_calls == 1    # only the enter-barrier
-        assert dummy_dist.destroy_calls == 1    # _created_pg → destroyed
+        assert dummy_dist.barrier_calls == 1  # only the enter-barrier
+        assert dummy_dist.destroy_calls == 1  # _created_pg → destroyed
 
 
 def test_preinitialised_rank0(monkeypatch):
@@ -135,7 +138,7 @@ def test_preinitialised_rank0(monkeypatch):
 
         # exit-barrier for the rest of the ranks
         assert dummy_dist.barrier_calls == 1
-        assert dummy_dist.destroy_calls == 0      # PG remains
+        assert dummy_dist.destroy_calls == 0  # PG remains
 
 
 def test_exception_path(monkeypatch):
