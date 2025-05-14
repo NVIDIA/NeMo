@@ -2,57 +2,57 @@
 
 # set OPENBLAS_NUM_THREADS to 1 before any import of nemo, to avoid resource contention
 import os
+
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
+import os
 
 # add NeMo root directory to python path to import performance script utilities
 import sys
-import os
+
 if os.getenv("NEMO_ROOT_DIRECTORY") is not None:
     sys.path.append(os.getenv("NEMO_ROOT_DIRECTORY"))
 else:
     raise ValueError("Please set NEMO_ROOT_DIRECTORY environment variable to your path to the NeMo repository")
-from scripts.performance.utils import (
-    slurm_executor,
-    get_comm_overlap_callback_idx,
-    set_primary_perf_configs,
-    hf_tokenizer,
-    get_user_configs,
-    args_sanity_check,
-    set_exp_logging_configs,
-)
-from scripts.performance.argument_parser import parse_cli_args
+from typing import Callable, List, Optional
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-import nemo_run as run
-
-from typing import Callable, Optional, List
-
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from scripts.performance.argument_parser import parse_cli_args
+from scripts.performance.utils import (
+    args_sanity_check,
+    get_comm_overlap_callback_idx,
+    get_user_configs,
+    hf_tokenizer,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+    slurm_executor,
+)
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-from nemo.utils.exp_manager import TimingCallback
 from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B
-
+from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
+from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_b200_h16384_tp4_cp2_mbs1_seqlen8192,
 )
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.utils.exp_manager import TimingCallback
 
-NAME="grok1_314b"
+NAME = "grok1_314b"
+
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
@@ -68,9 +68,9 @@ def model() -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     return run.Config(
-        GPTModel, 
+        GPTModel,
         config=run.Config(
-            MixtralConfig8x7B, 
+            MixtralConfig8x7B,
             num_layers=64,
             hidden_size=6144,
             num_attention_heads=48,
@@ -78,9 +78,9 @@ def model() -> run.Config[pl.LightningModule]:
             ffn_hidden_size=32768,
             max_position_embeddings=32768,
             seq_length=8192,
-            num_moe_experts=8, # 8
+            num_moe_experts=8,  # 8
             init_method_std=0.008,
-        )
+        ),
     )
 
 
@@ -167,6 +167,7 @@ def trainer(
 
     return trainer
 
+
 def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     """
     Create a performance-optimized pre-training recipe for Grok 314B model.
@@ -210,6 +211,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
+
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
@@ -342,6 +344,7 @@ def override_recipe_configs(
 
     return recipe
 
+
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
@@ -388,16 +391,24 @@ if __name__ == "__main__":
         args.fp8_recipe,
     )
 
-    exp_name = "_".join(["pretrain",  "grok1", f"314b", f"{args.compute_dtype}", f"{args.num_gpus}",])
+    exp_name = "_".join(
+        [
+            "pretrain",
+            "grok1",
+            f"314b",
+            f"{args.compute_dtype}",
+            f"{args.num_gpus}",
+        ]
+    )
 
-    pinning_args=[]
+    pinning_args = []
     exp_tuning = ""
     if args.cpu_pinning > 0:
         pinning_args = [
-            "--cpu-bind=verbose", 
-            f"--cpus-per-task={args.cpu_pinning}", 
-            "--hint=multithread", 
-            "--distribution=*:block"
+            "--cpu-bind=verbose",
+            f"--cpus-per-task={args.cpu_pinning}",
+            "--hint=multithread",
+            "--distribution=*:block",
         ]
         exp_tuning = "_pinned"
 
@@ -437,7 +448,10 @@ if __name__ == "__main__":
     # nsys takes precedent over ncclttrace
     elif args.enable_nccltrace:
         exp_name = exp_name + "_nccltrace"
-        env_vars |= {"NCCL_DEBUG_SUBSYS": "COLL,P2P,NET", "NCCL_DEBUG": "INFO",}
+        env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
 
     with run.Experiment(exp_name) as exp:
         exp.add(
