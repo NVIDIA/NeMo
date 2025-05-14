@@ -232,8 +232,14 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             rotary_percent=self.rotary_percent,
             rotary_base=self.rotary_base,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=pre_process or parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
-            post_process=post_process or parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
+            pre_process=pre_process
+            or parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ),
+            post_process=post_process
+            or parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ),
         )
 
 

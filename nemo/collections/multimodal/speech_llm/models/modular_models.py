@@ -85,7 +85,10 @@ except (ImportError, ModuleNotFoundError):
     from apex.transformer.pipeline_parallel.utils import (
         _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
     )
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        get_micro_batch_size,
+        get_num_microbatches,
+    )
 
 __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 

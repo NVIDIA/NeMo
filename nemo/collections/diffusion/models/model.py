@@ -174,8 +174,12 @@ class DiTConfig(TransformerConfig, io.IOMixin):
             self,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
             parallel_output=self.parallel_output,
-            pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
-            post_process=parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()),
+            pre_process=parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ),
+            post_process=parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ),
             max_img_h=self.max_img_h,
             max_img_w=self.max_img_w,
             max_frames=self.max_frames,
@@ -321,7 +325,9 @@ class DiTModel(GPTModel):
         return self.module.forward(*args, **kwargs)
 
     def forward_step(self, batch) -> torch.Tensor:
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+        if parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        ):
             output_batch, loss = self.diffusion_pipeline.training_step(batch, 0)
             loss = torch.mean(loss, dim=-1)
             return loss

@@ -172,10 +172,14 @@ class Gemma2Model(GPTModel):
         from nemo.collections.common.parts.utils import extend_instance
 
         super().configure_model()
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+        if parallel_state.is_pipeline_first_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        ):
             # Apply Embedding Scaling: sqrt(hidden_size)
             extend_instance(self.module.embedding, EmbeddingScalingMixin)
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+        if parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        ):
             # Prevents final logits from growing excessively by scaling them to a fixed range
             extend_instance(self.module.output_layer, Gemma2OutputLayer)
 

@@ -62,9 +62,13 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "image_sizes",
         )
     )
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+    if parallel_state.is_pipeline_first_stage(
+        ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+    ):
         required_keys.update(("position_ids", "attention_mask"))
-    if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()):
+    if parallel_state.is_pipeline_last_stage(
+        ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+    ):
         required_keys.update(("labels", "loss_mask", "attention_mask"))
 
     packed_seq_params = _batch.get("packed_seq_params", None)
