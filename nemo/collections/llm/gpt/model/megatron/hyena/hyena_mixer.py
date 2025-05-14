@@ -232,7 +232,7 @@ class HyenaMixer(MegatronModule):
         sharded_state_dict = {}
         # Submodules
         for name, module in self.named_children():
-            if name != 'attention_dropout' and name != 'b2b_kernel': # Don't register b2b_kernel (it's a wrapper)
+            if name != 'attention_dropout' and name != 'b2b_kernel':  # Don't register b2b_kernel (it's a wrapper)
                 module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
 
                 sharded_state_dict.update(module_sharded_sd)

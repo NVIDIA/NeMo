@@ -169,9 +169,11 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
 
         # PyTorch Mixer
         output_features = mixer(input_features, _use_cp=False)
-        assert output_features.shape == (batch_size, mixer.mixer.hidden_size, seq_len), (
-            f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, mixer.mixer.hidden_size: {mixer.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        assert output_features.shape == (
+            batch_size,
+            mixer.mixer.hidden_size,
+            seq_len,
+        ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, mixer.mixer.hidden_size: {mixer.mixer.hidden_size}, seq_len: {seq_len}"
 
         loss = output_features.float().mean()
         loss.backward()
@@ -190,9 +192,7 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
             batch_size,
             mixer_kernel.mixer.hidden_size,
             seq_len,
-        ), (
-            f"output_features_kernel.shape: {output_features_kernel.shape}, batch_size: {batch_size}, mixer_kernel.mixer.hidden_size: {mixer_kernel.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        ), f"output_features_kernel.shape: {output_features_kernel.shape}, batch_size: {batch_size}, mixer_kernel.mixer.hidden_size: {mixer_kernel.mixer.hidden_size}, seq_len: {seq_len}"
 
         loss_kernel = output_features_kernel.float().mean()
         loss_kernel.backward()

@@ -53,6 +53,7 @@ except ImportError:
         """Not imported: causal_conv1d_fn. An error will be raised if this is called."""
         raise ImportError("causal_conv1d is required by the Hyena model but cannot be imported")
 
+
 try:
     from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
 except ImportError:
@@ -1145,6 +1146,7 @@ class B2BCausalConv1dModule(nn.Module):
 
     Combines the projection and mixer convolutions into a single optimized operation.
     """
+
     def __init__(self, proj_conv_module, short_conv_module, b2b_causal_conv1d=b2b_causal_conv1d):
         """Initialize the B2BCausalConv1dModule.
 
@@ -1214,7 +1216,7 @@ class B2BCausalConv1dModule(nn.Module):
 
             x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
             result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
-            result = result[..., self.effective_pad_size:]  # Remove padding from output
+            result = result[..., self.effective_pad_size :]  # Remove padding from output
             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
         else:
             # Add proper causal padding for the non-CP case
@@ -1222,7 +1224,7 @@ class B2BCausalConv1dModule(nn.Module):
 
             # Call the CUDA kernel and remove the padding from result
             result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
-            result = result[..., self.effective_pad_size:]  # Remove padding from output
+            result = result[..., self.effective_pad_size :]  # Remove padding from output
         return result
 
 
