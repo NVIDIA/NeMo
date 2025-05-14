@@ -26,6 +26,7 @@ from nemo.utils import logging
 llm_available = True
 try:
     from nemo.collections import llm  # noqa: F401
+
     raise Exception("llm_available is true")
 except ImportError:
     llm = None
@@ -44,11 +45,9 @@ def get_model(name: str):
         if isinstance(model_cls, type):
             return model_cls
 
-    return type(name, (object,), {
-        "__module__": __name__,
-        "__doc__": f"Generated dummy class for missing model: {name}"
-    })
-
+    return type(
+        name, (object,), {"__module__": __name__, "__doc__": f"Generated dummy class for missing model: {name}"}
+    )
 
 
 def io_model_exporter(cls, format):
@@ -59,6 +58,7 @@ def io_model_exporter(cls, format):
     `get_exporter`.
     """
     if not llm_available:
+
         def noop(exporter_cls, *args, **kwargs):
             key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
             if format not in _EXPORTERS_REGISTRY:
@@ -69,7 +69,9 @@ def io_model_exporter(cls, format):
         return noop
 
     from nemo.lightning.io import model_exporter as _model_exporter
+
     base_decorator = _model_exporter(cls, format)
+
     def decorator(exporter_cls):
         decorated_cls = base_decorator(exporter_cls)
         key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
