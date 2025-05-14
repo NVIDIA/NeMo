@@ -1,16 +1,14 @@
 """Gemma3 language model pretrain"""
 
 import torch
-
 from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
+
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config1B
-from nemo.collections.llm.gpt.model.gemma3 import Gemma3Model
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule
+from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config1B, Gemma3Model
+from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
 
