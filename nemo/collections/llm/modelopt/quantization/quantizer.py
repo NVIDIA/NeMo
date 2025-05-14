@@ -19,7 +19,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 from datasets import load_dataset
@@ -38,7 +38,6 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
-from nemo.utils.python.dict_utils import update_nested_dict
 
 if TYPE_CHECKING:
     from nemo.lightning import Trainer
@@ -73,7 +72,6 @@ class QuantizationConfig:
     sq_alpha: float = 0.5
     enable_kv_cache: Optional[bool] = None
     kv_cache_qformat: str = "fp8"
-    quant_cfg_overrides: Optional[List[str]] = None
 
     calibration_dataset: str = "cnn_dailymail"
     calibration_dataset_size: int = 512
@@ -281,11 +279,6 @@ class Quantizer:
         # Gemma 7B has accuracy regression using alpha 1. We set 0.5 instead.
         if decoder_type == "gemma" and "int8_sq" in self.quantization_config.algorithm:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
-
-        # Apply any other updates given as a list of strings like "key1.key2=value"
-        if self.quantization_config.quant_cfg_overrides:
-            for update in self.quantization_config.quant_cfg_overrides:
-                update_nested_dict(quant_cfg, update)
 
         logging.info(f"Using quant_cfg:\n{pprint.pformat(quant_cfg)}")
         return quant_cfg
