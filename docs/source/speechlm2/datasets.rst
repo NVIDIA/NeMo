@@ -1,11 +1,11 @@
 Datasets
-=======
+========
 
 The speechlm2 collection supports datasets that contain both audio and text data for training models that can understand speech and generate appropriate responses.
 This section describes the dataset format, preparation, and usage with the speechlm2 models.
 
 Dataset Format
--------------
+--------------
 
 Duplex S2S models use the Lhotse framework for audio data management. The primary datasets used are:
 
@@ -121,6 +121,9 @@ When using speech-to-text data, you'll need read it with a special ``lhotse_as_c
 that creates a two-turn, query+response, multi-modal conversation data types out of regular Lhotse cuts.
 This approach makes SALM training more flexible, allowing straightforward combination of single-turn and multi-turn data.
 
+Each audio turn is represented as a single token, defined in ``audio_locator_tag`` property, and automatically added to the model's tokenizer inside model code.
+This token is replaced during the training/generation pass with its corresponding audio segment representation.
+
 Example YAML configuration using existing ASR datasets with ``lhotse_as_conversation``:
 
 .. code-block:: yaml
@@ -174,7 +177,7 @@ it in a ``lhotse_as_conversation`` reader as follows:
 
 
 The ``lhotse_as_conversation`` reader automatically creates a two-turn conversation from each ASR example:
-1. Optionally, if ``systemp_prompt`` tag is provided, it's added as a special system turn for LLM models that support system prompts.
+1. Optionally, if ``system_prompt`` tag is provided, it's added as a special system turn for LLM models that support system prompts.
 2. A user turn containing the audio and a text context (from the ``context`` tag)
 3. An assistant turn containing the transcription (from the cut's supervision text)
 
@@ -214,7 +217,7 @@ The DataModule takes care of:
 3. Managing multiple datasets for validation/testing
 
 Bucketing for Efficient Training
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The DataModule supports bucketing for more efficient training. Bucketing groups samples of similar lengths together, which reduces padding and improves training efficiency. The key bucketing parameters are:
 
@@ -249,19 +252,14 @@ Bucketing helps to:
 - Manage memory usage with variable-length inputs
 
 Data Configuration
------------------
+------------------
 
 A typical data configuration in YAML includes:
 
 .. code-block:: yaml
 
     data:
-      frame_length: 0.08
-      source_sample_rate: 16000
-      target_sample_rate: 22050
-      input_roles: ["user", "User"]
-      output_roles: ["agent", "Assistant"]
-    
+
       train_ds:
         sample_rate: ${data.target_sample_rate}
         input_cfg:
@@ -292,11 +290,11 @@ A typical data configuration in YAML includes:
 Note that the actual dataset paths and blend are defined by the YAML config, not Python code. This makes it easy to change the dataset composition without modifying the code.
 To learn more about the YAML data config, see :ref:`the Extended multi-dataset configuration format <asr-dataset-config-format>` section in the ASR documentation.
 
-Preparing Datasets
------------------
+Preparing S2S Datasets
+------------------
 
 Creating Lhotse Manifests
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To prepare your own dataset, you'll need to create Lhotse manifests from your audio files and transcripts:
 
@@ -352,7 +350,7 @@ To prepare your own dataset, you'll need to create Lhotse manifests from your au
     cutset.to_file("path/to/manifest.jsonl.gz")
 
 Converting to SHAR Format
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For efficient training, it's recommended to convert your Lhotse manifests to SHAR (SHarded ARchive) format:
 

@@ -109,14 +109,14 @@ data:
     seed: 42
     shard_seed: "randomized"
     num_workers: 2
-    batch_size: 4
+#    batch_size: 4
     # Optional bucketing:
-    # batch_size: null
-    # batch_duration: 100
-    # bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
-    # use_bucketing: true
-    # num_buckets: 5
-    # bucket_buffer_size: 5000
+    batch_size: null
+    batch_duration: 100
+    bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
+    use_bucketing: true
+    num_buckets: 5
+    bucket_buffer_size: 5000
 
   validation_ds:
     # The entries under 'datasets' are a list of separate dataloaders.

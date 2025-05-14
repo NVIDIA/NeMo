@@ -195,7 +195,7 @@ The exp_manager section contains settings for experiment logging and model check
       version: null
 
 Data Configuration
----------------
+------------------
 
 The data section defines dataset paths, preprocessing, and data loading parameters:
 

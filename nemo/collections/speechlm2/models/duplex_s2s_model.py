@@ -328,7 +328,7 @@ class DuplexS2SModel(LightningModule, HFHubMixin):
         return ans
 
     def on_train_epoch_start(self) -> None:
-        self.setup_audio_codec()  # potentially reloads the audio codec to make sure it's in fp32
+        setup_audio_codec(self)  # potentially reloads the audio codec to make sure it's in fp32
 
     def on_validation_epoch_start(self) -> None:
         self.on_train_epoch_start()

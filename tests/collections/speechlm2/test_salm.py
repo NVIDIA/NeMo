@@ -21,9 +21,13 @@ from transformers import GenerationConfig
 
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, TextTurn
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.speechlm2.data import SALMDataset
 from nemo.collections.speechlm2.models import SALM
+
+if torch.cuda.is_available():
+    torch.set_default_device('cuda')
 
 
 def resolve_pretrained_models():
@@ -64,7 +68,10 @@ def model():
         },
         "optimizer": {"_target_": "torch.optim.AdamW"},
     }
-    return SALM(cfg)
+    model = SALM(cfg)
+    if torch.cuda.is_available():
+        model.to("cuda")
+    return model
 
 
 @pytest.fixture(scope="session")
@@ -119,10 +126,20 @@ def test_salm_dataset(dataset, prompt_formatter, training_cutset_batch):
 def test_salm_training_step(model, dataset, prompt_formatter, training_cutset_batch):
     training_cutset_batch = training_cutset_batch.map(lambda c: c.apply_prompt_format(prompt_formatter), apply_fn=None)
     batch = dataset[training_cutset_batch]
+    batch = move_data_to_device(batch, device=model.device)
     results = model.training_step(batch, batch_idx=0)
     assert torch.is_tensor(results["loss"])
     assert not torch.isnan(results["loss"])
     assert results["loss"] > 0
+
+
+def test_salm_validation_step(model, dataset, prompt_formatter, training_cutset_batch):
+    model.on_validation_epoch_start()
+    training_cutset_batch = training_cutset_batch.map(lambda c: c.apply_prompt_format(prompt_formatter), apply_fn=None)
+    batch = dataset[training_cutset_batch]
+    batch = move_data_to_device(batch, device=model.device)
+    results = model.validation_step({"dummy_val_set": batch}, batch_idx=0)
+    assert results is None
 
 
 def test_salm_generation(model):

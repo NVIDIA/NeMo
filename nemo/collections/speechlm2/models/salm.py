@@ -469,12 +469,14 @@ def replace_placeholders_and_build_targets(
 
     Returns:
       Tuple[Tensor, Tensor, Tensor]:
-        - Tensor of shape (batch, max_new_sequence_length, hidden_dim) after replacements.
+        - Tensor of shape (batch, max_new_sequence_length, hidden_dim) corresponding to
+          ``embeds`` after replacements.
         - Tensor of shape (batch, max_new_sequence_length) with adjusted target IDs where:
           * Original target values are preserved where input was not a placeholder or padding
           * Positions that were placeholders, padding, or added by replacements are set to -100
           Will be None if target_ids input was None.
-        - Tensor of shape (batch, max_new_sequence_length) with attention padding masks.
+        - Tensor of shape (batch, max_new_sequence_length) with attention padding masks
+          updated to account for shape changes due to replacements.
     """
     batch_size, seq_len = input_ids.size()
     if target_ids is not None:

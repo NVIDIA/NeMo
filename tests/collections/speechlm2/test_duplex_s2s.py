@@ -18,8 +18,12 @@ import torch
 from lhotse import CutSet, SupervisionSegment
 from lhotse.testing.dummies import dummy_cut, dummy_recording
 
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.speechlm2.data import DuplexS2SDataset
 from nemo.collections.speechlm2.models import DuplexS2SModel
+
+if torch.cuda.is_available():
+    torch.set_default_device('cuda')
 
 
 def resolve_pretrained_models():
@@ -27,7 +31,7 @@ def resolve_pretrained_models():
         # CI pre-cached paths:
         return {
             "pretrained_llm": "/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1",
-            "pretrained_audio_codec": "/home/TestData/speechlm/pretrained_models/Low_Frame-rate_Speech_Codec++_bf16.nemo",
+            "pretrained_audio_codec": "/home/TestData/speechlm/pretrained_models/low-frame-rate-speech-codec-22khz.nemo",
             "pretrained_asr": "/home/TestData/speechlm/pretrained_models/stt_en_fastconformer_hybrid_large_streaming_80ms.nemo",
             "scoring_asr": "/home/TestData/speechlm/pretrained_models/stt_en_fastconformer_transducer_large.nemo",
         }
@@ -62,7 +66,10 @@ def model():
         },
         "optimizer": {"_target_": "torch.optim.AdamW"},
     }
-    return DuplexS2SModel(cfg).bfloat16()
+    model = DuplexS2SModel(cfg)
+    if torch.cuda.is_available():
+        model.to("cuda")
+    return model
 
 
 @pytest.fixture(scope="session")
@@ -142,6 +149,7 @@ def test_s2s_dataset(dataset, training_cutset_batch):
 def test_s2s_training_step(model, dataset, training_cutset_batch):
     model.on_train_epoch_start()
     batch = dataset[training_cutset_batch]
+    batch = move_data_to_device(batch, device=model.device)
     results = model.training_step(batch, batch_idx=0)
     assert torch.is_tensor(results["loss"])
     assert not torch.isnan(results["loss"])
@@ -151,6 +159,7 @@ def test_s2s_training_step(model, dataset, training_cutset_batch):
 def test_s2s_validation_step(model, dataset, training_cutset_batch):
     model.on_validation_epoch_start()
     batch = dataset[training_cutset_batch]
+    batch = move_data_to_device(batch, device=model.device)
     results = model.validation_step({"dummy_val_set": batch}, batch_idx=0)
     assert results is None  # no return value
 
