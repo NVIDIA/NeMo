@@ -69,13 +69,11 @@ class SpeculativeTransform:
             return model
 
         # Verify model is compatible with speculative decoding
-        if hasattr(unwrapped_model, "config"):
-            if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
-                raise ValueError("SpeculativeTransform is incompatible with virtual pipeline parallelism.")
-            if unwrapped_model.config.moe_grouped_gemm is True:
-                raise ValueError("SpeculativeTransform is incompatible with MOE grouped GEMM.")
-            if unwrapped_model.config.gradient_accumulation_fusion is True:
-                raise ValueError("SpeculativeTransform is incompatible with gradient accumulation fusion.")
+        assert hasattr(unwrapped_model, "config"), "Model must have a config attached."
+        if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
+            raise ValueError("SpeculativeTransform is incompatible with virtual pipeline parallelism.")
+        if unwrapped_model.config.gradient_accumulation_fusion is True:
+            raise ValueError("SpeculativeTransform is incompatible with gradient accumulation fusion.")
 
         if self.num_medusa_heads > 0:
             logging.info(f"Converting to Speculative Decoding model with num_medusa_heads={self.num_medusa_heads}")

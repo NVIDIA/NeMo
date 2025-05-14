@@ -52,11 +52,8 @@ if __name__ == "__main__":
         tokenizer_path=args.tokenizer,
         legacy_ckpt=args.legacy_ckpt,
         inference_only=True,
-        strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
         trainer_kwargs={},
         model_config_overrides={
-            "sequence_parallel": False,
-            "moe_grouped_gemm": False,
             "gradient_accumulation_fusion": False,
             "make_vocab_size_divisible_by": 1,
         },

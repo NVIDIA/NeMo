@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from argparse import ArgumentParser
 
 import torch
@@ -21,14 +20,10 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.modelopt.speculative import SpeculativeTransform
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.llm.modelopt import SpeculativeTransform
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-
-# Suppress lengthy HF warning
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def get_args():
@@ -40,9 +35,7 @@ def get_args():
     parser.add_argument("--num_eagle_layers", type=int, default=1, help="""Number of Eagle layers to use""")
     parser.add_argument("--num_medusa_heads", type=int, default=0, help="""Number of Medusa heads to use""")
     parser.add_argument("--tp_size", type=int, default=1, help="""Tensor parallel size""")
-    parser.add_argument("--cp_size", type=int, default=1, help="""Context parallel size""")
     parser.add_argument("--pp_size", type=int, default=1, help="""Pipeline parallel size""")
-    parser.add_argument("--precision", type=str, default="bf16-mixed", help="""Datatype for models and optimizer""")
     parser.add_argument("--devices", type=int, default=1, help="""Number of GPUs to use per node""")
     parser.add_argument("--num_nodes", type=int, default=1, help="""Number of nodes to use""")
     parser.add_argument("--log_dir", type=str, required=True, help="""Folder for logging and checkpoint saving""")
@@ -50,7 +43,6 @@ def get_args():
     parser.add_argument("--gbs", type=int, required=True, help="""Global Batch Size""")
     parser.add_argument("--mbs", type=int, required=True, help="""Micro-batch Size""")
     parser.add_argument("--seq_length", type=int, required=True, help="""Number of tokens per input sample""")
-    parser.add_argument("--tokenizer", type=str, default=None, help="""Name of tokenizer model to override default""")
     parser.add_argument("--lr", type=float, default=1e-4, help="""Base LR for Cosine-Annealing scheduler""")
     parser.add_argument("--val_check_interval", type=int, default=100, help="""Validate + checkpoint every _ steps""")
     parser.add_argument("--limit_val_batches", type=int, default=32, help="""Number of batches per validation stage""")
@@ -67,7 +59,6 @@ if __name__ == "__main__":
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
-        context_parallel_size=args.cp_size,
         sequence_parallel=(args.tp_size > 1),
         ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
     )
@@ -81,8 +72,8 @@ if __name__ == "__main__":
         strategy=strategy,
         accelerator="gpu",
         plugins=nl.MegatronMixedPrecision(
-            precision=args.precision,
-            params_dtype=torch.bfloat16 if "bf16" in args.precision else torch.float32,
+            precision="bf16-mixed",
+            params_dtype=torch.bfloat16,
             autocast_enabled=False,
             grad_reduce_in_fp32=True,
         ),
@@ -96,36 +87,30 @@ if __name__ == "__main__":
     )
 
     ## Set up optimizer
-    optim_config = OptimizerConfig(
-        optimizer="adam",
-        lr=args.lr,
-        bf16=("bf16" in args.precision),
-        use_distributed_optimizer=True,
+    optim = nl.MegatronOptimizerModule(
+        OptimizerConfig(
+            optimizer="adam",
+            lr=args.lr,
+            bf16=True,
+            use_distributed_optimizer=True,
+        )
     )
-    optim = nl.MegatronOptimizerModule(optim_config)
 
     # Set up checkpointing and logging
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
-        save_top_k=1,
-        every_n_train_steps=args.val_check_interval,
-    )
     logger = nl.NeMoLogger(
         name=args.name,
         log_dir=args.log_dir,
-        ckpt=checkpoint_callback,
-    )
-
-    # Set up resume and/or restore functionality
-    resume = nl.AutoResume(
-        resume_if_exists=True,
-        resume_ignore_no_checkpoint=True,
-        restore_config=nl.RestoreConfig(path=args.model_path),
+        ckpt=ModelCheckpoint(
+            monitor="val_loss",
+            save_top_k=1,
+            every_n_train_steps=args.val_check_interval,
+        ),
     )
 
     # Load the model
     model = io.load_context(ckpt_to_context_subdir(args.model_path), subpath="model")
     model.config.make_vocab_size_divisible_by = 1
+    model.config.gradient_accumulation_fusion = False
 
     # Run
     llm.train(
@@ -133,9 +118,7 @@ if __name__ == "__main__":
         data=data,
         trainer=trainer,
         log=logger,
-        resume=resume,
         optim=optim,
-        tokenizer=get_tokenizer(args.tokenizer) if args.tokenizer else None,
         model_transform=SpeculativeTransform(
             num_eagle_layers=args.num_eagle_layers, num_medusa_heads=args.num_medusa_heads
         ),
