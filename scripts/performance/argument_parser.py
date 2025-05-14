@@ -96,6 +96,20 @@ def parse_cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "-em",
+        "--enable_memory_profile",
+        help="Enable memory usage profiling. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-mp",
+        "--memory_profile_out_path",
+        type=str,
+        help="Path to the output file of memory profiling",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "-tb",
         "--tensorboard",
         help="Enable tensorboard logging. Disabled by default",
@@ -324,7 +338,6 @@ def parse_cli_args():
         required=False,
         default=None,
     )
-
     parser.add_argument(
         "-cm",
         "--custom_mounts",
@@ -332,6 +345,12 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+    parser.add_argument(
+        "--use_hf_tokenizer",
+        help="Use HuggingFace tokenizer. Disabled by default. Null tokenizer will be used if not provided.",
+        action="store_true",
+        required=False,
     )
 
     return parser

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
         offload_policy = None

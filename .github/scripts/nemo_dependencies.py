@@ -198,14 +198,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
         parts = relative_path.split(os.sep)
 
-        if len(parts) == 1 or parts[-1] == "__init__.py" or (parts[0] != "nemo" and parts[0] != "tests"):
+        if len(parts) == 1 or (parts[0] != "nemo" and parts[0] != "tests"):
             continue
 
         module_path = relative_path.replace(".py", "").replace("/", ".")
         if parts[1] in top_level_packages and parts[1] != 'collections' and parts[0] != 'tests':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
         elif parts[0] == 'tests':
-            dependencies[module_path] = [relative_path]
+            dependencies[module_path] = [relative_path.replace("/", ".").replace(".py", "")]
         elif parts[1] == 'collections':
             dependencies[module_path] = list(set(analyze_imports(nemo_root, file_path)))
 
@@ -252,7 +252,9 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
     for package, deps in dependencies.items():
         package_parts = package.split('.')
 
-        if os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
+        if package_parts[0] == "tests":
+            simplified_package_path = f"{os.path.join(*package_parts)}.py"
+        elif os.path.isfile((file_path := f"{os.path.join(*package_parts[:-1])}.py")):
             simplified_package_path = file_path
         elif os.path.isdir((file_path := f"{os.path.join(*package_parts[:-1])}")):
             simplified_package_path = file_path
@@ -267,13 +269,14 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
             if (
                 len(dep_parts) >= 2
-                and dep_parts[1] in find_top_level_packages(nemo_root)
+                and (dep_parts[1] in find_top_level_packages(nemo_root))
                 and dep_parts[1] != 'collections'
             ):
                 simplified_dependencies[simplified_package_path].append(f"{dep_parts[0]}.{dep_parts[1]}")
-
+            elif dep_parts[0] == "tests":
+                simplified_dependencies[simplified_package_path].append(".".join(dep_parts))
             elif len(dep_parts) >= 3 and (
-                simplified_name := f"{dep_parts[0]}.{dep_parts[1]}.{dep_parts[2]}"
+                simplified_name := f"nemo.{dep_parts[1]}.{dep_parts[2]}"
             ) in find_collection_modules(nemo_root):
                 simplified_dependencies[simplified_package_path].append(simplified_name)
 
@@ -337,6 +340,41 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
 
     dependencies = bucket_deps
 
+    # Additional dependencies
+    # Add all files in requirements/ directory
+    requirements_dir = os.path.join(nemo_root, "requirements")
+    if os.path.exists(requirements_dir):
+        for filename in os.listdir(requirements_dir):
+            filepath = os.path.join("requirements", filename)
+            relative_path = os.path.relpath(filepath, nemo_root)
+
+            dependencies[relative_path] = [
+                "nemo2",
+                "unit-tests",
+                "speech",
+                "automodel",
+                "export-deploy",
+            ]
+
+    # Add all Dockerfile files
+    for root, _, files in os.walk(nemo_root):
+        for file_path in files:
+            full_path = os.path.join(root, file_path)
+            relative_path = os.path.relpath(full_path, nemo_root)
+
+            if "cicd-main-export-deploy" in file_path:
+                dependencies[relative_path] = ["export-deploy"]
+            if "cicd-main-nemo2" in file_path:
+                dependencies[relative_path] = ["nemo2"]
+            if "cicd-main-speech" in file_path:
+                dependencies[relative_path] = ["speech"]
+            if "cicd-main-automodel" in file_path:
+                dependencies[relative_path] = ["automodel"]
+            if "cicd-main-unit-tests" in file_path:
+                dependencies[relative_path] = ["unit-tests"]
+            if "Dockerfile" in file_path:
+                dependencies[relative_path] = ["nemo2", "unit-tests", "speech", "automodel", "export-deploy"]
+
     # Sort dependencies by length of values (number of dependencies)
     dependencies = dict(sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True))
 
@@ -353,7 +391,7 @@ def main():
 
     # Output as JSON
     data = json.dumps(dependencies, indent=4)
-    # print(data)
+
     with open('nemo_dependencies.json', 'w', encoding='utf-8') as f:
         f.write(data)
 
