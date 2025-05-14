@@ -287,7 +287,10 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
                     "tool_calls": [
                         {"type": "function", "function": {"name": "get_weather", "arguments": {"location": "Denver"}}},
                         # additional tool calls should be quietly ignored
-                        {"type": "function", "function": {"name": "extra", "arguments": {"non-existing": "tool call"}}},
+                        {
+                            "type": "function",
+                            "function": {"name": "extra", "arguments": {"non-existing": "tool call"}},
+                        },
                     ],
                 },
                 {"role": "tool", "content": '{"Denver": {"temperature": "72°F"}}'},
