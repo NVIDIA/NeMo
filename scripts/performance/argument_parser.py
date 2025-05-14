@@ -382,6 +382,16 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+
+    parser.add_argument(
+        "-res",
+        "--resiliency",
+        type=bool_arg,
+        help="Enables resiliency features: straggler detection and faulty node detection during training",
+        required=False,
+        default=None,
+    )
+
     parser.add_argument(
         "-cpl",
         "--checkpoint_load_path",
