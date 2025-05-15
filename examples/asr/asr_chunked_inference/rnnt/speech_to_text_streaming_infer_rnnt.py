@@ -60,7 +60,7 @@ from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTMode
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     BatchedGreedyDecodingState,
-    GreedyBatchedLoopLabelsComputerBase,
+    GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
@@ -294,7 +294,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.preprocessor.featurizer.pad_to = 0
     asr_model.preprocessor.featurizer.corrected_pad = True
     asr_model.eval()
-    decoding_computer: GreedyBatchedLoopLabelsComputerBase = asr_model.decoding.decoding.decoding_computer
+    decoding_computer: GreedyBatchedLabelLoopingComputerBase = asr_model.decoding.decoding.decoding_computer
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
