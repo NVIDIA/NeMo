@@ -772,22 +772,20 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         """
         batched_state = None
         if partial_hypotheses is not None:
+            if any(hyp is None for hyp in partial_hypotheses):
+                raise NotImplementedError("Expected either full batch of partial hypotheses, or no partial hypotheses")
+
             prev_labels = torch.tensor(
                 [hyp.y_sequence[-1] if len(hyp.y_sequence) else self._blank_index for hyp in partial_hypotheses]
             ).to(device=x.device)
 
-            state_list = [hyp.dec_state for hyp in partial_hypotheses]
-            if all(state is not None for state in state_list):
-                prev_state = self.decoder.batch_unsplit_states(
-                    [hyp.dec_state for hyp in partial_hypotheses], device=x.device, dtype=x.dtype
-                )
-            elif any(state is not None for state in state_list):
-                logging.warning(f"State list: {state_list}")
-                raise NotImplementedError
-            else:
-                raise NotImplementedError
+            prev_state = self.decoder.batch_unsplit_states(
+                [hyp.dec_state for hyp in partial_hypotheses], device=x.device, dtype=x.dtype
+            )
+            prev_predictor_output = torch.stack([hyp.dec_out for hyp in partial_hypotheses], dim=0)
             batched_state = BatchedGreedyDecodingState(
                 predictor_state=prev_state,
+                predictor_output=prev_predictor_output,
                 labels=prev_labels,
                 decoded_length=torch.tensor([hyp.decoded_length for hyp in partial_hypotheses]).to(device=x.device),
                 lm_state=(
@@ -807,11 +805,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         for i, (hyp, state) in enumerate(zip(hyps, self.decoder.batch_split_states(batched_state.predictor_state))):
             hyp.dec_state = state
             hyp.decoded_length = batched_state.decoded_length[i]
+            hyp.dec_out = batched_state.predictor_output[i]
             hyp.ngram_lm_state = batched_state.lm_state[i] if batched_state.lm_state is not None else None
 
         if partial_hypotheses:
-            for prev_hyp, hyp in zip(partial_hypotheses, hyps):
-                hyp.y_sequence = torch.cat((prev_hyp.y_sequence, hyp.y_sequence))
+            for hyp, hyp_continuation in zip(partial_hypotheses, hyps):
+                hyp.merge(hyp_continuation)
+            return partial_hypotheses
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(
@@ -2923,22 +2923,20 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         """
         batched_state = None
         if partial_hypotheses is not None:
+            if any(hyp is None for hyp in partial_hypotheses):
+                raise NotImplementedError("Expected either full batch of partial hypotheses, or no partial hypotheses")
+
             prev_labels = torch.tensor(
                 [hyp.y_sequence[-1] if len(hyp.y_sequence) else self._blank_index for hyp in partial_hypotheses]
             ).to(device=x.device)
 
-            state_list = [hyp.dec_state for hyp in partial_hypotheses]
-            if all(state is not None for state in state_list):
-                prev_state = self.decoder.batch_unsplit_states(
-                    [hyp.dec_state for hyp in partial_hypotheses], device=x.device, dtype=x.dtype
-                )
-            elif any(state is not None for state in state_list):
-                logging.warning(f"State list: {state_list}")
-                raise NotImplementedError
-            else:
-                raise NotImplementedError
+            prev_state = self.decoder.batch_unsplit_states(
+                [hyp.dec_state for hyp in partial_hypotheses], device=x.device, dtype=x.dtype
+            )
+            prev_predictor_output = torch.stack([hyp.dec_out for hyp in partial_hypotheses], dim=0)
             batched_state = BatchedGreedyDecodingState(
                 predictor_state=prev_state,
+                predictor_output=prev_predictor_output,
                 labels=prev_labels,
                 decoded_length=torch.tensor([hyp.decoded_length for hyp in partial_hypotheses]).to(device=x.device),
                 lm_state=(
@@ -2958,12 +2956,14 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         for i, (hyp, state) in enumerate(zip(hyps, self.decoder.batch_split_states(batched_state.predictor_state))):
             hyp.dec_state = state
             hyp.decoded_length = batched_state.decoded_length[i]
+            hyp.dec_out = batched_state.predictor_output[i]
             hyp.ngram_lm_state = batched_state.lm_state[i] if batched_state.lm_state is not None else None
             hyp.time_jump = batched_state.time_jumps[i]
 
         if partial_hypotheses:
-            for prev_hyp, hyp in zip(partial_hypotheses, hyps):
-                hyp.y_sequence = torch.cat((prev_hyp.y_sequence, hyp.y_sequence))
+            for hyp, hyp_continuation in zip(partial_hypotheses, hyps):
+                hyp.merge(hyp_continuation)
+            return partial_hypotheses
         return hyps
 
     def disable_cuda_graphs(self):
