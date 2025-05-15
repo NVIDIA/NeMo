@@ -24,7 +24,7 @@ from nemo.utils import logging
 MistralModel = get_model("MistralModel")
 
 
-@io_model_exporter(MistralModel, "hf")
+@io_model_exporter(MistralModel, "hf", register=False)
 class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"]):
     """ """
 

@@ -22,7 +22,7 @@ from nemo.utils import logging
 MixtralModel = get_model("MixtralModel")
 
 
-@io_model_exporter(MixtralModel, "hf")
+@io_model_exporter(MixtralModel, "hf", register=False)
 class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"]):
     """NeMo to HF exporter"""
 

@@ -38,6 +38,9 @@ _EXPORTERS_REGISTRY = {}
 
 
 def get_model(name: str):
+    """
+    Get the model class from the llm module. If the model is not available, return a dummy class with the same name.
+    """
     if llm_available:
         model_cls = getattr(llm, name)
         if isinstance(model_cls, type):
@@ -48,40 +51,35 @@ def get_model(name: str):
     )
 
 
-def io_model_exporter(cls, format):
+def io_model_exporter(cls, format, register=True):
     """
     Wrapper around `nemo.lightning.io.model_exporter` that (1) registers the
     exporter with the NeMo IO system and (2) stores a reference to the exporter
     class in the local `_EXPORTERS_REGISTRY` so it can be retrieved through
-    `get_exporter`.
+    `get_exporter`. If register is set to False, the model will not be connected to the llm.GPTModel.
     """
-    if not llm_available:
 
-        def noop(exporter_cls, *args, **kwargs):
-            key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
-            if format not in _EXPORTERS_REGISTRY:
-                _EXPORTERS_REGISTRY[format] = {}
-            _EXPORTERS_REGISTRY[format][key] = exporter_cls
-            return exporter_cls
+    base_decorator = lambda exporter_cls: exporter_cls
 
-        return noop
-
-    from nemo.lightning.io import model_exporter as _model_exporter
-
-    base_decorator = _model_exporter(cls, format)
+    if llm_available and register:
+        from nemo.lightning.io import model_exporter as _model_exporter
+        base_decorator = _model_exporter(cls, format)
 
     def decorator(exporter_cls):
         decorated_cls = base_decorator(exporter_cls)
         key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
         if format not in _EXPORTERS_REGISTRY:
             _EXPORTERS_REGISTRY[format] = {}
-        _EXPORTERS_REGISTRY[format][key] = decorated_cls
+        _EXPORTERS_REGISTRY[format][key] = exporter_cls
         return decorated_cls
 
     return decorator
 
 
 def get_exporter(cls, format):
+    """
+    Get the exporter for the given model and format.
+    """
     key = cls if isinstance(cls, str) else getattr(cls, "__name__", str(cls))
     if format not in _EXPORTERS_REGISTRY:
         return None
@@ -211,6 +209,9 @@ def get_tokenizer(path: str) -> "TokenizerSpec":
 
 
 def load_connector(path, target):
+    """
+    Load the connector for the given model and target.
+    """
     model_yaml = Path(str(path)) / "context" / "model.yaml"
     with open(model_yaml, 'r') as stream:
         config = yaml.safe_load(stream)

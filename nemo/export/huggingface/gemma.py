@@ -22,7 +22,7 @@ from nemo.lightning.io.state import TransformFns, _ModelState
 GemmaModel = get_model("GemmaModel")
 
 
-@io_model_exporter(GemmaModel, "hf")
+@io_model_exporter(GemmaModel, "hf", register=False)
 class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
     """ """
 

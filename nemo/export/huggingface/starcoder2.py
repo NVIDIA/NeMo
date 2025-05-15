@@ -21,7 +21,7 @@ from nemo.lightning.io.state import TransformFns, _ModelState
 Starcoder2Model = get_model("Starcoder2Model")
 
 
-@io_model_exporter(Starcoder2Model, "hf")
+@io_model_exporter(Starcoder2Model, "hf", register=False)
 class HFStarcoder2Exporter(io.ModelConnector["Starcoder2Model", "Starcoder2ForCausalLM"]):
     """
     Exporter for converting NeMo Starcoder2Model to Hugging Face format.
