@@ -23,7 +23,6 @@ from nemo.collections import llm
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
-
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
 #   examples/llm/peft/automodel.py \
