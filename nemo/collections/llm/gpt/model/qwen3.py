@@ -289,6 +289,7 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
             num_query_groups=source.num_key_value_heads,
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
+            vocab_size=source.vocab_size,
             make_vocab_size_divisible_by=1187,
             rotary_base=source.rope_theta,
             share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
