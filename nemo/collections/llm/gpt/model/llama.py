@@ -28,7 +28,10 @@ from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 from nemo.collections.llm.utils import Config
 from nemo.export.huggingface.llama import HFLlamaExporter
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.io.state import TransformCTX, TransformFns, _ModelState
+from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 try:
@@ -41,7 +44,6 @@ except ImportError:
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from peft import AutoPeftModelForCausalLM, PeftConfig
-    from transformers import LlamaForCausalLM
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
