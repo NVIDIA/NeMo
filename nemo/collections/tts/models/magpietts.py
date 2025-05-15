@@ -48,7 +48,8 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-
+from torch import Tensor
+from nemo.core.classes.module import NeuralModule
 
 def worker_init_fn(worker_id):
     # For mp.set_start_method("spawn", force=True)
@@ -62,6 +63,82 @@ def worker_init_fn(worker_id):
     dataset.text_tokenizer = tokenizer
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
+def build_vocabs(subword_vocab_items):
+    # tokenizer = AutoTokenizer.from_pretrained(pretrained_tokenizer_name)
+    # subword_vocab_items = tokenizer.vocab.items()
+    org_char_vocab = {subword: subword_id for subword, subword_id in subword_vocab_items if len(subword) == 1}
+    sorted_char_vocab = dict(sorted(org_char_vocab.items(), key=lambda x: x[1]))
+    char_vocab = {k: i for i, (k, _) in enumerate(sorted_char_vocab.items())}
+    assert sorted(char_vocab.values()) == list(range(len(char_vocab)))
+    subword_id_to_char_ids = {
+        subword_id: tuple(char_vocab[char] for char in subword) for subword, subword_id in subword_vocab_items
+    }
+
+    assert max(subword_id_to_char_ids) == len(subword_id_to_char_ids) - 1
+    # add padding_idx
+    subword_padding_idx = len(subword_id_to_char_ids)
+    subword_id_to_char_ids[subword_padding_idx] = (len(char_vocab),)
+
+    return subword_id_to_char_ids, char_vocab, subword_padding_idx
+
+
+def sequence_mask(lengths: Tensor, max_length: int | None = None) -> Tensor:
+    if max_length is None:
+        max_length = int(lengths.max().item())
+    x = torch.arange(max_length, dtype=lengths.dtype, device=lengths.device)
+    return x.unsqueeze(0) < lengths.unsqueeze(1)
+
+class CharAwareSubwordEncoder(NeuralModule):
+    def __init__(self, d_embed: int, llm_tokenizer_vocab_items: dict = None):
+        super().__init__()
+        self.subword_id_to_char_ids, self.char_vocab, self.subword_padding_idx = build_vocabs(llm_tokenizer_vocab_items)
+        self.embed_tokens = nn.Embedding(self.vocab_size + 2, d_embed, padding_idx=self.vocab_size)
+
+    @property
+    def vocab_size(self):
+        return len(self.char_vocab)
+
+    def prepare_inputs(self, subword_ids: Tensor, padding_mask: Tensor) -> tuple[Tensor, Tensor]:
+        device = subword_ids.device
+
+        subword_id_list = torch.masked_select(subword_ids, padding_mask).cpu().tolist()
+        char_id_list = [list(self.subword_id_to_char_ids[x]) for x in subword_id_list]
+
+        char_lengths = torch.tensor([len(x) for x in char_id_list], dtype=torch.long, device=device)
+        batch_size = char_lengths.size(0)
+
+        char_ids = torch.full((batch_size, int(char_lengths.max().item())), self.vocab_size, dtype=torch.long)
+        for i in range(batch_size):
+            char_ids[i, : char_lengths[i]] = torch.tensor(char_id_list[i])
+        char_ids = char_ids.to(device=device)
+        return char_ids, char_lengths
+
+    def forward(self, subword_ids: Tensor, subword_mask: Tensor | None = None) -> Tensor:
+        device = subword_ids.device
+        if subword_mask is None:
+            subword_mask = torch.ones_like(subword_ids).bool()
+        else:
+            subword_mask = subword_mask.bool()
+
+        if subword_mask.ndim == 3:
+            subword_mask = subword_mask.squeeze(-1)
+
+        char_ids, char_lengths = self.prepare_inputs(subword_ids, subword_mask)
+        char_mask = sequence_mask(char_lengths)
+        char_emb = self.embed_tokens(char_ids)
+        # char emb has the shape  [B*T, N, channels], where N is the max number of chars tokens decoded from bpe tokens
+        x = self.encoder(
+            x=char_emb,
+            x_mask=char_mask
+        )['output']
+
+        # Get average embedding over the chars
+        mean_emb = ((x / char_mask.unsqueeze(-1).sum(1, keepdim=True)) * char_mask.unsqueeze(-1)).sum(1)
+        subword_emb = torch.zeros((subword_mask.size(0), subword_mask.size(1), mean_emb.size(-1)), device=device)
+        subword_emb[subword_mask.unsqueeze(-1).expand(-1, -1, mean_emb.size(-1))] = mean_emb.view(-1)
+
+        return subword_emb
+    
 class MagpieTTSModel(ModelPT):
     """
     Magpie-TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context
@@ -109,7 +186,8 @@ class MagpieTTSModel(ModelPT):
         self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
         self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
-    
+        self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
+
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models
@@ -153,7 +231,20 @@ class MagpieTTSModel(ModelPT):
 
         if self.model_type != 'decoder_pretrain_synthesizer':
             # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
-            self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
+            
+
+            if self.use_bpe_char_tokenizer:
+                # BPE char tokenizer
+                assert len(self.tokenizer.tokenizers) == 1, "BPE char tokenizer should only be used with one tokenizer"
+                tokenizer_name = self.tokenizer.tokenizer_names[0]
+                tokenizer = self.tokenizer.tokenizers[tokenizer_name]
+                subword_vocab_items = tokenizer.get_vocab().items()
+                self.cas_encoder = CharAwareSubwordEncoder(cfg.embedding_dim, subword_vocab_items)
+                import ipdb; ipdb.set_trace()
+            else:
+                # Regular text embedding
+                self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
+
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
@@ -796,6 +887,15 @@ class MagpieTTSModel(ModelPT):
                     / (prior_end_step - prior_scaledown_start_step)
                 )
                 return new_prior
+    
+    def embed_text(self, text, text_mask):
+        if self.use_bpe_char_tokenizer:
+            import ipdb; ipdb.set_trace()
+            text_embedded = self.cas_encoder(text, subword_mask=text_mask)
+        else:
+            text_embedded = self.text_embedding(text)
+        
+        return text_embedded
 
     def compute_alignment_loss(self, attention_scores, text_lens, audio_lens, dec_context_size=0):
         # attention scores: List of (B, C, audio_timesteps, text_timesteps)
@@ -830,8 +930,8 @@ class MagpieTTSModel(ModelPT):
         if self.model_type != 'decoder_pretrain_synthesizer':
             text = batch['text']
             text_lens = batch['text_lens']
-            text_embedded = self.text_embedding(text)  # (B, T, E)
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
+            text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
             text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)

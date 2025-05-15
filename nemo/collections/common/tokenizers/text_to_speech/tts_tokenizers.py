@@ -1118,7 +1118,11 @@ class AggregatedTTSTokenizer:
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
         self.toknizer_offsets = toknizer_offsets
-        self.pad = self.tokenizers[tokenizer_names[0]].pad  # Use the first tokenizer's pad token
+        first_tokenizer = self.tokenizers[tokenizer_names[0]]
+        if hasattr(first_tokenizer, "pad_token_id"):
+            self.pad = first_tokenizer.pad_token_id
+        else:
+            self.pad = self.tokenizers[tokenizer_names[0]].pad  # Use the first tokenizer's pad token
 
     def encode(self, text: str, tokenizer_name: str) -> List[int]:
         tokenizer = self.tokenizers[tokenizer_name]
