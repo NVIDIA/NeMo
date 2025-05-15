@@ -111,7 +111,7 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
         self.reset_cuda_graphs_state()
 
     @abstractmethod
-    def loop_labels_torch(
+    def torch_impl(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
@@ -128,7 +128,7 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def loop_labels_cuda_graphs(
+    def cuda_graphs_impl(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
@@ -169,10 +169,10 @@ class GreedyBatchedLoopLabelsComputerBase(ABC):
             ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
             with ctx:
                 # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
-                return self.loop_labels_cuda_graphs(
+                return self.cuda_graphs_impl(
                     encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
                 )
 
-        return self.loop_labels_torch(
+        return self.torch_impl(
             encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
         )

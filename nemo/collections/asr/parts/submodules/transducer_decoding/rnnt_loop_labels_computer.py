@@ -255,7 +255,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             else None
         )
 
-    def loop_labels_torch(
+    def torch_impl(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
@@ -515,7 +515,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             return batched_hyps, alignments, decoding_state
         return batched_hyps, None, decoding_state
 
-    def loop_labels_cuda_graphs(
+    def cuda_graphs_impl(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
