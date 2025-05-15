@@ -26,7 +26,6 @@ import torch
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
-from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm, vlm
 from nemo.collections.vlm.hf.data.automodel_datasets import (
     mk_hf_vlm_dataset_cord_v2,
@@ -64,8 +63,8 @@ if __name__ == '__main__':
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
     parser.add_argument('--devices', default=1, type=int)
     parser.add_argument('--num-nodes', default=1, type=int)
-    parser.add_argument('--mbs', default=1)
-    parser.add_argument('--gbs', default=4)
+    parser.add_argument('--mbs', default=1, type=int)
+    parser.add_argument('--gbs', default=4, type=int)
     parser.add_argument(
         "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
     )
@@ -98,9 +97,6 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
-
-    with FirstRankPerNode():
-        dataset = dataset_fn(args.data_path, processor, args.mbs, args.gbs)
 
     model_kwargs = {}
 
@@ -137,7 +133,7 @@ if __name__ == '__main__':
 
     llm.finetune(
         model=model,
-        data=dataset,
+        data=dataset_fn(args.data_path, processor, args.mbs, args.gbs),
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
