@@ -15,7 +15,6 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
-import lightning.pytorch as L
 import torch
 import torch.distributed
 import torch.nn.functional as F
@@ -34,7 +33,6 @@ from megatron.core.utils import deprecate_inference_params, get_batch_on_this_cp
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config
 from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
