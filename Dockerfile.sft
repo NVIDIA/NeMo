@@ -1,0 +1,29 @@
+FROM nvcr.io/nvidian/tegra-audio/speech-mlops-llm:sft_train
+
+WORKDIR /workspace
+
+COPY . /workspace/NeMo
+
+RUN pip install retrying
+
+RUN pip install multi-storage-client
+#RUN pip install /workspace/NeMo/multi-storage-client/.
+
+RUN pip install pytorch_lightning==2.4.0
+RUN pip install lightning>=2.0.0
+RUN pip install apex
+RUN pip install --upgrade megatron-core[all]
+
+RUN pip install "boto3>=1.36"
+
+ENV CXXFLAGS="-std=c++17"
+
+# RUN pip install aistore
+
+#RUN pip install /workspace/nemo-with-storageclient/megatron-lm-msc/.
+
+RUN pip install /workspace/NeMo/.
+
+ENV MSC_CONFIG /lustrefs/users/anmaster/avm_msc_config.json
+
+ENV MSC_PROFILE_NAME curr
