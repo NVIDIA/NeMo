@@ -594,6 +594,8 @@ class MagpieTTSModel(ModelPT):
 
             # TODO
             # * should we use raw logits or post-softmax probabilities?
+            #   -> dosn't matter for unmasking order since softmax is monotonic
+            #   -> but would affect interaction with noise addition
             # * are end of utterance-logits-somehow overwritten ? should we force those to max confidence?? may require
             #   special handling and may explain termination issues!
             
@@ -614,7 +616,7 @@ class MagpieTTSModel(ModelPT):
             if noise_scale > 0.0:
                 # get noise from uniform distribution in the interval [-0.5, 0.5), scale it by `noise_scale`, 
                 # and anneal it to 0 as we approach the end of the unmasking process
-                noise = (torch.randn_like(confidences) - 0.5) * noise_scale * (1-progress)
+                noise = (torch.rand_like(confidences) - 0.5) * noise_scale * (1-progress)
                 confidences += noise
             print(f"Step {step} of {n_steps} done")
         
