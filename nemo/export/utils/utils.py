@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 import torch
+from transformers import PreTrainedTokenizerBase
 
 
 def is_nemo2_checkpoint(checkpoint_path: str) -> bool:
@@ -116,8 +117,12 @@ def get_model_device_type(module: torch.nn.Module) -> str:
     return all_device_types.pop() if all_device_types else "cpu"
 
 
-def get_example_inputs(tokenizer) -> Dict[str, torch.Tensor]:
+def get_example_inputs(tokenizer: PreTrainedTokenizerBase, device: Optional[Union[str, torch.device]] = None) -> Dict[str, torch.Tensor]:
     """Gets example data to feed to the model during ONNX export.
+
+    Args:
+        tokenizer (PreTrainedTokenizerBase): Tokenizer to use for generating example inputs.
+        device (Optional[Union[str, torch.device]]): Device to which the example inputs should be moved.
 
     Returns:
         Dictionary of tokenizer outputs.
@@ -129,6 +134,10 @@ def get_example_inputs(tokenizer) -> Dict[str, torch.Tensor]:
             return_tensors="pt",
         )
     )
+
+    if device:
+        for key, tensor in example_inputs.items():
+            example_inputs[key] = tensor.to(device)
 
     return example_inputs
 

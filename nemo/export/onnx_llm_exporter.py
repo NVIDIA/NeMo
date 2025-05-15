@@ -191,10 +191,11 @@ class OnnxLLMExporter(ITritonDeployable):
     ):
 
         if example_inputs is None:
-            example_inputs = get_example_inputs(self.tokenizer)
+            example_inputs = get_example_inputs(self.tokenizer, self.device)
 
+        # TODO: This is model dependent: should be outside?
         if "dimensions" in input_names:
-            example_inputs["dimensions"] = torch.tensor([1] * example_inputs["input_ids"].shape[0])
+            example_inputs["dimensions"] = torch.tensor([1] * example_inputs["input_ids"].shape[0]).to(self.device)
 
         if isinstance(export_dtype, str):
             export_dtype = {"fp16": torch.float16, "fp32": torch.float32}[export_dtype]
