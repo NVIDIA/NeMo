@@ -173,6 +173,4 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
                     encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
                 )
 
-        return self.torch_impl(
-            encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
-        )
+        return self.torch_impl(encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state)
