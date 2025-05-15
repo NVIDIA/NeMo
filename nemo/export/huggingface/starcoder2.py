@@ -13,10 +13,15 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
+
+if TYPE_CHECKING:
+    from transformers import Starcoder2ForCausalLM
+    from transformers import Starcoder2Config as HFStarcoder2Config
 
 Starcoder2Model = get_model("Starcoder2Model")
 

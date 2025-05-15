@@ -186,7 +186,7 @@ def ckpt_load(checkpoint_path: str) -> Tuple[Dict, Any]:
     return state_dict, config_obj
 
 
-def get_tokenizer(path: str) -> "TokenizerSpec":
+def get_tokenizer(path: str):
     """Get the tokenizer from the NeMo model.
 
     Returns:
