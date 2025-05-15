@@ -215,6 +215,89 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
         return output
 
 
+@io.model_exporter(GemmaModel, "hf")
+class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
+    """ """
+
+    def init(self) -> "GemmaForCausalLM":
+        from transformers import AutoModelForCausalLM
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights():
+            return AutoModelForCausalLM.from_config(self.config)
+
+    def apply(self, output_path: Path) -> Path:
+        """ """
+        target = self.init()
+        source, _ = self.nemo_load(str(self))
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        self.tokenizer.save_pretrained(output_path)
+
+        return output_path
+
+    def convert_state(self, source, target):
+        """ """
+        mapping = {
+            "embedding.word_embeddings.weight": "model.embed_tokens.weight",
+            "decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
+            "decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
+            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
+            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "decoder.final_layernorm.weight": "model.norm.weight",
+        }
+
+        transforms = [
+            io.state_transform(
+                source_key="decoder.layers.*.self_attention.linear_qkv.weight",
+                target_key=(
+                    "model.layers.*.self_attn.q_proj.weight",
+                    "model.layers.*.self_attn.k_proj.weight",
+                    "model.layers.*.self_attn.v_proj.weight",
+                ),
+                fn=TransformFns.split_qkv,
+            ),
+            io.state_transform(
+                source_key="decoder.layers.*.mlp.linear_fc1.weight",
+                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                fn=TransformFns.split_fc1,
+            ),
+        ]
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+
+    @property
+    def tokenizer(self):
+        """ """
+        return io.load_context(str(self)).model.tokenizer.tokenizer
+
+    @property
+    def config(self) -> "GemmaConfig":
+        """ """
+        source: GemmaConfig = io.load_context(str(self)).model.config
+
+        from transformers import GemmaConfig as HFGemmaConfig
+
+        return HFGemmaConfig(
+            architectures=["GemmaForCausalLM"],
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
+            max_position_embeddings=source.seq_length,
+            initializer_range=source.init_method_std,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            vocab_size=self.tokenizer.vocab_size,
+        )
+
+
 __all__ = [
     "GemmaConfig",
     "GemmaConfig2B",
