@@ -461,14 +461,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if (
-                self.context_parallel_lm > 1
-                and packed_seq_params is not None
-                and packed_seq_params.qkv_format == "thd"
-            ):
-                # _process_embedding_token_parallel expects input in shape bshd for cp + thd
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
-
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
                     combined_embeddings, final_labels, final_loss_mask, packed_seq_params
@@ -593,7 +585,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
             max_seq_len = seq_lens.max()
             # padding for SP and CP
-            shard_factor, _ = self._get_shard_factor(packed_seq_params)
+            shard_factor, _ = self._get_shard_factor()
             max_seq_len = (max_seq_len - 1) // shard_factor * shard_factor + shard_factor
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
@@ -754,13 +746,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
-    def _get_shard_factor(self, packed_seq_params):
+    def _get_shard_factor(self):
         """Get shard factor of sequence dimension"""
 
-        if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-            seq_dim = 1
-        else:
-            seq_dim = 0
+        seq_dim = 0
         if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
             shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
         elif self.context_parallel_lm > 1:
@@ -769,7 +758,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             shard_factor = self.tensor_model_parallel_size_lm
         else:
             shard_factor = 1
-            seq_dim = 0
 
         return shard_factor, seq_dim
 
@@ -781,7 +769,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
         if self.pre_process:
-            shard_factor, seq_dim = self._get_shard_factor(packed_seq_params)
+            shard_factor, seq_dim = self._get_shard_factor()
 
             assert (
                 combined_embeddings.shape[seq_dim] % shard_factor == 0
@@ -808,14 +796,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
                         "new_loss_mask": new_loss_mask,
                     }
                 )
-            # Distribute sequence across CP ranks
-            if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
-                from megatron.core.utils import get_batch_on_this_cp_rank
+            if self.pre_process:
+                batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
 
-                if self.pre_process:
-                    batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
-                batch = get_batch_on_this_cp_rank(batch)
-            else:
+            # Distribute sequence across CP ranks
+            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
                 try:
                     import transformer_engine_torch as tex
                 except ModuleNotFoundError as e:
@@ -831,6 +816,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
                         packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
                     )
                     batch[key] = data.index_select(1, index)
+            else:
+                from megatron.core.utils import get_batch_on_this_cp_rank
+
+                batch = get_batch_on_this_cp_rank(batch)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
@@ -840,8 +829,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 new_loss_mask = batch["new_loss_mask"]
 
         if self.sequence_parallel_lm and self.pre_process:
-            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
             )  # [S/(CP*TP),B,H]
