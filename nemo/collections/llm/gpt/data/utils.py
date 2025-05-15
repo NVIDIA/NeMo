@@ -804,6 +804,7 @@ def _preprocess(
 
     return dict(input_ids=input_ids, loss_mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 
+
 def _convert_to_openai_messages(source: dict) -> List[dict]:
     """
     Input
@@ -819,9 +820,9 @@ def _convert_to_openai_messages(source: dict) -> List[dict]:
                 {"from": "User","value":"<text>"},
                 {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
             ]}
-    
+
     Output
-    
+
     [
         {"role": "system","content":"<text>"},
         {"role": "user","content":"<text>"},
@@ -841,9 +842,8 @@ def _convert_to_openai_messages(source: dict) -> List[dict]:
             chat = source.get("messages")
     else:
         chat = source
-    
-    return chat
 
+    return chat
 
 
 def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
