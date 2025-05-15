@@ -51,7 +51,7 @@ def make_squad_hf_dataset(
     tokenizer, eos_token_id, has_chat_template = get_chat_template(tokenizer)
 
     def pad_to_seq_length(sample):
-        seq_pad_len_ar = max(0, seq_length - len(next(sample.values())))
+        seq_pad_len_ar = max(0, seq_length - len(next(iter(sample.values()))))
         return {
             k: v + [eos_token_id if v != 'loss_mask' else 0] * seq_pad_len_ar
             for k, v in sample.items()
