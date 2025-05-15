@@ -34,12 +34,11 @@ from megatron.core.utils import deprecate_inference_params, get_batch_on_this_cp
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config
 from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
-from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, restore_model_weights
+from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, NevaModel, restore_model_weights
 from nemo.lightning import io
 from nemo.lightning.pytorch.optim import OptimizerModule
 from nemo.utils.import_utils import safe_import_from
