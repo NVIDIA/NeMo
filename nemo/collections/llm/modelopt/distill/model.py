@@ -174,13 +174,13 @@ class DistillationGPTModel(llm.GPTModel):
                 [self._teacher_config, self._teacher_ckpt_path],
                 {"tokenizer": self.tokenizer, "trainer": self.trainer},
             ),
-            "criterion": distill_cfg["criterion"],
-            "loss_balancer": distill_cfg["loss_balancer"],
+            "criterion": distill_cfg.criterion,
+            "loss_balancer": distill_cfg.loss_balancer,
         }
         distillation_model = mtd.convert(model, mode=[("kd_loss", kd_config)])
 
         # Additional MCore-specific tweaks needed.
-        adjust_distillation_model_for_mcore(distillation_model, model_cfg=self.config, distill_cfg=distill_cfg)
+        adjust_distillation_model_for_mcore(distillation_model, distill_cfg=distill_cfg)
 
         self.module = distillation_model
 

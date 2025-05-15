@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import re
+from dataclasses import dataclass, field
 from types import MethodType
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import yaml
@@ -43,9 +44,32 @@ DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationM
 DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
 
+@dataclass
+class DistillationConfig:
+    """Knowledge-Distillation config.
+
+    Args:
+        intermediate_layer_pairs: List of tuples of intermediate layer names.
+        logit_layers: Tuple of logit layer names.
+        skip_lm_loss: Whether to skip computing the standard language model loss (default: ``True``).
+        kd_loss_scale: Relative scaling factor for the distillation loss if ``skip_lm_loss`` is ``False``.
+    """
+    intermediate_layer_pairs: List[Tuple[str, str]] = field(default_factory=list)
+    logit_layers: Tuple[str, str] = ("output_layer", "output_layer")
+    skip_lm_loss: bool = True
+    kd_loss_scale: float = 1.0
+    criterion: Optional[Dict[Tuple[str, str], torch.nn.Module]] = None
+    loss_balancer: Optional[DistillationLossBalancer] = None
+
+    def __post_init__(self):
+        assert len(self.logit_layers) == 2, f"{self.logit_layers=}"
+        assert all(len(pair) == 2 for pair in self.intermediate_layer_pairs), f"{self.intermediate_layer_pairs=}"
+        assert self.kd_loss_scale > 0, f"{self.kd_loss_scale=}"
+
+
 def load_distillation_config(
     config_path: Optional[str], student_cfg: "TransformerConfig", teacher_cfg: "TransformerConfig"
-) -> Dict[str, Any]:
+) -> DistillationConfig:
     """Read the distillation yaml config file specified by ``args.export_kd_cfg``.
 
     Args:
@@ -56,30 +80,21 @@ def load_distillation_config(
 
     WARNING: Assumes intermediate hidden sizes are always that found in the model config's ``hidden_size`` attribute.
     """
-    if not config_path:
-        logging.warning("Distillation config not provided. Using default.")
-        cfg = {
-            "logit_layers": ["output_layer", "output_layer"],
-            "intermediate_layer_pairs": [],
-            "skip_lm_loss": True,
-            "kd_loss_scale": 1.0,
-        }
-    else:
+    if config_path:
         with open(config_path) as f:
             cfg = yaml.safe_load(f)
-
-    intermediate_pairs = cfg["intermediate_layer_pairs"]
-    logit_pair = cfg["logit_layers"]
-    skip_lm_loss = cfg["skip_lm_loss"]
-    loss_scale = cfg["kd_loss_scale"]
+        cfg = DistillationConfig(**cfg)
+    else:
+        logging.warning("Distillation config not provided. Using default.")
+        cfg = DistillationConfig()
 
     criterion = {}
     if student_cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
-        criterion[tuple(logit_pair)] = LogitsKLLoss(student_cfg)
+        criterion[tuple(cfg.logit_layers)] = LogitsKLLoss(student_cfg)
         # NOTE: Projection layer shared among intermediate layer pairs.
         projection_layer = ProjectionLayer(student_cfg, teacher_cfg)
 
-        for student_layer, teacher_layer in intermediate_pairs:
+        for student_layer, teacher_layer in cfg.intermediate_layer_pairs:
             if parallel_state.get_tensor_and_context_parallel_rank() == 0:
                 print(
                     "Distillation: Adding intermediate loss between"
@@ -92,10 +107,12 @@ def load_distillation_config(
                 student_cfg, projection_layer=projection_layer
             )
 
-    loss_balancer = LogitsAndIntermediatesLossBalancer(kd_loss_scale=loss_scale, skip_original_loss=skip_lm_loss)
+    loss_balancer = LogitsAndIntermediatesLossBalancer(
+        kd_loss_scale=cfg.kd_loss_scale, skip_original_loss=cfg.skip_lm_loss
+    )
 
-    cfg["criterion"] = criterion
-    cfg["loss_balancer"] = loss_balancer
+    cfg.criterion = criterion
+    cfg.loss_balancer = loss_balancer
 
     return cfg
 
@@ -148,9 +165,7 @@ def teacher_provider(
     return model
 
 
-def adjust_distillation_model_for_mcore(
-    model: "DistillationModel", model_cfg: "TransformerConfig", distill_cfg: Dict[str, Any]
-):
+def adjust_distillation_model_for_mcore(model: DistillationModel, distill_cfg: DistillationConfig):
     """Extra modifications to ``mtd.DistillationModel`` required for Megatron-Core."""
     # Get rid of ModelOpt Distillation state
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
@@ -168,7 +183,7 @@ def adjust_distillation_model_for_mcore(
 
     # Skip `lm_loss` bypassing it when training if not needed for backprop.
     def _compute_language_model_loss(self, labels, logits) -> torch.Tensor:
-        if distill_cfg["skip_lm_loss"] and self.training:
+        if distill_cfg.skip_lm_loss and self.training:
             return torch.zeros_like(labels, dtype=logits.dtype)
         return type(self).compute_language_model_loss(self, labels, logits)
 
