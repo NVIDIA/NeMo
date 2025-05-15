@@ -43,8 +43,8 @@ def get_args(argv):
     parser.add_argument(
         "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
-    parser.add_argument("-nn", "--num_nodes", default=1, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-ng", "--num_gpus", default=None, type=int, help="Number of GPUs for the deployment")
+    parser.add_argument("-nn", "--num_nodes", default=None, type=int, help="Number of GPUs for the deployment")
     parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
     parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
     parser.add_argument("-cps", "--context_parallel_size", default=1, type=int, help="Pipeline parallelism size")
@@ -63,6 +63,13 @@ def get_args(argv):
         default=False,
         action='store_true',
         help='Enable flash decoding',
+    )
+    parser.add_argument(
+        "-cg",
+        '--enable_cuda_graphs',
+        default=False,
+        action='store_true',
+        help='Enable CUDA graphs',
     )
     parser.add_argument("-lc", "--legacy_ckpt", action="store_true", help="Load checkpoint saved with TE < 1.14")
     args = parser.parse_args(argv)
@@ -88,16 +95,15 @@ def nemo_deploy(argv):
         raise ValueError("In-Framework deployment requires a checkpoint folder.")
 
     model = MegatronLLMDeployableNemo2(
-        nemo_checkpoint_filepath=args.nemo_checkpoint,
         num_devices=args.num_gpus,
         num_nodes=args.num_nodes,
+        nemo_checkpoint_filepath=args.nemo_checkpoint,
         tensor_model_parallel_size=args.tensor_parallelism_size,
         pipeline_model_parallel_size=args.pipeline_parallelism_size,
         context_parallel_size=args.context_parallel_size,
-        expert_model_parallel_size=args.expert_model_parallel_size,
         max_batch_size=args.max_batch_size,
         enable_flash_decode=args.enable_flash_decode,
-        legacy_ckpt=args.legacy_ckpt,
+        enable_cuda_graphs=args.enable_cuda_graphs
     )
 
     if torch.distributed.is_initialized():

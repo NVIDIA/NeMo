@@ -15,10 +15,9 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/
   --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf \
   --output_path /tmp/nemo2_ckpt
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/deploy/nlp/deploy_inframework_triton.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo torchrun --nproc_per_node=2 scripts/deploy/nlp/deploy_inframework_triton.py \
   --nemo_checkpoint /tmp/nemo2_ckpt \
   --triton_model_name llama \
-  --num_gpus 2 \
   --tensor_parallelism_size 2 &
 
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/deploy/nlp/query_inframework.py \

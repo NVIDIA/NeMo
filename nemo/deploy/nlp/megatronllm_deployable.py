@@ -26,10 +26,10 @@ from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
-import nemo.lightning as nl
-from nemo.collections.llm import inference
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import NEMO2, broadcast_list, cast_output, nemo_checkpoint_version, str_ndarray2list
+
+from .inference.inference_base import create_mcore_engine
 
 
 @wrapt.decorator
@@ -75,15 +75,16 @@ class MegatronLLMDeploy:
     @staticmethod
     def get_deployable(
         nemo_checkpoint_filepath: str,
-        num_devices: int = 1,
-        num_nodes: int = 1,
+        num_devices: int = None,
+        num_nodes: int = None,
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
+        expert_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
         max_batch_size: int = 32,
         random_seed: Optional[int] = None,
         enable_flash_decode: bool = False,
-        legacy_ckpt: bool = False,
+        enable_cuda_graphs: bool = False,
     ):
         """
         Returns the appropriate deployable instance for the given NeMo checkpoint.
@@ -102,16 +103,17 @@ class MegatronLLMDeploy:
         """
         if nemo_checkpoint_version(nemo_checkpoint_filepath) == NEMO2:
             return MegatronLLMDeployableNemo2(
-                nemo_checkpoint_filepath=nemo_checkpoint_filepath,
                 num_devices=num_devices,
                 num_nodes=num_nodes,
+                nemo_checkpoint_filepath=nemo_checkpoint_filepath,
                 tensor_model_parallel_size=tensor_model_parallel_size,
                 pipeline_model_parallel_size=pipeline_model_parallel_size,
                 context_parallel_size=context_parallel_size,
+                expert_model_parallel_size=expert_model_parallel_size,
                 max_batch_size=max_batch_size,
                 random_seed=random_seed,
                 enable_flash_decode=enable_flash_decode,
-                legacy_ckpt=legacy_ckpt,
+                enable_cuda_graphs=enable_cuda_graphs,
             )
         else:
             raise Exception("Only NeMo 2.0 checkpoint is supported.")
@@ -128,6 +130,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         tensor_model_parallel_size (int): tensor parallelism.
         pipeline_parallelism_size (int): pipeline parallelism.
         context_parallel_size (int): context parallelism.
+        expert_model_parallel_size (int): expert parallelism.
         params_dtype (torch.dtype): max input length.
         inference_batch_times_seqlen_threshold (int): squence threshold.
         inference_max_seq_length (int): max_seq_length for inference. Required by MCoreEngine (>=0.12). Defaults to
@@ -135,64 +138,44 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         max_batch_size (int): max batch size for inference. Defaults to 32.
         random_seed (Optional[int]): random seed for inference. Defaults to None.
         enable_flash_decode (bool): enable flash decode for inference. Defaults to False.
+        enable_cuda_graphs (bool): enable CUDA graphs for inference. Defaults to False.`
     """
 
     def __init__(
         self,
+        num_devices: int = None,
+        num_nodes: int = None,
         nemo_checkpoint_filepath: str = None,
-        num_devices: int = 1,
-        num_nodes: int = 1,
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
         expert_model_parallel_size: int = 1,
-        expert_tensor_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
-        inference_batch_times_seqlen_threshold: int = 1000,
+        inference_batch_times_seqlen_threshold: int = 32768,
         inference_max_seq_length: int = 4096,
-        max_batch_size: int = 32,
+        enable_flash_decode: bool = False,
+        enable_cuda_graphs: bool = False,
+        max_batch_size: int = 8,
         random_seed: Optional[int] = None,
-        enable_flash_decode: bool = True,
-        legacy_ckpt: bool = False,
     ):
-        self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
-
-        strategy = nl.MegatronStrategy(
-            tensor_model_parallel_size=tensor_model_parallel_size,
-            pipeline_model_parallel_size=pipeline_model_parallel_size,
-            context_parallel_size=context_parallel_size,
-            expert_model_parallel_size=expert_model_parallel_size,
-            expert_tensor_parallel_size=expert_tensor_parallel_size,
-            sequence_parallel=False,
-            setup_optimizers=False,
-            store_optimizer_states=False,
-            ckpt_load_strictness=StrictHandling.LOG_ALL if legacy_ckpt else None,
-        )
-
-        trainer = nl.Trainer(
-            accelerator="gpu",
-            devices=num_devices,
+        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = create_mcore_engine(
+            num_devices=num_devices,
             num_nodes=num_nodes,
-            strategy=strategy,
-            plugins=nl.MegatronMixedPrecision(
-                precision="bf16-mixed",
-                params_dtype=torch.bfloat16,
-                pipeline_dtype=torch.bfloat16,
-                autocast_enabled=False,
-                grad_reduce_in_fp32=False,
-            ),
-        )
-
-        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_mcore_engine(
             path=Path(nemo_checkpoint_filepath),
-            trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             inference_max_seq_length=inference_max_seq_length,
             max_batch_size=max_batch_size,
             random_seed=random_seed,
+            tensor_model_parallel_size=tensor_model_parallel_size,
+            expert_model_parallel_size=expert_model_parallel_size,
+            pipeline_model_parallel_size=pipeline_model_parallel_size,
+            context_parallel_size=context_parallel_size,
             enable_flash_decode=enable_flash_decode,
+            enable_cuda_graphs=enable_cuda_graphs,
         )
+        self.enable_cuda_graphs = enable_cuda_graphs
+        self.max_batch_size = max_batch_size
 
     def generate(
         self, prompts: List[str], inference_params: Optional[CommonInferenceParams] = None
@@ -206,14 +189,37 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         Returns:
             List[InferenceRequest]: A list containing the generated results.
         """
-
         inference_params = inference_params or CommonInferenceParams()
-        results = self.mcore_engine.generate(
-            prompts=prompts,
-            add_BOS=False,
-            common_inference_params=inference_params,
-        )
-        return list(results)
+
+        # Store the original number of prompts
+        orig_num_prompts = len(prompts)
+
+        # If CUDA graphs are enabled and we have fewer prompts than max_batch_size,
+        # pad the prompts array to reach max_batch_size
+        if self.enable_cuda_graphs and orig_num_prompts < self.max_batch_size:
+            # Create a copy of the prompts to avoid modifying the original list
+            padded_prompts = prompts.copy()
+
+            # Add sample prompts to reach max_batch_size
+            # We'll duplicate the first prompt for simplicity
+            sample_prompt = prompts[0] if prompts else ""
+            padded_prompts.extend([sample_prompt] * (self.max_batch_size - orig_num_prompts))
+
+            results = self.mcore_engine.generate(
+                prompts=padded_prompts,
+                add_BOS=False,
+                common_inference_params=inference_params,
+            )
+
+            # Only return results for the original prompts
+            return list(results)[:orig_num_prompts]
+        else:
+            results = self.mcore_engine.generate(
+                prompts=prompts,
+                add_BOS=False,
+                common_inference_params=inference_params,
+            )
+            return list(results)
 
     def generate_other_ranks(self):
         """
