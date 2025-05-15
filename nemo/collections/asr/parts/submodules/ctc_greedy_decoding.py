@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -139,7 +139,7 @@ if TRITON_AVAILABLE:
     import triton
     import triton.language as tl
 
-    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_advance_triton_kernel_v2
+    from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_triton import ngram_advance_triton_kernel
 
     @triton.jit
     def _ctc_greedy_decode_lm_triton(
@@ -160,7 +160,7 @@ if TRITON_AVAILABLE:
         arcs_weights_ptr,
         BLOCK_SIZE: "tl.constexpr",
     ):
-        _ngram_advance_triton_kernel_v2(
+        ngram_advance_triton_kernel(
             vocab_size=vocab_size,
             states_ptr=states_ptr,
             new_states_ptr=new_states_ptr,
@@ -491,7 +491,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     """
 
-    ngram_lm_batch: Optional[FastNGramLM]
+    ngram_lm_batch: Optional[NGramGPULanguageModel]
 
     @property
     def input_types(self):
@@ -532,7 +532,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # init ngram lm
         if ngram_lm_model is not None:
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
@@ -942,7 +942,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # This mimics the for loop in GreedyCTCInfer::forward.
         for i in range(batch_size):
-            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
             hypothesis.score = scores[i]
 
             prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
