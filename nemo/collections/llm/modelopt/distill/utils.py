@@ -54,6 +54,7 @@ class DistillationConfig:
         skip_lm_loss: Whether to skip computing the standard language model loss (default: ``True``).
         kd_loss_scale: Relative scaling factor for the distillation loss if ``skip_lm_loss`` is ``False``.
     """
+
     intermediate_layer_pairs: List[Tuple[str, str]] = field(default_factory=list)
     logit_layers: Tuple[str, str] = ("output_layer", "output_layer")
     skip_lm_loss: bool = True

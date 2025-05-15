@@ -327,7 +327,7 @@ class ProjectionLayer(MegatronModule):
     def _init_weights(self, module):
         """Initialize the weights."""
         if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=0.01)
+            self.config.init_method(module.weight.data)
             if module.bias is not None:
                 module.bias.data.zero_()
 
