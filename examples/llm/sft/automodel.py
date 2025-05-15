@@ -23,7 +23,6 @@ from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
