@@ -43,6 +43,7 @@ def get_chat_template(tokenizer):
     else:
         return tokenizer, getattr(tokenizer, 'eos_id', None), has_chat_template
 
+
 @FirstRankPerNode()
 def make_squad_hf_dataset(
     tokenizer, micro_batch_size, seq_length=None, limit_dataset_samples=None, start_of_turn_token=None, fp8=False
