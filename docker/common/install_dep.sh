@@ -343,7 +343,7 @@ else
   fi
 fi
 
-echo 'Installing nemo'
+echo 'Installing nemo dependencies'
 cd $CURR
 
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
