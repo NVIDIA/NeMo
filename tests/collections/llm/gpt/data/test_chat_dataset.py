@@ -343,7 +343,7 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         decoded_answer = self.tokenizer.tokenizer.decode(tokenized_chat["answer_ids"])
         assert torch.equal(
             tokenized_chat["input_ids"],
-            torch.cat((tokenized_chat["context_ids"], tokenized_chat["answer_ids"]), dim=-1)
+            torch.cat((tokenized_chat["context_ids"], tokenized_chat["answer_ids"]), dim=-1),
         )
         assert self.decoded_context == decoded_context
         assert self.decoded_answer == decoded_answer
@@ -373,7 +373,7 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
 
         assert torch.equal(
             tokenized_chat["input_ids"],
-            torch.cat((tokenized_chat["context_ids"], tokenized_chat["answer_ids"]), dim=-1)
+            torch.cat((tokenized_chat["context_ids"], tokenized_chat["answer_ids"]), dim=-1),
         )
         assert self.decoded_context == decoded_context
         assert self.decoded_answer == decoded_answer
