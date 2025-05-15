@@ -70,7 +70,7 @@ def slurm_executor(
 
     env_vars = {
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TRANSFORMERS_OFFLINE": "0",  # Enable online downloads from HuggingFace
         "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
         "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
         "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
