@@ -61,12 +61,6 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         print("prompts: ", prompts)
     """
 
-    def __init__(self, url, model_name):
-        super().__init__(
-            url=url,
-            model_name=model_name,
-        )
-
     # these arguments are explicitly defined in order to make it clear to user what they can pass
     # names and optionality should exactly match the get_triton_input() results for MegatronGPTDeployable
     def query_llm(
@@ -187,12 +181,6 @@ class NemoQueryLLMHF(NemoQueryLLMBase):
         print("prompts: ", prompts)
     """
 
-    def __init__(self, url, model_name):
-        super().__init__(
-            url=url,
-            model_name=model_name,
-        )
-
     # these arguments are explicitly defined in order to make it clear to user what they can pass
     # names and optionality should exactly match the get_triton_input() results for HuggingFaceLLMDeploy
     def query_llm(
@@ -306,12 +294,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
         )
         print("prompts: ", prompts)
     """
-
-    def __init__(self, url, model_name):
-        super().__init__(
-            url=url,
-            model_name=model_name,
-        )
 
     def query_llm(
         self,
@@ -548,12 +530,6 @@ class NemoQueryTRTLLMPytorch(NemoQueryLLMBase):
         )
         print("prompts: ", prompts)
     """
-
-    def __init__(self, url, model_name):
-        super().__init__(
-            url=url,
-            model_name=model_name,
-        )
 
     def query_llm(
         self,
