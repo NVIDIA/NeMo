@@ -63,6 +63,7 @@ def io_model_exporter(cls, format, register=True):
 
     if llm_available and register:
         from nemo.lightning.io import model_exporter as _model_exporter
+
         base_decorator = _model_exporter(cls, format)
 
     def decorator(exporter_cls):
