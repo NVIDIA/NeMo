@@ -360,7 +360,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
             blank_mask = labels == self._blank_index
-            time_indices_current_labels.copy_(time_indices, non_blocking=True)
+            time_indices_current_labels.copy_(time_indices)
             if use_alignments:
                 alignments.add_results_masked_(
                     active_mask=active_mask,
@@ -833,9 +833,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
                 )
         else:
             # labels
-            self.state.labels[:current_batch_size].copy_(
-                prev_batched_state.labels[:current_batch_size], non_blocking=True
-            )
+            self.state.labels[:current_batch_size].copy_(prev_batched_state.labels[:current_batch_size])
             # initial state
             self.decoder.batch_replace_states_all(
                 src_states=prev_batched_state.predictor_state,
@@ -901,7 +899,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         # checking max_symbols is not needed, since we already forced advancing time indices for such cases
         torch.eq(self.state.labels, self._blank_index, out=self.state.blank_mask)
         # blank_mask = self.labels == self._blank_index
-        self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
+        self.state.time_indices_current_labels.copy_(self.state.time_indices)
         if self.state.alignments is not None:
             self.state.alignments.add_results_masked_no_checks_(
                 active_mask=self.state.active_mask,
@@ -980,7 +978,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
     def _after_inner_loop_step(self):
         """After inner loop: store labels, query decoder/LM, force max symbols"""
         self._after_inner_loop_store_labels()
-        self._after_inner_loop_query_lm()
+        self._after_inner_loop_select_lm_states()
         self._after_inner_loop_get_decoder_output()
         self._after_inner_loop_force_max_symbols()
 
@@ -993,8 +991,8 @@ class GreedyBatchedRNNTLoopLabelsComputer(
             self.state.scores,
         )
 
-    def _after_inner_loop_query_lm(self):
-        """Stage 3.2: Query LM with new labels"""
+    def _after_inner_loop_select_lm_states(self):
+        """Stage 3.2: Select LM states with new labels"""
         if self.ngram_lm_batch is not None:
             # select necessary LM states based on chosen labels
             torch.where(
