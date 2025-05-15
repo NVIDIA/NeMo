@@ -23,7 +23,7 @@ from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.torch_norm import L2Norm
+# from megatron.core.transformer.torch_norm import L2Norm
 from megatron.core.utils import deprecate_inference_params, is_fa_min_version
 from torch import Tensor
 
@@ -145,8 +145,9 @@ def get_llama4_layer_spec(config) -> ModuleSpec:
         }
         if config.qk_l2_norm and not is_nope_layer:
             # Use QK Norm
-            updated_layer_spec.submodules.self_attention.submodules.q_layernorm = L2Norm
-            updated_layer_spec.submodules.self_attention.submodules.k_layernorm = L2Norm
+            # updated_layer_spec.submodules.self_attention.submodules.q_layernorm = L2Norm
+            # updated_layer_spec.submodules.self_attention.submodules.k_layernorm = L2Norm
+            pass
         else:
             updated_layer_spec.submodules.self_attention.submodules.q_layernorm = None
             updated_layer_spec.submodules.self_attention.submodules.k_layernorm = None
