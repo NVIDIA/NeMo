@@ -25,7 +25,6 @@ from megatron.core.config_logger import has_config_logger_enabled, log_config_to
 from megatron.core.enums import ModelType
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.inference_params import InferenceParams
-from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.parallel_state import get_context_parallel_group
 from megatron.core.tensor_parallel import scatter_to_sequence_parallel_region
@@ -35,14 +34,14 @@ from megatron.core.utils import deprecate_inference_params, get_batch_on_this_cp
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config
 from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, restore_model_weights
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.optim import OptimizerModule
 from nemo.utils.import_utils import safe_import_from
 
 TENorm, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TENorm")
@@ -557,7 +556,7 @@ class MCoreGemma3VLModel(MegatronModule):
         return attention_mask
 
 
-class Gemma3VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class Gemma3VLModel(NevaModel):
     """Lightning wrapper for Gemma3VL model"""
 
     def __init__(
@@ -567,20 +566,14 @@ class Gemma3VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__()
-        self.config = config
-        self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
-        self.optim.connect(self)  # This will bind the `configure_optimizers` method
-        self.model_transform = model_transform
-        self._training_loss_reduction = None
-        self._validation_loss_reduction = None
+        super().__init__(
+            config=config,
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
-    def configure_model(self) -> None:
-        """Set the MCoreGemma3VLModel"""
-        if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer)
-
+    # pylint: disable=W0221
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -601,40 +594,6 @@ class Gemma3VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
         )
 
         return output_tensor
-
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
-        # pylint: disable=C0115,C0116
-        return self.config.data_step_fn(dataloader_iter)
-
-    def forward_step(self, batch) -> torch.Tensor:
-        # pylint: disable=C0115,C0116
-        return self.config.forward_step_fn(self, batch)
-
-    def training_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # pylint: disable=C0115,C0116
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
-        return self.forward_step(batch)
-
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
-        # pylint: disable=C0115,C0116
-        # In mcore the loss-function is part of the forward-pass (when labels are provided)
-        return self.forward_step(batch)
-
-    @property
-    def training_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
-        # pylint: disable=C0115,C0116
-        if not self._training_loss_reduction:
-            self._training_loss_reduction = MaskedTokenLossReductionWithLossMask()
-
-        return self._training_loss_reduction
-
-    @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
-        # pylint: disable=C0115,C0116
-        if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
-
-        return self._validation_loss_reduction
 
 
 __all__ = [

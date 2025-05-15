@@ -37,7 +37,9 @@ NAME = "gemma3_1b"
 
 
 @run.cli.factory(name=NAME)
-def model() -> run.Config[pl.LightningModule]:
+def model(
+    seq_length: int = 8192,
+) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Gemma3 1B model configuration.
 
@@ -52,8 +54,7 @@ def model() -> run.Config[pl.LightningModule]:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(Gemma3Config1B)
-    conf.seq_length = 8192
+    conf = run.Config(Gemma3Config1B(seq_length=seq_length))
     return run.Config(Gemma3Model, config=conf)
 
 
@@ -137,6 +138,7 @@ def pretrain_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
+    seq_length: int = 8192,
     fn: Callable = pretrain,
 ) -> run.Partial:
     """
@@ -169,13 +171,13 @@ def pretrain_recipe(
     """
     recipe = run.Partial(
         fn,
-        model=model(),
+        model=model(seq_length=seq_length),
         trainer=gemma3_trainer(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=seq_length, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),

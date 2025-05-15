@@ -74,7 +74,7 @@ The special design of gemma3:
 
 - Post word embedding scaling
 
-- The 27B model sets custom q_scaling, others use default head_dim^(-0.5)
+- The 27B model sets custom q_scaling as 168^(-0.5), others use default head_dim^(-0.5)
 
 - Interleaved attention layers
   Pattern: 5 local layers + 1 global layers
