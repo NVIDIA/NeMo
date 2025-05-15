@@ -583,7 +583,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             self.state.batch_size - prev_batched_state.labels.shape[-1] if prev_batched_state is not None else 0
         )
         decoding_state = BatchedGreedyDecodingState(
-            predictor_state=self.decoder.clone_states(self.state.decoder_state),
+            predictor_state=self.decoder.clone_state(self.state.decoder_state),
             predictor_output=self.state.decoder_output.clone(),
             labels=(
                 torch.where(
