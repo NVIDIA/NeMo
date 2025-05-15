@@ -13,11 +13,15 @@
 # limitations under the License.
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
+
+if TYPE_CHECKING:
+    from transformers import MixtralForCausalLM, MixtralConfig
 
 MixtralModel = get_model("MixtralModel")
 
@@ -51,9 +55,8 @@ class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"])
         try:
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
-            # TODO: Optional -- maybe fetch from remote HF?
             logging.warning(
-                f"Only huggingface tokenizer is supported for Mixtral HF export. Tokenizer will not be saved."
+                "Only huggingface tokenizer is supported for Mixtral HF export. Tokenizer will not be saved."
             )
 
         return output_path
@@ -121,7 +124,7 @@ class HFMixtralExporter(io.ModelConnector["MixtralModel", "MixtralForCausalLM"])
         )
 
     @property
-    def tokenizer(self) -> "TokenizerSpec":
+    def tokenizer(self):
         """Get the tokenizer from the NeMo model.
 
         Returns:

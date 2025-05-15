@@ -20,7 +20,7 @@ from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 
 if TYPE_CHECKING:
-    from transformers import GemmaForCausalLM
+    from transformers import GemmaForCausalLM, GemmaConfig
 
 GemmaModel = get_model("GemmaModel")
 
