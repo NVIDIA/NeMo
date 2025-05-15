@@ -14,6 +14,7 @@
 
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 import torch
 
 from nemo.export.huggingface.utils import (
@@ -29,8 +30,8 @@ from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from transformers import LlamaForCausalLM
     from transformers import LlamaConfig as HFLlamaConfig
+    from transformers import LlamaForCausalLM
 
 
 LlamaModel = get_model("LlamaModel")

@@ -79,7 +79,8 @@ __all__ = [
 
 
 try:
-    from nemo.lightning.nemo_logger import NeMoLogger # noqa: F401
+    from nemo.lightning.nemo_logger import NeMoLogger  # noqa: F401
+
     __all__.append("NeMoLogger")
 except ImportError:
     from nemo.utils import logging
