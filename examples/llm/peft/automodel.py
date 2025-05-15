@@ -284,8 +284,8 @@ def main():
         else None
     )
     dataset = make_squad_hf_dataset(
-        model.tokenizer,
-        args.batch_size,
+        tokenizer=model.tokenizer,
+        micro_batch_size=args.batch_size,
         seq_length=args.seq_length,
         start_of_turn_token=args.start_of_turn_token,
         limit_dataset_samples=args.limit_dataset_samples,
