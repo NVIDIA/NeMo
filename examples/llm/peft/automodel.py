@@ -102,8 +102,6 @@ def make_squad_hf_dataset(
         splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
 
     fmt_fn = formatting_prompts_func
-    # print(has_chat_template)
-    # quit()
     if has_chat_template:
         fmt_fn = lambda x: formatting_prompts_func_with_chat_template(x, start_of_turn_token)
     if isinstance(seq_length, int):
