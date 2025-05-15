@@ -12,6 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Script to convert a NeMo 2.0 checkpoint to enable Speculative Decoding.
+
+This script adds speculative decoding capabilities to an existing NeMo 2.0 model checkpoint.
+It supports different speculative decoding algorithms and parallel configurations.
+
+Example usage:
+    python scripts/llm/gpt_convert_speculative.py \
+        --model_path /path/to/nemo2_ckpt \
+        --export_dir /path/to/export_dir \
+        --sd_algorithm eagle \
+        --tp_size 2 \
+        --pp_size 1 \
+        --devices 2
+
+Available speculative decoding algorithms:
+    - eagle (default): Efficient Agent-Guide Language model Execution
+    - medusa: Multi-head decoding for speculative sampling
+
+To customize the speculative decoding algorithm's configuration, please modify the script below where indicated.
+
+For more details on speculative decoding algorithms, refer to the NVIDIA Model Optimizer documentation:
+https://nvidia.github.io/TensorRT-Model-Optimizer/guides/7_speculative_decoding.html
+"""
+
 from argparse import ArgumentParser
 
 from nemo.collections.llm.modelopt import SpeculativeTransform, setup_trainer_and_restore_model_with_modelopt_spec
@@ -64,6 +89,7 @@ if __name__ == "__main__":
     )
 
     # NOTE: > > Modify this to customize config < <
+    # See: https://nvidia.github.io/TensorRT-Model-Optimizer/reference/generated/modelopt.torch.speculative.config.html
     # config = {}
     config = None
 
