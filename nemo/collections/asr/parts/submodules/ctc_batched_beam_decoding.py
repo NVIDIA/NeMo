@@ -186,8 +186,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         beam_threshold: float = 20.0,
         ngram_lm_model: str = None,
         allow_cuda_graphs: bool = True,
-        wb_model: str = None,
-        wb_alpha: float = 1.0,
+        btree_model: str = None,
+        btree_alpha: float = 1.0,
     ):
         """
         Init method.
@@ -212,8 +212,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.allow_cuda_graphs = allow_cuda_graphs
         self.return_best_hypothesis = return_best_hypothesis
 
-        self.wb_model = wb_model
-        self.wb_alpha = wb_alpha
+        self.btree_model = btree_model
+        self.btree_alpha = btree_alpha
         self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
@@ -228,16 +228,16 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.maybe_enable_cuda_graphs()
         
         print("wbwbwbwbwbwbwbwb")
-        print(wb_model)
-        print(wb_alpha)
+        print(btree_model)
+        print(btree_alpha)
 
         self.ngram_lm_batch = None
         if ngram_lm_model is not None:
             assert self._blank_index != 0
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
-        if wb_model is not None:
+        if btree_model is not None:
             assert self._blank_index != 0
-            self.wb_batch = GPUBoostingTreeModel.from_file(lm_path=wb_model, vocab_size=self._blank_index)
+            self.wb_batch = GPUBoostingTreeModel.from_file(lm_path=btree_model, vocab_size=self._blank_index)
 
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
@@ -337,7 +337,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
             if self.wb_batch is not None:
                 wb_scores, batch_wb_states_candidates = self.wb_batch.advance(states=batch_wb_states.view(-1))
-                log_probs[..., :-1] += self.wb_alpha * wb_scores.view(curr_batch_size, self.beam_size, -1)
+                log_probs[..., :-1] += self.btree_alpha * wb_scores.view(curr_batch_size, self.beam_size, -1)
 
             # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
             repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]

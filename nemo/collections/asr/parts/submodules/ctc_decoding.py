@@ -302,8 +302,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 1.0),
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
-                wb_model=self.cfg.beam.get('wb_model', None),
-                wb_alpha=self.cfg.beam.get('wb_alpha', 1.0),
+                btree_model=self.cfg.beam.get('btree_model', None),
+                btree_alpha=self.cfg.beam.get('btree_alpha', 1.0),
             )
 
             self.decoding.override_fold_consecutive_value = False
@@ -377,8 +377,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
-                wb_model=self.cfg.beam.get('wb_model', None),
-                wb_alpha=self.cfg.beam.get('wb_alpha', None),
+                btree_model=self.cfg.beam.get('btree_model', None),
+                btree_alpha=self.cfg.beam.get('btree_alpha', None),
             )
 
             self.decoding.override_fold_consecutive_value = False
