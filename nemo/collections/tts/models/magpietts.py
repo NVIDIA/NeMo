@@ -93,6 +93,13 @@ class CharAwareSubwordEncoder(NeuralModule):
         super().__init__()
         self.subword_id_to_char_ids, self.char_vocab, self.subword_padding_idx = build_vocabs(llm_tokenizer_vocab_items)
         self.embed_tokens = nn.Embedding(self.vocab_size + 2, d_embed, padding_idx=self.vocab_size)
+        self.encoder = transformer_2501.Transformer(
+            n_layers=1,
+            d_model=d_embed,
+            d_ffn=d_embed * 4,
+            sa_n_heads=8,
+            kernel_size=1,
+        )
 
     @property
     def vocab_size(self):
@@ -232,15 +239,15 @@ class MagpieTTSModel(ModelPT):
         if self.model_type != 'decoder_pretrain_synthesizer':
             # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
             
-
             if self.use_bpe_char_tokenizer:
                 # BPE char tokenizer
                 assert len(self.tokenizer.tokenizers) == 1, "BPE char tokenizer should only be used with one tokenizer"
                 tokenizer_name = self.tokenizer.tokenizer_names[0]
                 tokenizer = self.tokenizer.tokenizers[tokenizer_name]
-                subword_vocab_items = tokenizer.get_vocab().items()
-                self.cas_encoder = CharAwareSubwordEncoder(cfg.embedding_dim, subword_vocab_items)
-                import ipdb; ipdb.set_trace()
+                subword_vocab = tokenizer.get_vocab()
+                subword_vocab['<BOS>'] = self.bos_id
+                subword_vocab['<EOS>'] = self.eos_id
+                self.cas_encoder = CharAwareSubwordEncoder(cfg.embedding_dim, subword_vocab.items())
             else:
                 # Regular text embedding
                 self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
@@ -890,7 +897,6 @@ class MagpieTTSModel(ModelPT):
     
     def embed_text(self, text, text_mask):
         if self.use_bpe_char_tokenizer:
-            import ipdb; ipdb.set_trace()
             text_embedded = self.cas_encoder(text, subword_mask=text_mask)
         else:
             text_embedded = self.text_embedding(text)
