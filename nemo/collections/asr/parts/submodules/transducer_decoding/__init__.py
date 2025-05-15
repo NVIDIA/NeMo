@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    GreedyBatchedLabelLoopingComputerBase,
     BatchedGreedyDecodingState,
+    GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.submodules.transducer_decoding.rnnt_label_looping import (
     GreedyBatchedRNNTLabelLoopingComputer,

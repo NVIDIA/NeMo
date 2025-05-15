@@ -36,9 +36,9 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.transducer_decoding import (
+    BatchedGreedyDecodingState,
     GreedyBatchedRNNTLabelLoopingComputer,
     GreedyBatchedTDTLabelLoopingComputer,
-    BatchedGreedyDecodingState,
 )
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
