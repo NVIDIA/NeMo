@@ -804,44 +804,31 @@ def _preprocess(
 
     return dict(input_ids=input_ids, loss_mask=mask, context_ids=context_ids, answer_ids=answer_ids)
 
-
-def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
+def _convert_to_openai_messages(source: dict) -> List[dict]:
     """
-    Preprocess messages to apply chat template and tokenize. Returns a dictionary of tokens
-    {
-        "input_ids": [],
-        "mask": [],
-        "context_ids": [],
-        "answer_ids": [],
-    }
-
-    * input_ids contain tokenized messages with chat template applied
-    * mask corresponds to tokens of input_ids where 1 represents output tokens for the role `assistant` in both
-    context and answer for multi-turn, and 0 to mask all other tokens, e.g. system, user, and tool calling.
-    * context_ids contain tokenized messages with chat template applied for all messages except assistant's last
-    * answer_ids contain tokenized messages with chat template applied for only the assistant's last generated
-    output
-
-    Input source is expected HuggingFace AutoTokenizer format
-        {"messages": [
-            {"role": "system","content":"<text>"},
-            {"role": "user","content":"<text>"},
-            {"role": "assistant","content":"<text>"}
-        ]}
-    Input source as conversations format is also supported and is converted to HF format, however mask and type are
-    ignored. Mask will apply to all non-assistant output tokens.
-        {"conversations": [
-            {"from": "User","value":"<text>"},
-            {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
-        ]}
+    Input
+        source - HuggingFace AutoTokenizer messages format
+            {"messages": [
+                {"role": "system","content":"<text>"},
+                {"role": "user","content":"<text>"},
+                {"role": "assistant","content":"<text>"}
+            ]}
+        source - can also be conversation format, these are converted to HF messages format
+            Mask and type are ignored. Mask will apply to all non-assistant output tokens.
+            {"conversations": [
+                {"from": "User","value":"<text>"},
+                {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
+            ]}
+    
+    Output
+    
+    [
+        {"role": "system","content":"<text>"},
+        {"role": "user","content":"<text>"},
+        {"role": "assistant","content":"<text>"}
+    ]
     """
-    if not hasattr(tokenizer.tokenizer, "apply_chat_template"):
-        raise ValueError("Cannot apply chat template with tokenizer that is not a HuggingFace AutoTokenizer")
-
-    tools = None
     if isinstance(source, dict):
-        tools = source.get("tools") or tool_schemas
-
         if source.get("conversations"):
             # Detect if Nemo {"conversations": [{"from": "User/Assistant", "value": ""}]}
             # Convert to HuggingFace chat template [{"role": "stystem/user/assistant", "content": ""}]
@@ -854,6 +841,55 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
             chat = source.get("messages")
     else:
         chat = source
+    
+    return chat
+
+
+
+def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
+    """
+    Preprocess messages to apply chat template and tokenize. Returns a dictionary of tokens
+    Input:
+        source - HuggingFace AutoTokenizer messages format
+            {"messages": [
+                {"role": "system","content":"<text>"},
+                {"role": "user","content":"<text>"},
+                {"role": "assistant","content":"<text>"}
+            ]}
+        source - can also be conversation format, these are converted to HF messages format
+            Mask and type are ignored. Mask will apply to all non-assistant output tokens.
+            {"conversations": [
+                {"from": "User","value":"<text>"},
+                {"from": "Assistant","value":"<text>", "mask": "User", "system": "<text>", "type": "TEXT_TO_VALUE"}
+            ]}
+        tokenizer - tokenizer to apply chat templates to
+        tool_schemas - Optional tool_schemas to supply to apply_chat_template, these will be superseeded
+           by tools supplied with the message
+
+    Output
+    {
+        "input_ids": torch.LongTensor(),
+        "mask": torch.BoolTensor(),
+        "context_ids": torch.LongTensor(),
+        "answer_ids": torch.LongTensor(),
+    }
+
+    * input_ids contain tokenized messages with chat template applied
+    * mask corresponds to tokens of input_ids where 1 represents output tokens for the role `assistant` in both
+    context and answer for multi-turn, and 0 to mask all other tokens, e.g. system, user, and tool calling.
+    * context_ids contain tokenized messages with chat template applied for all messages except assistant's last
+    * answer_ids contain tokenized messages with chat template applied for only the assistant's last generated
+    output
+    """
+    if not hasattr(tokenizer.tokenizer, "apply_chat_template"):
+        raise ValueError("Cannot apply chat template with tokenizer that is not a HuggingFace AutoTokenizer")
+
+    chat = _convert_to_openai_messages(source)
+    tools = None
+    if isinstance(source, dict):
+        tools = source.get("tools") or tool_schemas
+    else:
+        tools = tool_schemas
 
     # assistant mask only works if chat template has generation keyword
     template_has_generation_kwd = GENERATION_REGEX.search(tokenizer.tokenizer.chat_template) is not None
