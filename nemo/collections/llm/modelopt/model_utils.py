@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,27 @@ if HAVE_TE and HAVE_MAMBA_SSM and HAVE_CAUSAL_CONV1D:
     from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
 
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
+
+
+def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
+    """Set model.config.transformer_layer_spec to modelopt spec."""
+    logging.info("Setting model.config.transformer_layer_spec to gpt_modelopt_spec")
+    assert isinstance(model_cfg, llm.GPTConfig), "model_cfg must be a GPTConfig"
+    try:
+        from functools import partial
+
+        from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+
+        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm)
+    except ImportError:
+        # Older spec: Will be deprecated, doesnt support DeepSeek
+        from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
+
+        modelopt_spec = get_gpt_layer_modelopt_spec(
+            num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm
+        )
+    model_cfg.transformer_layer_spec = modelopt_spec
+    return model_cfg
 
 
 def _set_gpt_mamba_modelopt_spec(

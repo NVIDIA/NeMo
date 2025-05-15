@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,12 +19,13 @@ import lightning.pytorch as L
 import torch
 import torch.nn.functional as F
 from megatron.core import parallel_state
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.bert.model import BertConfig, BertModel
-from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.llm.bert.model.base import get_packed_seq_params
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter
 from nemo.lightning import io
 from nemo.lightning.pytorch.optim import OptimizerModule
@@ -44,12 +45,12 @@ def bert_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     required_keys.add("attention_mask")
     required_keys.add("token_type_ids")
 
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.add("input_ids")
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 

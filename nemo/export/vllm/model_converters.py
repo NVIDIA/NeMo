@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,7 +78,8 @@ class LlamaConverter(ModelConverter):
 
         yield ('model.embed_tokens.weight', state_dict['model.embedding.word_embeddings.weight'])
         yield ('model.norm.weight', state_dict['model.decoder.final_layernorm.weight'])
-        yield ('lm_head.weight', state_dict['model.output_layer.weight'])
+        if not nemo_model_config.get("share_embeddings_and_output_weights", False):
+            yield ('lm_head.weight', state_dict['model.output_layer.weight'])
 
         for layer in range(int(num_layers)):
             qkv_weights = state_dict['model.decoder.layers.self_attention.linear_qkv.weight'][layer]

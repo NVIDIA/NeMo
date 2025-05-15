@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -164,6 +164,7 @@ class NemoModelConfig(ModelConfig):
         )
         self.is_attention_free = self._init_attention_free()
         self.has_inner_state = self._init_has_inner_state()
+        self.has_noops = self._init_has_noops()
 
         self._verify_tokenizer_mode()
         self._verify_quantization()
@@ -209,6 +210,7 @@ class NemoModelConfig(ModelConfig):
             'num_key_value_heads': 'num_query_groups',
             # 'hidden_act': 'activation', ## <- vLLM has good defaults for the models, nemo values are wrong
             'max_position_embeddings': ['max_position_embeddings', 'encoder_seq_length'],
+            'tie_word_embeddings': 'share_embeddings_and_output_weights',
             'rms_norm_eps': 'layernorm_epsilon',
             'attention_dropout': 'attention_dropout',
             'initializer_range': 'init_method_std',
