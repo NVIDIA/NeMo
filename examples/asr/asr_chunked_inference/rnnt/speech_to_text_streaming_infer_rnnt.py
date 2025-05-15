@@ -152,6 +152,8 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
+    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
+    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
     # Chunked configs
