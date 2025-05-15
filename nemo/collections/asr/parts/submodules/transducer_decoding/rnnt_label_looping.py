@@ -24,8 +24,8 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
     BatchedGreedyDecodingState,
-    GreedyBatchedLoopLabelsComputerBase,
-    SeparateGraphsLoopLabels,
+    GreedyBatchedLabelLoopingComputerBase,
+    SeparateGraphsLabelLooping,
 )
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -40,7 +40,7 @@ except ImportError:
     HAVE_CUDA_PYTHON = False
 
 
-class LoopLabelsState:
+class LabelLoopingState:
     """
     State for Loop Labels algorithm. Used only with CUDA graphs.
     In initialization phase it is possible to assign values (tensors) to the state.
@@ -169,8 +169,8 @@ class LoopLabelsState:
         )
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(
-    GreedyBatchedLoopLabelsComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin
+class GreedyBatchedRNNTLabelLoopingComputer(
+    GreedyBatchedLabelLoopingComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin
 ):
     """
     Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding.
@@ -182,11 +182,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(
     """
 
     INITIAL_MAX_TIME = 375  # initial max time, used to init state for Cuda graphs
-    CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_rnnt.cu"
+    CUDA_PROGRAM_NAME = b"while_label_looping_conditional_rnnt.cu"
 
-    separate_graphs: Optional[SeparateGraphsLoopLabels]
+    separate_graphs: Optional[SeparateGraphsLabelLooping]
     full_graph: Optional[torch.cuda.CUDAGraph]
-    state: Optional[LoopLabelsState]
+    state: Optional[LabelLoopingState]
     ngram_lm_batch: Optional[NGramGPULanguageModel]
 
     def __init__(
@@ -614,12 +614,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         extern "C" __device__ __cudart_builtin__ void cudaGraphSetConditional(cudaGraphConditionalHandle handle, unsigned int value);
     
         extern "C" __global__
-        void outer_loop_labels_conditional(cudaGraphConditionalHandle handle, const bool *active_mask_any)
+        void outer_label_looping_conditional(cudaGraphConditionalHandle handle, const bool *active_mask_any)
         {
          cudaGraphSetConditional(handle, *active_mask_any);
         }
         """
-        return run_nvrtc(kernel_string, b"outer_loop_labels_conditional", cls.CUDA_PROGRAM_NAME)
+        return run_nvrtc(kernel_string, b"outer_label_looping_conditional", cls.CUDA_PROGRAM_NAME)
 
     @classmethod
     def _create_inner_while_loop_kernel(cls):
@@ -647,7 +647,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
     ):
         batch_size, max_time, encoder_dim = encoder_output_projected.shape
 
-        self.state = LoopLabelsState(
+        self.state = LabelLoopingState(
             batch_size=batch_size,
             max_time=max(max_time, self.INITIAL_MAX_TIME),
             encoder_dim=encoder_dim,
@@ -727,7 +727,7 @@ class GreedyBatchedRNNTLoopLabelsComputer(
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
         stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
-        self.separate_graphs = SeparateGraphsLoopLabels()
+        self.separate_graphs = SeparateGraphsLabelLooping()
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),

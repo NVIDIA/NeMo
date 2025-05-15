@@ -294,8 +294,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.preprocessor.featurizer.pad_to = 0
     asr_model.preprocessor.featurizer.corrected_pad = True
     asr_model.eval()
-    decoding_computer: GreedyBatchedLoopLabelsComputerBase = asr_model.decoding.decoding._decoding_computer
-    decoding_computer.disable_cuda_graphs()  # TODO: fix
+    decoding_computer: GreedyBatchedLoopLabelsComputerBase = asr_model.decoding.decoding.decoding_computer
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 

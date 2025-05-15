@@ -12,11 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.submodules.transducer_decoding.rnnt_loop_labels_computer import (
-    GreedyBatchedRNNTLoopLabelsComputer,
+from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
+    GreedyBatchedLabelLoopingComputerBase,
+    BatchedGreedyDecodingState,
 )
-from nemo.collections.asr.parts.submodules.transducer_decoding.tdt_loop_labels_computer import (
-    GreedyBatchedTDTLoopLabelsComputer,
+from nemo.collections.asr.parts.submodules.transducer_decoding.rnnt_label_looping import (
+    GreedyBatchedRNNTLabelLoopingComputer,
+)
+from nemo.collections.asr.parts.submodules.transducer_decoding.tdt_label_looping import (
+    GreedyBatchedTDTLabelLoopingComputer,
 )
 
-__all__ = ["GreedyBatchedRNNTLoopLabelsComputer", "GreedyBatchedTDTLoopLabelsComputer"]
+__all__ = [
+    "GreedyBatchedLabelLoopingComputerBase",
+    "GreedyBatchedRNNTLabelLoopingComputer",
+    "GreedyBatchedTDTLabelLoopingComputer",
+    "BatchedGreedyDecodingState",
+]

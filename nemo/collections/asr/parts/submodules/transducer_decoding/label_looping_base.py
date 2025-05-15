@@ -26,7 +26,7 @@ from nemo.utils.enum import PrettyStrEnum
 
 
 @dataclass
-class SeparateGraphsLoopLabels:
+class SeparateGraphsLabelLooping:
     """Class to store Cuda graphs for decoding when separate graphs are used"""
 
     before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
@@ -47,7 +47,7 @@ class BatchedGreedyDecodingState:
     time_jumps: Optional[torch.Tensor] = None
 
 
-class GreedyBatchedLoopLabelsComputerBase(ABC):
+class GreedyBatchedLabelLoopingComputerBase(ABC):
     """
     Base class for Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220
     for optimized batched greedy decoding.

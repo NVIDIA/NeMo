@@ -147,7 +147,7 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
     # transcribe with use implementation with cuda graphs
     decoding_config["greedy"]["use_cuda_graph_decoder"] = True
     nemo_model.change_decoding_strategy(decoding_config)
-    nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+    nemo_model.decoding.decoding.decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
