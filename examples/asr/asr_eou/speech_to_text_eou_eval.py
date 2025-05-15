@@ -17,7 +17,7 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models.asr_eou_models import EncDecRNNTBPEEOUModel
+from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -27,10 +27,10 @@ from nemo.utils.trainer_utils import resolve_trainer_cfg
 def load_model(cfg, trainer):
     if "init_from_nemo_model" in cfg:
         logging.info(f"Loading model from local file: {cfg.init_from_nemo_model}")
-        model = EncDecRNNTBPEEOUModel.restore_from(cfg.init_from_nemo_model, trainer=trainer)
+        model = ASRModel.restore_from(cfg.init_from_nemo_model, trainer=trainer)
     elif "init_from_pretrained_model" in cfg:
         logging.info(f"Loading model from remote: {cfg.init_from_pretrained_model}")
-        model = EncDecRNNTBPEEOUModel.from_pretrained(cfg.init_from_pretrained_model, trainer=trainer)
+        model = ASRModel.from_pretrained(cfg.init_from_pretrained_model, trainer=trainer)
     else:
         raise ValueError(
             "Please provide either 'init_from_nemo_model' or 'init_from_pretrained_model' in the config file."

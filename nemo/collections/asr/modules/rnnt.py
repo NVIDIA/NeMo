@@ -1511,7 +1511,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         Returns the hypotheses generated during the last forward pass.
         """
         if self.hypotheses is None:
-            raise ValueError("No hypotheses were generated during the last forward pass.")
+            raise ValueError(
+                "No hypotheses were generated during the last forward pass. Did you set keep_hypotheses=True in forward()?"
+            )
         return self.hypotheses
 
     def project_encoder(self, encoder_output: torch.Tensor) -> torch.Tensor:

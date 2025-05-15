@@ -1,11 +1,16 @@
-# It contains the default values for training a cache-aware streaming FastConformer-Transducer ASR model, large size (~115M) with sub-word encoding.
+# It contains the default values for training a cache-aware streaming FastConformer-Hybrid-Transducer-CTC ASR model, large size (~115M) with sub-word encoding.
+# The model would have two decoders: RNNT (Transducer) and CTC
 
 # You may find more detail:
 # FastConformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#fast-conformer
+# Hybrid ASR: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#hybrid-transducer-ctc
 # Cache-aware Conformer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#cache-aware-streaming-conformer
+# FastConformer-CTC's architecture config: NeMo/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml
 # FastConformer-Transducer's architecture config, along with the optimal batch size and precision: NeMo/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml
 
-name: "FastConformer-Transducer-BPE-Streaming-EOU"
+# Note: if training loss does not converge, you may increase warm-up to 20K.
+
+name: "FastConformer-Hybrid-Transducer-CTC-BPE-Streaming-EOU"
 
 model:
   token_init_method: "constant"  # choices=['min', 'max', 'mean', 'constant']
@@ -76,9 +81,9 @@ model:
     batch_duration: null  # you may disable batch_duration by setting it to `null`
     batch_size: 16 
     shuffle: false
+    drop_last: true
     num_workers: 8
     pin_memory: true
-    drop_last: true
     quadratic_duration: 30
     num_buckets: 30
     num_cuts_for_bins_estimate: 10000
@@ -165,7 +170,6 @@ model:
     att_context_style: chunked_limited # regular or chunked_limited
     att_context_probs: null
 
-
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     pos_emb_max_len: 5000
 
@@ -237,6 +241,19 @@ model:
       tsd_max_sym_exp: 50  # for Time Synchronous Decoding
       alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
 
+  # The section which would contain the decoder and decoding configs of the auxiliary CTC decoder
+  aux_ctc:
+    ctc_loss_weight: 0.3 # the weight used to combine the CTC loss with the RNNT loss
+    use_cer: false
+    ctc_reduction: 'mean_batch'
+    decoder:
+      _target_: nemo.collections.asr.modules.ConvASRDecoder
+      feat_in: null
+      num_classes: -1
+      vocabulary: []
+    decoding:
+      strategy: "greedy"
+
   # config for InterCTC loss: https://arxiv.org/abs/2102.03216
   # specify loss weights and which layers to use for InterCTC
   # e.g., to reproduce the paper results, set loss_weights: [0.3]
@@ -257,16 +274,16 @@ model:
 
   optim:
     name: adamw
-    lr: 5.0 #  1e-4
+    lr: 5.0
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
 
     # scheduler setup
     sched:
-      name: NoamAnnealing  # NoamAnnealing CosineAnnealing
-      # scheduler config override
+      name: NoamAnnealing
       d_model: ${model.encoder.d_model}
+      # scheduler config override
       warmup_steps: 10000
       warmup_ratio: null
       min_lr: 1e-6
