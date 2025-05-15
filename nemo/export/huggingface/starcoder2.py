@@ -20,8 +20,8 @@ from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 
 if TYPE_CHECKING:
-    from transformers import Starcoder2ForCausalLM
     from transformers import Starcoder2Config as HFStarcoder2Config
+    from transformers import Starcoder2ForCausalLM
 
 Starcoder2Model = get_model("Starcoder2Model")
 
