@@ -26,6 +26,7 @@ import torch
 from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm, vlm
 from nemo.collections.vlm.hf.data.automodel_datasets import (
     mk_hf_vlm_dataset_cord_v2,
@@ -43,6 +44,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
         return nl.FSDP2Strategy(
@@ -98,6 +100,9 @@ if __name__ == '__main__':
 
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
+    with FirstRankPerNode():
+        dataset = dataset_fn(args.data_path, processor, args.mbs, args.gbs)
+
     model_kwargs = {}
 
     # Gemma-3 recommends eager attention implementation
@@ -133,7 +138,7 @@ if __name__ == '__main__':
 
     llm.finetune(
         model=model,
-        data=dataset_fn(args.data_path, processor, args.mbs, args.gbs),
+        data=dataset,
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -142,7 +147,7 @@ if __name__ == '__main__':
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=1,
+            accumulate_grad_batches=max(1, args.gbs // args.mbs),
             gradient_clip_val=1,
             use_distributed_sampler=False,
             enable_checkpointing=args.disable_ckpt,
