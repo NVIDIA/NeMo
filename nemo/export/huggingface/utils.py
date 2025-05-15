@@ -26,8 +26,6 @@ from nemo.utils import logging
 llm_available = True
 try:
     from nemo.collections import llm  # noqa: F401
-
-    raise Exception("llm_available is true")
 except ImportError:
     llm = None
     llm_available = False
@@ -210,3 +208,15 @@ def get_tokenizer(path: str) -> "TokenizerSpec":
         tokenizer.tokenizer.eos_token_id = tokenizer.eos_id
 
     return tokenizer
+
+
+def load_connector(path, target):
+    model_yaml = Path(str(path)) / "context" / "model.yaml"
+    with open(model_yaml, 'r') as stream:
+        config = yaml.safe_load(stream)
+    
+    model_class = config['_target_'].split('.')[-1]
+    exporter = get_exporter(model_class, target)
+    if exporter is None:
+        raise ValueError(f"Unsupported model type: {model_class}")
+    return exporter(Path(path))
