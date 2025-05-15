@@ -151,19 +151,25 @@ def ais_binary() -> str:
         logging.info('ais available at the default path: %s', default_path, mode=LogMode.ONCE)
         return default_path
     else:
-        logging.warning(f'AIS binary not found with `which ais` and at the default path {default_path}.', mode=LogMode.ONCE)
+        logging.warning(
+            f'AIS binary not found with `which ais` and at the default path {default_path}.', mode=LogMode.ONCE
+        )
         return None
+
 
 @lru_cache(maxsize=1)
 def aistore_client(endpoint_url: str = None):
     """Return an ais client if available."""
     try:
         import aistore
+
         version = parse_version(aistore.__version__)
         return aistore.Client(endpoint_url), version
 
     except ModuleNotFoundError:
-        logging.warning("aistore is not installed, cannot read data from AIStore with AIS Python SDK.", mode=LogMode.ONCE)
+        logging.warning(
+            "aistore is not installed, cannot read data from AIStore with AIS Python SDK.", mode=LogMode.ONCE
+        )
         return (None, None)
 
 
@@ -204,8 +210,7 @@ def open_datastore_object(path: str, num_retries: int = 5):
         endpoint = ais_endpoint()
         if endpoint is None:
             raise RuntimeError(f'AIS endpoint not set, cannot resolve {path}')
-        
-        
+
         client, version = aistore_client(endpoint)
         binary = ais_binary()
 
@@ -238,12 +243,8 @@ def open_datastore_object(path: str, num_retries: int = 5):
 
             for _ in range(num_retries):
                 proc = subprocess.Popen(
-                                        cmd,
-                                        shell=True,
-                                        stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE,
-                                        text=False  # bytes mode
-                                )
+                    cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False  # bytes mode
+                )
                 stream = proc.stdout
                 if stream.peek(1):
                     done = True
@@ -251,9 +252,12 @@ def open_datastore_object(path: str, num_retries: int = 5):
 
             if not done:
                 error = proc.stderr.read().decode("utf-8", errors="ignore").strip()
-                raise ValueError(f"{path} couldn't be opened with AIS binary after {num_retries} attempts because of the following exception: {error}")
+                raise ValueError(
+                    f"{path} couldn't be opened with AIS binary after {num_retries} attempts because of the following exception: {error}"
+                )
 
             return stream
+
 
 def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -> str:
     """Download an object from a store path and return the local path.
@@ -348,6 +352,7 @@ class DataStoreObject:
         """Return a human-readable description of the object."""
         description = f'{type(self)}: store_path={self.store_path}, local_path={self.local_path}'
         return description
+
 
 def datastore_object_get(store_object: DataStoreObject) -> bool:
     """A convenience wrapper for multiprocessing.imap.
