@@ -579,18 +579,26 @@ class GreedyBatchedRNNTLabelLoopingComputer(
         # NB: last labels can not exist (nothing decoded on this step).
         # return the last labels from the previous state in this case
         last_labels = self.state.batched_hyps.get_last_labels(pad_id=self._SOS)
+        pad_batch_size = (
+            self.state.batch_size - prev_batched_state.labels.shape[-1] if prev_batched_state is not None else 0
+        )
         decoding_state = BatchedGreedyDecodingState(
             predictor_state=self.decoder.clone_states(self.state.decoder_state),
             predictor_output=self.state.decoder_output.clone(),
             labels=(
-                torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
+                torch.where(
+                    last_labels == self._SOS,
+                    F.pad(prev_batched_state.labels, (0, pad_batch_size), value=self._SOS),
+                    last_labels,
+                )
                 if prev_batched_state is not None
                 else last_labels
             ),
             decoded_length=(
-                encoder_output_length
+                self.state.encoder_output_length
                 if prev_batched_state is None
-                else encoder_output_length + prev_batched_state.decoded_length
+                else self.state.encoder_output_length
+                + F.pad(prev_batched_state.decoded_length, (0, pad_batch_size), value=0)
             ),
             lm_state=self.state.batch_lm_states.clone() if self.state.batch_lm_states is not None else None,
             time_jumps=None,
@@ -840,7 +848,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 dst_states=self.state.decoder_state,
                 batch_size=current_batch_size,
             )
-            self.state.decoder_output.copy_(prev_batched_state.predictor_output)
+            self.state.decoder_output[:current_batch_size].copy_(
+                prev_batched_state.predictor_output[:current_batch_size]
+            )
             # initial state - lm
             if self.ngram_lm_batch is not None:
                 self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
