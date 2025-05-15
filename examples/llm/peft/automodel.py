@@ -44,7 +44,6 @@ def get_chat_template(tokenizer):
         return tokenizer, getattr(tokenizer, 'eos_id', None), has_chat_template
 
 
-
 def make_squad_hf_dataset(
     tokenizer, micro_batch_size, seq_length=None, limit_dataset_samples=None, start_of_turn_token=None, fp8=False
 ):
@@ -52,10 +51,7 @@ def make_squad_hf_dataset(
 
     def pad_to_seq_length(sample):
         seq_pad_len_ar = max(0, seq_length - len(next(iter(sample.values()))))
-        return {
-            k: v + [eos_token_id if v != 'loss_mask' else 0] * seq_pad_len_ar
-            for k, v in sample.items()
-        }
+        return {k: v + [eos_token_id if v != 'loss_mask' else 0] * seq_pad_len_ar for k, v in sample.items()}
 
     def formatting_prompts_func(example):
         formatted_text = [
@@ -212,7 +208,9 @@ def main():
         '--batch-size',
         '--micro-batch-size',
         dest='batch_size',
-        default=1, type=int, help='Micro batch size to use for training.'
+        default=1,
+        type=int,
+        help='Micro batch size to use for training.',
     )
     parser.add_argument(
         '--trust-remote-code',
