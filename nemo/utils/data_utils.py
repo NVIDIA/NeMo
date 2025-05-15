@@ -343,7 +343,6 @@ class DataStoreObject:
         description = f'{type(self)}: store_path={self.store_path}, local_path={self.local_path}'
         return description
 
-
 def datastore_object_get(store_object: DataStoreObject) -> bool:
     """A convenience wrapper for multiprocessing.imap.
 
