@@ -288,6 +288,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 compute_timestamps=self.compute_timestamps,
                 preserve_frame_confidence=self.preserve_frame_confidence,
                 confidence_method_cfg=self.confidence_method_cfg,
+                ngram_lm_model=self.cfg.greedy.get("ngram_lm_model", None),
+                ngram_lm_alpha=self.cfg.greedy.get("ngram_lm_alpha", 0.0),
             )
 
         elif self.cfg.strategy == 'beam':
