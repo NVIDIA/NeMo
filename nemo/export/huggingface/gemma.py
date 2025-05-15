@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import torch
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
+from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config, torch_dtype_from_mcore_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 
@@ -30,18 +30,19 @@ GemmaModel = get_model("GemmaModel")
 class HFGemmaExporter(io.ModelConnector["GemmaModel", "GemmaForCausalLM"]):
     """ """
 
-    def init(self) -> "GemmaForCausalLM":
+    def init(self, torch_dtype: torch.dtype = torch.bfloat16) -> "GemmaForCausalLM":
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return AutoModelForCausalLM.from_config(self.config)
+            return AutoModelForCausalLM.from_config(self.config, torch_dtype=torch_dtype)
 
     def apply(self, output_path: Path) -> Path:
         """ """
-        target = self.init()
         source, source_config = ckpt_load(str(self))
         source = _ModelState(source, source_config)
+
+        target = self.init(torch_dtype_from_mcore_config(source_config))
         target = self.convert_state(source, target)
 
         target = target.cpu()
