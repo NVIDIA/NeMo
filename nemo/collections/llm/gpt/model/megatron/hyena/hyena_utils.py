@@ -584,7 +584,7 @@ class ExplicitSingleDecayFilter(nn.Module):
     ):
         super().__init__()
         with get_cuda_rng_tracker().fork():
-            h = torch.randn(d_model, L_cache) / math.sqrt(L_cache)
+            h = torch.randn(d_model, L_cache, device=torch.cuda.current_device()) / math.sqrt(L_cache)
         assert decay_preset in ["strong", "normal", "weak"]
         if decay_preset == "strong":
             log_r_min = 0
@@ -602,15 +602,15 @@ class ExplicitSingleDecayFilter(nn.Module):
             h[:, :1] = 1.0
         self.num_decay_repeats = num_decay_repeats
         self.h = nn.Parameter(h)
-        t = torch.linspace(0, 1, L_cache)[None]
+        t = torch.linspace(0, 1, L_cache, device=torch.cuda.current_device())[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
         self.model_parallel_rank = get_tensor_model_parallel_rank()
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
-        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model)[:, None].repeat(self.num_decay_repeats, 1)
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=torch.cuda.current_device())[:, None].repeat(self.num_decay_repeats, 1)
         decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
-        decay = torch.exp((-decay_domain * t).cuda())
+        decay = torch.exp(-decay_domain * t)
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
         setattr(self.decay, 'tensor_model_parallel', True)
