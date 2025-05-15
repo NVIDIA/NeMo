@@ -307,7 +307,7 @@ def init_from_pretrained_nemo(model: EncDecHybridRNNTCTCBPEModel, pretrained_mod
     return
 
 
-@hydra_runner(config_path="../conf/asr_eou", config_name="fastconformer_transducer_bpe_streaming")
+@hydra_runner(config_path="../conf/asr_eou", config_name="fastconformer_hybrid_transducer_ctc_bpe_streaming")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
