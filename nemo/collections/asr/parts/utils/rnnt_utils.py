@@ -406,6 +406,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: token durations for TDT
         """
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
@@ -435,6 +436,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: token durations for TDT
         """
         # accumulate scores
         # same as self.scores[active_mask] += scores[active_mask], but non-blocking

@@ -423,18 +423,18 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             if self.max_symbols is not None:
                 # pre-allocated memory, no need for checks
                 batched_hyps.add_results_masked_no_checks_(
-                    active_mask,
-                    labels,
-                    time_indices_current_labels,
-                    scores,
+                    active_mask=active_mask,
+                    labels=labels,
+                    time_indices=time_indices_current_labels,
+                    scores=scores,
                 )
             else:
                 # auto-adjusted storage
                 batched_hyps.add_results_masked_(
-                    active_mask,
-                    labels,
-                    time_indices_current_labels,
-                    scores,
+                    active_mask=active_mask,
+                    labels=labels,
+                    time_indices=time_indices_current_labels,
+                    scores=scores,
                 )
 
             # stage 3: get decoder (prediction network) output with found labels
@@ -985,10 +985,10 @@ class GreedyBatchedRNNTLabelLoopingComputer(
     def _after_inner_loop_store_labels(self):
         """Stage 3.1: Store hypotheses, update decoder state"""
         self.state.batched_hyps.add_results_masked_no_checks_(
-            self.state.active_mask,
-            self.state.labels,
-            self.state.time_indices_current_labels,
-            self.state.scores,
+            active_mask=self.state.active_mask,
+            labels=self.state.labels,
+            time_indices=self.state.time_indices_current_labels,
+            scores=self.state.scores,
         )
 
     def _after_inner_loop_select_lm_states(self):

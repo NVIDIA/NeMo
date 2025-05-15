@@ -51,13 +51,14 @@ class LabelLoopingState:
     batch_size: int  # (maximum) length of internal storage for batch dimension
     device: torch.device  # device to store preallocated tensors
 
-    all_durations: torch.Tensor
+    model_durations: torch.Tensor
 
     encoder_output_projected: torch.Tensor  # projected output from the encoder for decoding algorithm
     encoder_output_length: torch.Tensor  # length of the (projected) output from the encoder
 
     labels: torch.Tensor  # storage for current labels
     scores: torch.Tensor  # storage for current scores
+    durations: torch.Tensor  # storage for current predicted durations
 
     batch_indices: torch.Tensor  # indices of elements in batch (constant, range [0, batch_size-1])
 
@@ -89,7 +90,6 @@ class LabelLoopingState:
     batch_lm_states: Optional[torch.Tensor] = None
     lm_scores: Optional[torch.Tensor] = None
     batch_lm_states_candidates: Optional[torch.Tensor] = None
-    durations: Optional[torch.Tensor] = None  # storage for current predicted durations
 
     def __init__(
         self,
@@ -103,7 +103,6 @@ class LabelLoopingState:
         preserve_alignments=False,
         preserve_frame_confidence=False,
         include_duration_confidence: bool = False,
-        include_duration: bool = False,
     ):
         """
 
@@ -142,6 +141,7 @@ class LabelLoopingState:
         self.safe_time_indices = torch.zeros_like(self.batch_indices)
         self.time_indices_current_labels = torch.zeros_like(self.time_indices)
         self.last_timesteps = torch.zeros_like(self.time_indices)
+        self.durations = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
 
         self.active_mask = torch.zeros([self.batch_size], dtype=torch.bool, device=self.device)
         self.advance_mask = torch.zeros_like(self.active_mask)
@@ -171,11 +171,6 @@ class LabelLoopingState:
             )
         else:
             self.alignments = None
-
-        if include_duration:
-            self.durations = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
-        else:
-            self.durations = None
 
     def need_reinit(self, encoder_output_projected: torch.Tensor) -> bool:
         """Check if need to reinit state: larger batch_size/max_time, or new device"""
@@ -342,8 +337,8 @@ class GreedyBatchedTDTLabelLoopingComputer(
         )
 
         # durations
-        all_durations = self.durations.to(device, non_blocking=True)
-        num_durations = all_durations.shape[0]
+        model_durations = self.durations.to(device, non_blocking=True)
+        num_durations = model_durations.shape[0]
 
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
@@ -410,7 +405,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 torch.where(labels == self._blank_index, scores, scores_w_lm, out=scores)
 
             jump_durations_indices = logits[:, -num_durations:].argmax(dim=-1)
-            durations = all_durations[jump_durations_indices]
+            durations = model_durations[jump_durations_indices]
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
@@ -463,7 +458,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
                 torch.where(advance_mask, more_scores, scores, out=scores)
                 jump_durations_indices = logits[:, -num_durations:].argmax(dim=-1)
-                durations = all_durations[jump_durations_indices]
+                durations = model_durations[jump_durations_indices]
 
                 if use_alignments:
                     alignments.add_results_masked_(
@@ -491,20 +486,20 @@ class GreedyBatchedTDTLabelLoopingComputer(
             if self.max_symbols is not None:
                 # pre-allocated memory, no need for checks
                 batched_hyps.add_results_masked_no_checks_(
-                    found_labels_mask,
-                    labels,
-                    time_indices_current_labels,
-                    scores,
-                    durations if self.include_duration else None,
+                    active_mask=found_labels_mask,
+                    labels=labels,
+                    time_indices=time_indices_current_labels,
+                    scores=scores,
+                    token_durations=durations if self.include_duration else None,
                 )
             else:
                 # auto-adjusted storage
                 batched_hyps.add_results_masked_(
-                    found_labels_mask,
-                    labels,
-                    time_indices_current_labels,
-                    scores,
-                    durations if self.include_duration else None,
+                    active_mask=found_labels_mask,
+                    labels=labels,
+                    time_indices=time_indices_current_labels,
+                    scores=scores,
+                    token_durations=durations if self.include_duration else None,
                 )
 
             # stage 3: get decoder (prediction network) output with found labels
@@ -728,9 +723,8 @@ class GreedyBatchedTDTLabelLoopingComputer(
             preserve_alignments=self.preserve_alignments,
             preserve_frame_confidence=self.preserve_frame_confidence,
             include_duration_confidence=self.include_duration_confidence,
-            include_duration=self.include_duration,
         )
-        self.state.all_durations = self.durations.to(self.state.device, non_blocking=True)
+        self.state.model_durations = self.durations.to(self.state.device, non_blocking=True)
 
         # init decoder state
         self.state.labels.fill_(self._SOS)
@@ -939,6 +933,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
 
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
+        self.state.durations.fill_(0)
 
     def _before_inner_loop_get_joint_output(self):
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
@@ -955,8 +950,10 @@ class GreedyBatchedTDTLabelLoopingComputer(
             .squeeze(1)
             .squeeze(1)
         )
-        # same as: scores, labels = logits[:, : -self.state.all_durations.shape[0]].max(-1)
-        torch.max(logits[:, : -self.state.all_durations.shape[0]], dim=-1, out=(self.state.scores, self.state.labels))
+        # same as: scores, labels = logits[:, : -self.state.model_durations.shape[0]].max(-1)
+        torch.max(
+            logits[:, : -self.state.model_durations.shape[0]], dim=-1, out=(self.state.scores, self.state.labels)
+        )
         if self.ngram_lm_batch is not None:
             # get lm scores/states
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
@@ -966,13 +963,13 @@ class GreedyBatchedTDTLabelLoopingComputer(
             self.state.lm_scores.copy_(lm_scores.to(dtype=self.state.float_dtype))
             # combined scores with LM - without blank
             scores_w_lm, labels_w_lm = (
-                logits[:, : -self.state.all_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
+                logits[:, : -self.state.model_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
             ).max(dim=-1)
             # preserve "blank" / "non-blank" category
             torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_lm, out=self.state.labels)
             torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_lm, out=self.state.scores)
-        jump_durations_indices = logits[:, -self.state.all_durations.shape[0] :].argmax(dim=-1)
-        durations = self.state.all_durations[jump_durations_indices]
+        jump_durations_indices = logits[:, -self.state.model_durations.shape[0] :].argmax(dim=-1)
+        self.state.durations.copy_(self.state.model_durations[jump_durations_indices])
 
         # search for non-blank labels using joint, advancing time indices for blank labels
         # checking max_symbols is not needed, since we already forced advancing time indices for such cases
@@ -980,10 +977,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
         # blank_mask = self.labels == self._blank_index
         self.state.time_indices_current_labels.copy_(self.state.time_indices)
         # for blank labels force duration >= 1
-        durations.masked_fill_(torch.logical_and(durations == 0, self.state.blank_mask), 1)
-
-        if self.state.durations is not None:
-            self.state.durations.copy_(durations)
+        self.state.durations.masked_fill_(torch.logical_and(self.state.durations == 0, self.state.blank_mask), 1)
 
         if self.state.alignments is not None:
             self.state.alignments.add_results_masked_no_checks_(
@@ -991,12 +985,14 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=self.state.labels if self.preserve_alignments else None,
-                confidence=self._get_frame_confidence(logits=logits, num_durations=self.state.all_durations.shape[0]),
+                confidence=self._get_frame_confidence(
+                    logits=logits, num_durations=self.state.model_durations.shape[0]
+                ),
             )
 
         # advance_mask is a mask for current batch for searching non-blank labels;
         # each element is True if non-blank symbol is not yet found AND we can increase the time index
-        self.state.time_indices.add_(durations * self.state.active_mask)
+        self.state.time_indices.add_(self.state.durations * self.state.active_mask)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
@@ -1027,17 +1023,17 @@ class GreedyBatchedTDTLabelLoopingComputer(
         )
         # get labels (greedy) and scores from current logits, replace labels/scores with new
         # labels[advance_mask] are blank, and we are looking for non-blank labels
-        more_scores, more_labels = logits[:, : -self.state.all_durations.shape[0]].max(-1)
+        more_scores, more_labels = logits[:, : -self.state.model_durations.shape[0]].max(-1)
         if self.ngram_lm_batch is not None:
             # combined scores with LM - without blank
             more_scores_w_lm, more_labels_w_lm = (
-                logits[:, : -self.state.all_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
+                logits[:, : -self.state.model_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
             ).max(dim=-1)
             # preserve "blank" / "non-blank" category
             torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
             torch.where(more_labels == self._blank_index, more_scores, more_scores_w_lm, out=more_scores)
-        jump_durations_indices = logits[:, -self.state.all_durations.shape[0] :].argmax(dim=-1)
-        durations = self.state.all_durations[jump_durations_indices]
+        jump_durations_indices = logits[:, -self.state.model_durations.shape[0] :].argmax(dim=-1)
+        more_durations = self.state.model_durations[jump_durations_indices]
         # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
         torch.where(self.state.advance_mask, more_labels, self.state.labels, out=self.state.labels)
         # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
@@ -1049,23 +1045,24 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 time_indices=self.state.time_indices_current_labels,
                 logits=logits if self.preserve_alignments else None,
                 labels=more_labels if self.preserve_alignments else None,
-                confidence=self._get_frame_confidence(logits=logits, num_durations=self.state.all_durations.shape[0]),
+                confidence=self._get_frame_confidence(
+                    logits=logits, num_durations=self.state.model_durations.shape[0]
+                ),
             )
 
         # blank_mask = self.labels == self._blank_index
         torch.eq(self.state.labels, self._blank_index, out=self.state.blank_mask)
         # for blank labels force duration >= 1
-        durations.masked_fill_(torch.logical_and(durations == 0, self.state.blank_mask), 1)
+        more_durations.masked_fill_(torch.logical_and(more_durations == 0, self.state.blank_mask), 1)
         # self.time_indices += self.blank_mask
         torch.where(
             self.state.advance_mask,
-            self.state.time_indices + durations,
+            self.state.time_indices + more_durations,
             self.state.time_indices,
             out=self.state.time_indices,
         )
 
-        if self.state.durations is not None:
-            torch.where(self.state.advance_mask, durations, self.state.durations, out=self.state.durations)
+        torch.where(self.state.advance_mask, more_durations, self.state.durations, out=self.state.durations)
 
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
@@ -1085,11 +1082,11 @@ class GreedyBatchedTDTLabelLoopingComputer(
             torch.logical_and(self.state.active_mask_prev, self.state.labels != self._blank_index)
         )
         self.state.batched_hyps.add_results_masked_no_checks_(
-            self.state.found_labels_mask,
-            self.state.labels,
-            self.state.time_indices_current_labels,
-            self.state.scores,
-            self.state.durations,
+            active_mask=self.state.found_labels_mask,
+            labels=self.state.labels,
+            time_indices=self.state.time_indices_current_labels,
+            scores=self.state.scores,
+            token_durations=self.state.durations if self.include_duration else None,
         )
 
     def _after_inner_loop_select_lm_states(self):
