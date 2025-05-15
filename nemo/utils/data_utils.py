@@ -16,17 +16,19 @@ import os
 import pathlib
 import shutil
 import subprocess
+from functools import lru_cache
 from typing import Any, Callable, Dict, Iterable, Tuple
 from urllib.parse import urlparse
+from packaging.version import parse as parse_version
 
 try:
     from nemo import __version__ as NEMO_VERSION
 except ImportError:
     NEMO_VERSION = 'git'
-from lhotse.serialization import open_best
 
 from nemo import constants
 from nemo.utils import logging
+from nemo.utils.nemo_logging import LogMode
 
 
 def resolve_cache_dir() -> pathlib.Path:
@@ -127,16 +129,13 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
         raise ValueError(f"Unexpected format for ais endpoint: {endpoint}")
     return os.path.join(result.hostname, str(result.port))
 
-
 def ais_binary() -> str:
-    """Return location of `ais` binary."""
+    """Return location of `ais` binary if available."""
     path = shutil.which('ais')
 
     if path is not None:
         logging.debug('Found AIS binary at %s', path)
         return path
-
-    logging.warning('AIS binary not found with `which ais`.')
 
     # Double-check if it exists at the default path
     default_path = '/usr/local/bin/ais'
@@ -144,7 +143,20 @@ def ais_binary() -> str:
         logging.info('ais available at the default path: %s', default_path)
         return default_path
     else:
-        raise RuntimeError('AIS binary not found.')
+        logging.warning(f'AIS binary not found with `which ais` and at the default path {default_path}.', mode=LogMode.ONCE)
+        return None
+
+@lru_cache(maxsize=1)
+def aistore_client(endpoint_url: str = None):
+    """Return an ais client if available."""
+    try:
+        import aistore
+        version = parse_version(aistore.__version__)
+        return aistore.Client(endpoint_url), version
+
+    except ModuleNotFoundError:
+        logging.warning("aistore is not installed, cannot read data from AIStore with AIS Python SDK.", mode=LogMode.ONCE)
+        return (None, None)
 
 
 def datastore_path_to_local_path(store_path: str) -> str:
@@ -170,6 +182,73 @@ def datastore_path_to_local_path(store_path: str) -> str:
     return local_path
 
 
+
+def open_datastore_object(path: str, num_retries: int = 5):
+    """Open a datastore object and return a file-like object.
+
+    Args:
+        path: path to an object
+        num_retries: number of retries if the get command fails with ais binary, as AIS Python SDK has its own retry mechanism
+
+    Returns:
+        File-like object that supports read()
+    """
+
+    if is_datastore_path(path):
+        endpoint = ais_endpoint()
+        if endpoint is None:
+            raise RuntimeError(f'AIS endpoint not set, cannot resolve {path}')
+        
+        
+        client, version = aistore_client(endpoint)
+        binary = ais_binary()
+
+        if not client and not binary:
+            raise RuntimeError(
+                f"Neither AIS Python SDK nor AIS binary found, cannot resolve {path}. Please install one of them.\n"
+                "AIS Python SDK can be installed with `pip install aistore`.\n"
+                "See AIS binary installation instructions at https://github.com/NVIDIA/aistore?tab=readme-ov-file#install-from-release-binaries.\n"
+                "AIS Python SDK is the recommended way to read data from AIStore."
+            )
+
+        if client:
+            object = client.fetch_object_by_url(path)
+            try:
+                # AIStore >= 1.10.0
+                request = object.get_reader()
+            except AttributeError:
+                # AIStore < 1.10.0 deprecated method
+                request = object.get()
+            if version >= parse_version("1.9.1"):
+                # AIStore SDK 1.9.1 supports ObjectFile for improved read fault resiliency
+                return request.as_file()
+            else:
+                return request.raw()
+
+        elif binary:
+            cmd = f'{binary} get {path} -'
+
+            done = False
+
+            for _ in range(num_retries):
+                proc = subprocess.Popen(
+                                        cmd,
+                                        shell=True,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,
+                                        text=False  # bytes mode
+                                )
+                stream = proc.stdout
+                if stream.peek(1):
+                    done = True
+                    break
+
+            if not done:
+                error = proc.stderr.read().decode("utf-8", errors="ignore").strip()
+                raise ValueError(f"{path} couldn't be opened with AIS binary after {num_retries} attempts because of the following exception: {error}")
+
+            return stream
+
 def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -> str:
     """Download an object from a store path and return the local path.
     If the input `path` is a local path, then nothing will be done, and
@@ -178,15 +257,12 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
     Args:
         path: path to an object
         force: force download, even if a local file exists
-        num_retries: number of retries if the get command fails
+        num_retries: number of retries if the get command fails with ais binary, as AIS Python SDK has its own retry mechanism
 
     Returns:
         Local path of the object.
     """
     if is_datastore_path(path):
-        endpoint = ais_endpoint()
-        if endpoint is None:
-            raise RuntimeError(f'AIS endpoint not set, cannot resolve {path}')
 
         local_path = datastore_path_to_local_path(store_path=path)
 
@@ -198,7 +274,7 @@ def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -
                 os.makedirs(local_dir, exist_ok=True)
 
             with open(local_path, 'wb') as f:
-                f.write(open_best(path, mode='rb').read())
+                f.write(open_datastore_object(path).read(), num_retries=num_retries)
 
         return local_path
 
@@ -279,8 +355,7 @@ def datastore_object_get(store_object: DataStoreObject) -> bool:
     """
     return store_object.get() is not None
 
-
-def wds_lhotse_url_opener(
+def wds_url_opener(
     data: Iterable[Dict[str, Any]],
     handler: Callable[[Exception], bool],
     **kw: Dict[str, Any],
@@ -303,11 +378,13 @@ def wds_lhotse_url_opener(
         assert "url" in sample
         url = sample["url"]
         try:
-            stream = open_best(url, mode="rb")
+            if is_datastore_path(url):
+                stream = open_datastore_object(url)
+            else:
+                stream = open(url, mode="rb")
             sample.update(stream=stream)
             yield sample
         except Exception as exn:
-            exn.args = exn.args + (url,)
             if handler(exn):
                 continue
             else:
