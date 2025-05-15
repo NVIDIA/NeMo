@@ -32,10 +32,10 @@ from nemo.utils.nemo_logging import LogMode
 
 try:
     from lhotse.serialization import open_best
+
     LHOTSE_AVAILABLE = True
 except ImportError:
     LHOTSE_AVAILABLE = False
-
 
 
 def resolve_cache_dir() -> pathlib.Path:
@@ -136,6 +136,7 @@ def ais_endpoint_to_dir(endpoint: str) -> str:
         raise ValueError(f"Unexpected format for ais endpoint: {endpoint}")
     return os.path.join(result.hostname, str(result.port))
 
+
 @lru_cache(maxsize=1)
 def ais_binary() -> str:
     """Return location of `ais` binary if available."""
@@ -194,6 +195,7 @@ def datastore_path_to_local_path(store_path: str) -> str:
         raise ValueError(f'Unexpected store path format: {store_path}')
 
     return local_path
+
 
 def open_datastore_object(path: str, num_retries: int = 5):
     """Open a datastore object and return a file-like object.
@@ -367,6 +369,7 @@ def datastore_object_get(store_object: DataStoreObject) -> bool:
 
 
 if not LHOTSE_AVAILABLE:
+
     def open_best(path: str, mode: str = "rb"):
         if is_datastore_path(path):
             stream = open_datastore_object(path)
