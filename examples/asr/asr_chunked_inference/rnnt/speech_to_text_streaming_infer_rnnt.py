@@ -116,6 +116,9 @@ class ContextSize:
             right=self.right // factor,
         )
 
+    def __str__(self):
+        return f"Left {self.left} - Chunk {self.chunk} - Right {self.right}"
+
 
 @dataclass
 class ContextSizeBatch:
@@ -149,23 +152,14 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    num_workers: int = 0
-    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
 
-    # Set to True to output greedy timestamp information (only supported models)
-    compute_timestamps: bool = False
-
-    # Set to True to output language ID information
-    compute_langs: bool = False
-
     # Chunked configs
-    chunk_secs: float = 1.6  # Chunk length in seconds
+    chunk_secs: float = 2  # Chunk length in seconds
     left_context_secs: float = (
         10.0  # left context: larger value improves quality without affecting theoretical latency
     )
-    right_context_secs: float = 1.6  # right context
+    right_context_secs: float = 2  # right context
 
     model_stride: int = (
         8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
@@ -176,6 +170,8 @@ class TranscriptionConfig:
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     allow_mps: bool = True  # allow to select MPS device (Apple Silicon M-series GPU)
+    compute_dtype: str = "float32"
+    matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -199,7 +195,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
-    torch.set_float32_matmul_precision("high")  # TODO: param
+    torch.set_float32_matmul_precision(cfg.matmul_precision)
 
     cfg = OmegaConf.structured(cfg)
 
@@ -261,6 +257,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
+    if cfg.compute_dtype != "float32":
+        asr_model.to(getattr(torch, cfg.compute_dtype))
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
@@ -290,10 +288,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     model_stride = cfg.model_stride
     assert manifest is not None
     records = read_manifest(manifest)
+
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
     asr_model.preprocessor.featurizer.corrected_pad = True
     asr_model.eval()
+
     decoding_computer: GreedyBatchedLabelLoopingComputerBase = asr_model.decoding.decoding.decoding_computer
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
@@ -319,18 +319,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         f"Chunk {context_samples.chunk / audio_sample_rate:.2f}, "
         f"Right {context_samples.right / audio_sample_rate:.2f}"
     )
-    logging.info(
-        "Corrected contexts (subsampled encoder frames): "
-        f"Left {context_encoder_frames.left}, "
-        f"Chunk {context_encoder_frames.chunk}, "
-        f"Right {context_encoder_frames.right}"
-    )
-    logging.info(
-        "Corrected contexts (in audio samples): "
-        f"Left {context_samples.left}, "
-        f"Chunk {context_samples.chunk}, "
-        f"Right {context_samples.right}"
-    )
+    logging.info(f"Corrected contexts (subsampled encoder frames): {context_encoder_frames}")
+    logging.info(f"Corrected contexts (in audio samples): {context_samples}")
     latency_secs = (context_samples.chunk + context_samples.right) / audio_sample_rate
     logging.info(f"Theoretical latency: {latency_secs:.2f} seconds")
 
@@ -408,14 +398,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         0,
                     )
 
-                assert buffer_size_batch.total().max().item() == buffer_size.total() == buffer.shape[1]
+                # assert buffer_size_batch.total().max().item() == buffer_size.total() == buffer.shape[1]
 
                 encoder_output, encoder_output_len = asr_model(
                     input_signal=buffer,
                     input_signal_length=buffer_size_batch.total(),
                 )
                 encoder_output = encoder_output.transpose(1, 2)  # [B, T, C]
-                # ? discard extra encoder output frame
                 # remove extra context from encoder_output
                 encoder_context = buffer_size.subsample(factor=encoder_frame2audio_samples)
                 encoder_context_batch = buffer_size_batch.subsample(factor=encoder_frame2audio_samples)
@@ -428,6 +417,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     prev_batched_state=state,
                 )
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
+                # merge hyps with previous hyps
                 if current_hyps is not None:
                     for hyp, new_hyp in zip(current_hyps, new_hyps):
                         hyp.merge(new_hyp)
@@ -442,9 +432,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             all_hyps.extend(current_hyps)
 
     for hyp in all_hyps:
-        text = asr_model.tokenizer.ids_to_text(hyp.y_sequence.tolist())
-        hyp.text = text
-    # print([hyp.text for hyp in all_hyps])
+        hyp.text = asr_model.tokenizer.ids_to_text(hyp.y_sequence.tolist())
 
     output_filename, pred_text_attr_name = write_transcription(
         all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
