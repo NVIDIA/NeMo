@@ -44,8 +44,18 @@ def get_chat_template(tokenizer):
         return tokenizer, getattr(tokenizer, 'eos_id', None), has_chat_template
 
 
-def make_squad_hf_dataset(tokenizer, batch_size, limit_batch_samples=None, start_of_turn_token=None, fp8=False):
+
+def make_squad_hf_dataset(
+    tokenizer, micro_batch_size, seq_length=None, limit_dataset_samples=None, start_of_turn_token=None, fp8=False
+):
     tokenizer, eos_token_id, has_chat_template = get_chat_template(tokenizer)
+
+    def pad_to_seq_length(sample):
+        seq_pad_len_ar = max(0, seq_length - len(next(sample.values())))
+        return {
+            k: v + [eos_token_id if v != 'loss_mask' else 0] * seq_pad_len_ar
+            for k, v in sample.items()
+        }
 
     def formatting_prompts_func(example):
         formatted_text = [
@@ -63,8 +73,8 @@ def make_squad_hf_dataset(tokenizer, batch_size, limit_batch_samples=None, start
         input_ids = context_ids + answer_ids
         return dict(
             input_ids=input_ids,
-            labels=(input_ids)[1:] + [eos_id] or [input_ids[-1]],
-            loss_mask=[0] * len(context_ids) + [1] * len(answer_ids),
+            labels=input_ids[1:] + [eos_token_id] or [input_ids[-1]],
+            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
     def formatting_prompts_func_with_chat_template(example, start_of_turn_token=None):
@@ -86,20 +96,30 @@ def make_squad_hf_dataset(tokenizer, batch_size, limit_batch_samples=None, start
             loss_mask=loss_mask,
         )
 
-    datamodule = llm.HFDatasetDataModule(
-        "rajpurkar/squad",
-        split=f"train[:{limit_batch_samples}]" if isinstance(limit_batch_samples, int) else 'train',
-        micro_batch_size=batch_size,
-        pad_token_id=eos_token_id or 0,
-        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
-    )
+    splits = ['train', 'validation']
+    if limit_dataset_samples is not None:
+        assert isinstance(limit_dataset_samples, int), "Expected limit_dataset_samples to be an int"
+        splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
+
     fmt_fn = formatting_prompts_func
+    # print(has_chat_template)
+    # quit()
     if has_chat_template:
         fmt_fn = lambda x: formatting_prompts_func_with_chat_template(x, start_of_turn_token)
+    if isinstance(seq_length, int):
+        fmt_fn_ = fmt_fn
+        fmt_fn = lambda x: pad_to_seq_length(fmt_fn_(x))
+
+    datamodule = llm.HFDatasetDataModule(
+        "rajpurkar/squad",
+        split=splits,
+        micro_batch_size=micro_batch_size,
+        pad_token_id=getattr(tokenizer, 'eos_id', 0) or 0,
+        pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+    )
     datamodule.map(
         fmt_fn,
         batched=False,
-        batch_size=2,
         remove_columns=["id", "title", "context", "question", 'answers'],
     )
     return datamodule
@@ -206,6 +226,7 @@ def main():
         default=None,
         help='If set will limit num of dataset samples. Default None (disabled)',
     )
+    parser.add_argument('--seq-length', default=None, type=int, help='Sequence length to use for training')
     args = parser.parse_args()
 
     # CPUOffload WA for known issue
@@ -260,12 +281,17 @@ def main():
         if args.auto_resume
         else None
     )
-
+    dataset = make_squad_hf_dataset(
+        model.tokenizer,
+        args.batch_size,
+        seq_length=args.seq_length,
+        start_of_turn_token=args.start_of_turn_token,
+        limit_dataset_samples=args.limit_dataset_samples,
+        fp8=args.fp8,
+    )
     llm.api.finetune(
         model=model,
-        data=make_squad_hf_dataset(
-            model.tokenizer, args.batch_size, args.limit_batch_samples, args.start_of_turn_token, args.fp8
-        ),
+        data=dataset,
         trainer=nl.Trainer(
             devices=args.devices,
             num_nodes=args.num_nodes,
