@@ -15,6 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from __future__ import annotations
+
 import copy
 import hashlib
 import inspect
@@ -22,13 +23,13 @@ import os
 import shutil
 import traceback
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
-from collections.abc import Mapping, Sequence
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import hydra
 import torch
@@ -726,8 +727,8 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         """
         Should list all pre-trained models available via NVIDIA NGC cloud.
-        Note: There is no check that requires model names and aliases to be unique. In the case of a collision, whatever
-        model (or alias) is listed first in the this returned list will be instantiated.
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collision, 
+        whatever model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
             A list of PretrainedModelInfo entries
@@ -852,7 +853,8 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
 
         if location_in_the_cloud is None:
             raise FileNotFoundError(
-                f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."
+                f"Model {model_name} was not found. Check cls.list_available_models()\n"
+                f"for the list of all available models."
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
