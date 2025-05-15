@@ -251,7 +251,11 @@ def main():
         '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
     )
     parser.add_argument('--global-batch-size', default=32, type=int, help='Global batch size to use for training.')
-    parser.add_argument('--micro-batch-size', default=1, type=int, help='Micro batch size to use for training.')
+    parser.add_argument(
+        '--batch-size',
+        '--micro-batch-size',
+        dest=batch_size,
+        default=1, type=int, help='Micro batch size to use for training.')
     parser.add_argument(
         '--limit-val-batches',
         default=0.0,
@@ -297,7 +301,7 @@ def main():
 
         wandb = WandbLogger(
             project=args.wandb_project,
-            name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_sp{args.sequence_parallel}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.micro_batch_size}_lr{args.lr}",
+            name=f"{model}_nodes{args.num_nodes}_dev{args.devices}_strat_{args.strategy}_dp{args.dp_size}_cp{args.cp_size}_tp{args.tp_size}_sp{args.sequence_parallel}_seqlen{args.seq_length}_gb{args.global_batch_size}_mb{args.batch_size}_lr{args.lr}",
         )
 
     callbacks = []
@@ -367,13 +371,13 @@ def main():
     if args.mock_dataset:
         dataset = HFMockDataModule(
             seq_length=args.seq_length,
-            micro_batch_size=args.micro_batch_size,
+            micro_batch_size=args.atch_size,
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
         dataset = make_squad_hf_dataset(
             tokenizer=model.tokenizer,
-            micro_batch_size=args.micro_batch_size,
+            micro_batch_size=args.batch_size,
             seq_length=args.seq_length,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
