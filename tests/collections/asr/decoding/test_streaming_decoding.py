@@ -15,6 +15,7 @@
 import copy
 from typing import Optional
 
+import librosa
 import pytest
 import torch
 from omegaconf import open_dict
@@ -37,8 +38,6 @@ if torch.mps.is_available():
 
 
 def load_audio(file_path, target_sr=16000):
-    import librosa
-
     audio, sr = librosa.load(file_path, sr=target_sr)
     return torch.tensor(audio, dtype=torch.float32), sr
 
