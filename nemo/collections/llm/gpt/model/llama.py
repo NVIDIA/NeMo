@@ -666,7 +666,6 @@ class HFLlamaPEFTExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             use_dora=isinstance(self.peft_obj, DoRA),
         )
 
-
     @property
     def tokenizer(self) -> "TokenizerSpec":
         """Get the tokenizer from the NeMo model.
@@ -782,6 +781,7 @@ class HFLlamaPEFTExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
             # no rope
         )
         return config
+
 
 @io.model_importer(LlamaModel, "hf")
 class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):

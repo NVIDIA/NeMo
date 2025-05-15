@@ -214,7 +214,7 @@ def load_connector(path, target):
     model_yaml = Path(str(path)) / "context" / "model.yaml"
     with open(model_yaml, 'r') as stream:
         config = yaml.safe_load(stream)
-    
+
     model_class = config['_target_'].split('.')[-1]
     exporter = get_exporter(model_class, target)
     if exporter is None:

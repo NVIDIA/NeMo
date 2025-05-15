@@ -330,4 +330,3 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
                 state_dict[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
 
         return _ModelState(state_dict, source_config)
-
