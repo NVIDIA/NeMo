@@ -61,14 +61,14 @@ def finetune_recipe(
     llm.import_ckpt(model=model, source=f"hf://{HF_MODEL_NAME}")
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=num_gpus_per_node,
+        tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
         virtual_pipeline_model_parallel_size=None,
         encoder_tensor_model_parallel_size=0,
         encoder_pipeline_model_parallel_size=0,
         context_parallel_size=1,
-        sequence_parallel=num_gpus_per_node > 1,
+        sequence_parallel=True,
         ckpt_async_save=True,
         ckpt_parallel_save=True,
         ckpt_parallel_load=True,
@@ -162,4 +162,4 @@ def finetune_recipe(
 
 
 if __name__ == "__main__":
-    finetune_recipe(f"/tmp/{NAME}", num_gpus_per_node=1)
+    finetune_recipe(f"/tmp/{NAME}", num_gpus_per_node=2)

@@ -155,9 +155,12 @@ class Gemma3Config(GPTConfig):
     flash_decode: bool = False
     gradient_accumulation_fusion: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = gemma3_layer_spec
+    scatter_embedding_sequence_parallel: bool = True
 
     def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
         """Configure and instantiate a megatron-core Gemma3 model."""
+        if self.context_parallel_size > 1:
+            raise ValueError("Context Parallel is not supported for Gemma3 model.")
 
         rotary_base_local, rotary_base_global = self.rotary_base
         # Trick megatron's RotaryEmbedding to initialize the model successfully
@@ -172,8 +175,7 @@ class Gemma3Config(GPTConfig):
                 vocab_size=self.vocab_size,
                 max_sequence_length=self.seq_length,
                 position_embedding_type=self.position_embedding_type,
-                # Do not scatter to SP because of the vision+language combined embedding.
-                scatter_to_sequence_parallel=not self.is_vision_language,
+                scatter_to_sequence_parallel=self.scatter_embedding_sequence_parallel,
             )
         model.rotary_pos_emb = Gemma3RotaryEmbedding(
             kv_channels=self.kv_channels,

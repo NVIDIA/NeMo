@@ -78,10 +78,7 @@ def gemma3vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
-    # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_cp_rank(_batch)
-
-    return output
+    return _batch
 
 
 def gemma3vl_forward_step(model, batch) -> torch.Tensor:
@@ -139,12 +136,15 @@ class Gemma3VLConfig(TransformerConfig, io.IOMixin):
 
     def configure_model(self, tokenizer) -> "MCoreGemma3VLModel":
         """Configure Gemma3 VL model"""
+        self.language_transformer_config.is_vision_language = True
+        # Disable SP scatter to allow combining language and vision embedding.
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
+        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.language_transformer_config.context_parallel_size = self.context_parallel_size
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
 
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
@@ -520,13 +520,14 @@ class MCoreGemma3VLModel(MegatronModule):
             if self.post_process:
                 labels = batch["labels"]
                 loss_mask = batch["loss_mask"]
-        # After doing CP, the shape needs to be (T / CP, B, D)
-        # If not using CP, the shape needs to be (T, B, D).
-        combined_embedding = combined_embedding.transpose(1, 0).contiguous()
 
-        if self.is_sequence_parallel and self.pre_process:
-            # (T / (CP * TP), B, D)
-            combined_embedding = scatter_to_sequence_parallel_region(combined_embedding)
+        if combined_embedding is not None:
+            # After doing CP, the shape needs to be (T / CP, B, D)
+            # If not using CP, the shape needs to be (T, B, D).
+            combined_embedding = combined_embedding.transpose(1, 0).contiguous()
+            if self.is_sequence_parallel and self.pre_process:
+                # (T / (CP * TP), B, D)
+                combined_embedding = scatter_to_sequence_parallel_region(combined_embedding)
         return combined_embedding, labels, loss_mask, packed_seq_params
 
     def _compute_attention_mask(
