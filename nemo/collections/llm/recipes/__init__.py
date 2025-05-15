@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ from nemo.collections.llm.recipes import (
     llama31_405b,
     llama31_nemotron_70b,
     llama31_nemotron_nano_8b,
+    llama31_nemotron_ultra_253b,
     llama32_1b,
     llama32_3b,
     llama33_nemotron_super_49b,
@@ -130,6 +131,7 @@ __all__ = [
     "llama32_3b",
     "llama31_nemotron_nano_8b",
     "llama33_nemotron_super_49b",
+    "llama31_nemotron_ultra_253b",
     "llama31_nemotron_70b",
     "llama_embedding_1b",
     "llama_embedding_3b",

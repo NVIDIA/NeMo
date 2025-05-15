@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
 
 
+# pylint: disable=C0115, C0116
 class MockDataModule(pl.LightningDataModule):
     def __init__(
         self,
@@ -68,7 +69,9 @@ class MockDataModule(pl.LightningDataModule):
 
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor or tokenizer is not provided! Fall back to `{hf_processor_id}`.")
+            logging.warning("Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
+
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained(hf_processor_id)
