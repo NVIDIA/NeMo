@@ -525,7 +525,9 @@ class MagpieTTSModel(ModelPT):
         B = dec_output.size(0)
 
         min_confidence = float("-inf")
-        max_confidence = 10000 # this needs to be large enough that unmasked items will always remain unmasked. # TODO @rfejgin: use float('inf')?
+        # this needs to be large enough that unmasked items will always remain unmasked (even after noise addition)
+        # Setting it smaller could allow "regret", i.e. re-masking a codebook that was previously unmasked; we might want to try this
+        max_confidence = 5 
         confidences = min_confidence * torch.ones(B, C, device=device)
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
@@ -593,23 +595,10 @@ class MagpieTTSModel(ModelPT):
             confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
 
             # TODO
-            # * should we use raw logits or post-softmax probabilities?
-            #   -> dosn't matter for unmasking order since softmax is monotonic
-            #   -> but would affect interaction with noise addition
             # * are end of utterance-logits-somehow overwritten ? should we force those to max confidence?? may require
             #   special handling and may explain termination issues!
             
-            # set confidence to max for unmasked codebooks so that they will remain unmasked
-            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
 
-            # attach debugger if not attached
-            import debugpy
-            # only attach if not already attached
-            if not debugpy.is_client_connected():
-                debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
-                print('Waiting for debugger to attach...')
-                debugpy.wait_for_client()  # This will block execution until the debugger attaches
-                print('Debugger is attached!')
             # replace entries in sampled_codes with previously unmasked codebooks
             sampled_codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
             #  add noise to confidences (as in token-critic paper, https://arxiv.org/abs/2209.04439)
@@ -618,7 +607,8 @@ class MagpieTTSModel(ModelPT):
                 # and anneal it to 0 as we approach the end of the unmasking process
                 noise = (torch.rand_like(confidences) - 0.5) * noise_scale * (1-progress)
                 confidences += noise
-            print(f"Step {step} of {n_steps} done")
+            # for unmasked codebooks, set confidence to max so that they will remain unmasked
+            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))                
         
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
@@ -1690,7 +1680,13 @@ class MagpieTTSModel(ModelPT):
                     if item_idx not in end_indices:
                         pred_token = all_codes_next_argmax[item_idx][0].item()
                         pred_token_multinomial = audio_codes_next[item_idx][0].item()
-                        if (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id):
+                        any_eos = (audio_codes_next[item_idx]==self.audio_eos_id).any().item() or (all_codes_next_argmax[item_idx]==self.audio_eos_id).any().item() 
+                        first_eos = (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id)
+                        if any_eos and not first_eos:
+                            print("\n**** Warning: EOS detected in vector but not at first position **** \n")
+                            print(audio_codes_next[item_idx])
+                            print(all_codes_next_argmax[item_idx])
+                        if first_eos:
                             print("End detected for item {} at timestep {}".format(item_idx, idx))
                             end_indices[item_idx] = idx
 
