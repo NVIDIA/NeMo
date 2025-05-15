@@ -16,11 +16,37 @@
 
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.07-py3
 
-FROM ${BASE_IMAGE} as base-image
+FROM ${BASE_IMAGE} AS base-image
 ENV PIP_CONSTRAINT="" 
+ARG IMAGE_LABEL
+LABEL "nemo.library"=${IMAGE_LABEL}
+
 ENV TRANSFORMERS_OFFLINE=0
 ENV HYDRA_FULL_ERROR=1
 ENV PYTHONUNBUFFERED=1
+
+# APT packages
+RUN <<"EOF" bash -ex
+apt-get update
+apt-get install -y bc libsox-fmt-all -y
+apt-get clean
+EOF
+
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library trt --mode install
+EOF
+
+
+FROM base-image AS trt-llm-wheel
+ARG TRTLLM_REPO
+ARG TRTLLM_TAG
+RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" bash -ex
+  
+  bash /tmp/NeMo/reinstall.sh --library trtllm --mode build
+EOF
 
 FROM base-image as te-wheel
 ARG TE_REPO
@@ -41,9 +67,11 @@ RUN --mount=type=bind,source=reinstall.sh,target=/tmp/NeMo/reinstall.sh <<"EOF" 
   ls -al /tmp/Megatron-LM || true
 EOF
 
-FROM base-image 
+
+FROM base-image
 WORKDIR /workspace
-RUN \  
+RUN \
+  --mount=type=bind,from=trt-llm-wheel,source=/opt/wheels/trtllm,target=/opt/wheels/trtllm \
   --mount=type=bind,from=te-wheel,source=/opt/wheels/te,target=/opt/wheels/te \
   --mount=type=bind,from=mcore-wheel,source=/opt/wheels/mcore,target=/opt/wheels/mcore \
   --mount=type=bind,source=requirements,target=/tmp/NeMo/requirements \
@@ -55,10 +83,8 @@ RUN \
   --mount=type=bind,source=nemo/package_info.py,target=/tmp/NeMo/nemo/package_info.py \
   --mount=type=bind,source=nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
     
-  bash /tmp/NeMo/reinstall.sh --library te --mode install
-  bash /tmp/NeMo/reinstall.sh --library mcore --mode install
-  bash /tmp/NeMo/reinstall.sh --library nemo --mode install
-  rm -rf $NEMO_DIR || true
+    bash /tmp/NeMo/reinstall.sh --library all --mode install
+    rm -rf $NEMO_DIR || true
 EOF
 
 
