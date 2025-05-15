@@ -296,4 +296,20 @@ dataset_meta_info = {
         'audio_dir' : '/mnt/drive1/data/LibriTTS/',
         'feature_dir' : None,
     },
+    'hindi_indic_shared_char': {
+        'manifest_path' : '/Data/IndicDataset/manifests_ipa/hindi_100_test.json',
+        'audio_dir': '/',
+        'feature_dir': '/',
+        'tokenizer_names': ['chartokenizer'],
+        'whisper_language': 'hi',
+        'load_cached_codes_if_available': False
+    },
+    'bengali_indic_shared_char': {
+        'manifest_path' : '/Data/IndicDataset/manifests_ipa/bengali_100_test.json',
+        'audio_dir': '/',
+        'feature_dir': '/',
+        'tokenizer_names': ['chartokenizer'],
+        'whisper_language': 'bn',
+        'load_cached_codes_if_available': False
+    },
 }
