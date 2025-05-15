@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import torch
 from datasets import Dataset
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -28,11 +29,7 @@ from nemo.collections.llm.gpt.data.utils import _chat_preprocess
 
 LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS = """{{- bos_token }}
 {%- if not date_string is defined %}
-    {%- if strftime_now is defined %}
-        {%- set date_string = strftime_now("%d %b %Y") %}
-    {%- else %}
-        {%- set date_string = "26 Jul 2024" %}
-    {%- endif %}
+    {%- set date_string = "30 Aug 2024" %}
 {%- endif %}
 {%- set loop_messages = messages %}
 {%- if tools is not none and tool_choice is not none %}
@@ -247,7 +244,7 @@ def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
 
     assert full_string == (
         "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\n\n"
-        "Cutting Knowledge Date: December 2023\nToday Date: 14 May 2025\n\n"
+        "Cutting Knowledge Date: December 2023\nToday Date: 30 Aug 2024\n\n"
         "You are a helpful assistant.\n"
         "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
         "You have access to the following functions to supplement your existing knowledge:\n\n"
@@ -344,15 +341,29 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         decoded_input = self.tokenizer.tokenizer.decode(tokenized_chat["input_ids"])
         decoded_context = self.tokenizer.tokenizer.decode(tokenized_chat["context_ids"])
         decoded_answer = self.tokenizer.tokenizer.decode(tokenized_chat["answer_ids"])
-
-        assert tokenized_chat["input_ids"] == tokenized_chat["context_ids"] + tokenized_chat["answer_ids"]
+        assert torch.equal(
+            tokenized_chat["input_ids"],
+            torch.cat((tokenized_chat["context_ids"], tokenized_chat["answer_ids"]), dim=-1)
+        )
         assert self.decoded_context == decoded_context
         assert self.decoded_answer == decoded_answer
         assert self.decoded_context + self.decoded_answer == decoded_input
-        assert self.output_data["input_ids"] == tokenized_chat["input_ids"]
-        assert self.output_data["context_ids"] == tokenized_chat["context_ids"]
-        assert self.output_data["context_ids"] == tokenized_chat["context_ids"]
-        assert self.output_data["mask"] == tokenized_chat["mask"]
+        assert torch.equal(
+            torch.LongTensor(self.output_data["input_ids"]),
+            tokenized_chat["input_ids"],
+        )
+        assert torch.equal(
+            torch.LongTensor(self.output_data["context_ids"]),
+            tokenized_chat["context_ids"],
+        )
+        assert torch.equal(
+            torch.LongTensor(self.output_data["context_ids"]),
+            tokenized_chat["context_ids"],
+        )
+        assert torch.equal(
+            torch.LongTensor(self.output_data["loss_mask"]),
+            tokenized_chat["loss_mask"],
+        )
 
     def test_messages_format(self):
         tokenized_chat = _chat_preprocess(self.messages, self.tokenizer)
@@ -360,20 +371,35 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         decoded_context = self.tokenizer.tokenizer.decode(tokenized_chat["context_ids"])
         decoded_answer = self.tokenizer.tokenizer.decode(tokenized_chat["answer_ids"])
 
-        assert tokenized_chat["input_ids"] == tokenized_chat["context_ids"] + tokenized_chat["answer_ids"]
+        assert torch.equal(
+            tokenized_chat["input_ids"],
+            torch.cat((tokenized_chat["context_ids"], tokenized_chat["answer_ids"]), dim=-1)
+        )
         assert self.decoded_context == decoded_context
         assert self.decoded_answer == decoded_answer
         assert self.decoded_context + self.decoded_answer == decoded_input
-        assert self.output_data["input_ids"] == tokenized_chat["input_ids"]
-        assert self.output_data["context_ids"] == tokenized_chat["context_ids"]
-        assert self.output_data["context_ids"] == tokenized_chat["context_ids"]
-        assert self.output_data["mask"] == tokenized_chat["mask"]
+        assert torch.equal(
+            torch.LongTensor(self.output_data["input_ids"]),
+            tokenized_chat["input_ids"],
+        )
+        assert torch.equal(
+            torch.LongTensor(self.output_data["context_ids"]),
+            tokenized_chat["context_ids"],
+        )
+        assert torch.equal(
+            torch.LongTensor(self.output_data["context_ids"]),
+            tokenized_chat["context_ids"],
+        )
+        assert torch.equal(
+            torch.LongTensor(self.output_data["loss_mask"]),
+            tokenized_chat["loss_mask"],
+        )
 
     def test_mask_no_assistant(self):
         messages = copy.deepcopy(self.messages)
         messages["messages"][2]["role"] = "not-assistant"
         tokenized_chat = _chat_preprocess(messages, self.tokenizer)
-        assert sum(tokenized_chat["mask"]) == 1, "No matching 'assistant' role to mask"
+        assert sum(tokenized_chat["loss_mask"]) == 1, "No matching 'assistant' role to mask"
         assert len(tokenized_chat["answer_ids"]) == 1
 
     def test_multi_turn(self):
@@ -389,7 +415,7 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         decoded_context = self.tokenizer.tokenizer.decode(tokenized_chat["context_ids"])
         decoded_answer = self.tokenizer.tokenizer.decode(tokenized_chat["answer_ids"])
         # Verify all assistant outputs appear in mask
-        assistant_mask = [i for i, mask in enumerate(tokenized_chat["mask"]) if mask == 1]
+        assistant_mask = [i for i, mask in enumerate(tokenized_chat["loss_mask"]) if mask == 1]
         assistant_generated_tokens = [tokenized_chat["input_ids"][idx] for idx in assistant_mask]
         assert "1<|eot_id|>2<|eot_id|><|end_of_text|>" == self.tokenizer.tokenizer.decode(assistant_generated_tokens)
         # Verify context includes assistant output
@@ -439,7 +465,7 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         decoded_context = self.tokenizer.tokenizer.decode(tokenized_chat["context_ids"])
         decoded_answer = self.tokenizer.tokenizer.decode(tokenized_chat["answer_ids"])
         # Verify all assistant outputs appear in mask
-        assistant_mask = [i for i, mask in enumerate(tokenized_chat["mask"]) if mask == 1]
+        assistant_mask = [i for i, mask in enumerate(tokenized_chat["loss_mask"]) if mask == 1]
         assistant_generated_tokens = [tokenized_chat["input_ids"][idx] for idx in assistant_mask]
         assert (
             '1<|eot_id|><|python_tag|><function=get_weather>{"location": "Denver"}</function>\n<|eot_id|>'
@@ -485,7 +511,7 @@ Choose a number that is greater than 0 and less than 2<|eot_id|><|start_header_i
         tokenized_chat = _chat_preprocess(messages, self.tokenizer, tool_schemas)
         decoded_context = self.tokenizer.tokenizer.decode(tokenized_chat["context_ids"])
         decoded_answer = self.tokenizer.tokenizer.decode(tokenized_chat["answer_ids"])
-        assistant_mask = [i for i, mask in enumerate(tokenized_chat["mask"]) if mask == 1]
+        assistant_mask = [i for i, mask in enumerate(tokenized_chat["loss_mask"]) if mask == 1]
         assistant_generated_tokens = [tokenized_chat["input_ids"][idx] for idx in assistant_mask]
         assert (
             '1<|eot_id|><|python_tag|><function=launch>{"location": "Denver"}</function>\n<|eot_id|>'

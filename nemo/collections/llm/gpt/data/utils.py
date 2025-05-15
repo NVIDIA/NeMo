@@ -888,10 +888,10 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
     answer_ids = input_ids[context_end_idx:]
 
     return dict(
-        input_ids=input_ids,
-        loss_mask=mask,
-        context_ids=context_ids,
-        answer_ids=answer_ids,
+        input_ids=torch.LongTensor(input_ids),
+        loss_mask=torch.BoolTensor(mask),
+        context_ids=torch.LongTensor(context_ids),
+        answer_ids=torch.LongTensor(answer_ids),
     )
 
 

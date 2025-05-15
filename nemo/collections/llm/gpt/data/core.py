@@ -566,7 +566,7 @@ class GPTSFTDataset(Dataset):
         return processed_example
 
     def _maybe_cast_to_list(self, x):
-        if isinstance(x, np.ndarray):
+        if isinstance(x, (np.ndarray, torch.Tensor)):
             return [item.tolist() for item in x]
         return x
 
@@ -1063,25 +1063,25 @@ class GPTSFTChatDataset(GPTSFTDataset):
         # never sees the token it is supposed to predict. This enforces an
         # autoregressive training setup where the model learns to generate
         # the next token step-by-step.
-        input_ids = [item["input_ids"][:-1] for item in batch]
+        input_ids = [item["input_ids"][:-1].tolist() for item in batch]
         # Removes the first token from each input sequence to create labels
         # that align with the model's prediction target. This ensures that
         # at time step `t`, the model's output is evaluated against the token
         # that originally followed the input at `t` in the dataset.
-        labels = [item["input_ids"][1:] for item in batch]
+        labels = [item["input_ids"][1:].tolist() for item in batch]
         # Context tokens remain unchanged, representing the initial portion of
         # the sequence that serves as input to the model. This allows the model
         # to condition its predictions on prior information.
-        contexts = [item["context_ids"] for item in batch]
+        contexts = [item["context_ids"].tolist() for item in batch]
         # Extracts the assistant's response portion of the sequence, which
         # represents the part the model is trained to generate. This helps
         # distinguish between the input prompt and the expected model output.
-        answers = [item["answer_ids"] for item in batch]
+        answers = [item["answer_ids"].tolist() for item in batch]
         # Removes the first element from the mask to align with the shifted labels,
         # ensuring that loss is only computed for valid, predictable tokens. This
         # prevents the model from incurring loss on tokens that were never meant to
         # be predicted, such as user-provided context or padding.
-        loss_mask = [item["loss_mask"][1:] for item in batch]
+        loss_mask = [item["loss_mask"][1:].tolist() for item in batch]
         # Metadata remains unchanged, carrying any additional non-token-related
         # information that might be useful for evaluation, debugging, or tracking
         # purposes.
