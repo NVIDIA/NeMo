@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import copy
 from pathlib import Path
 from typing import Any, Optional
 
@@ -70,17 +69,19 @@ class LoopLabelsState:
     active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
     advance_mask: torch.Tensor  # mask for "advancing" hypotheses (blank is found for the element on the current step)
     blank_mask: torch.Tensor  # if the element is blank
-    # if the element was active on the previous step: to identify the end of decoding and store final hidden state
-    active_mask_prev: torch.Tensor
-    became_inactive_mask: torch.Tensor  # mask for elements that became inactive (end of decoding)
+    active_mask_prev: torch.Tensor  # if the element was active on the previous step
+    found_labels_mask: torch.Tensor  # mask for found labels (non-blank)
 
     active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
     advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
-    last_decoder_state: Any  # last state from the decoder, needed for the output
-    prev_decoder_state: Any  # previous decoder state (to return and reuse in streaming mode)
     decoder_state: Any  # current decoder state
     decoder_output: torch.Tensor  # output from the decoder (projected)
+
+    decoder_state_after_sos: Any  # decoder state after _SOS symbol (for initialization)
+    decoder_output_after_sos: (
+        torch.Tensor
+    )  # output from the decoder (projected) after _SOS symbol (for initialization)
 
     batched_hyps: rnnt_utils.BatchedHyps  # batched hypotheses - decoding result
     alignments: Optional[rnnt_utils.BatchedAlignments] = None  # batched alignments
@@ -146,7 +147,7 @@ class LoopLabelsState:
         self.advance_mask = torch.zeros_like(self.active_mask)
         self.blank_mask = torch.zeros_like(self.active_mask)
         self.active_mask_prev = torch.zeros_like(self.active_mask)
-        self.became_inactive_mask = torch.zeros_like(self.active_mask)
+        self.found_labels_mask = torch.zeros_like(self.active_mask)
 
         self.active_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
         self.advance_mask_any = torch.tensor(True, device=self.device, dtype=torch.bool)
@@ -344,27 +345,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
         all_durations = self.durations.to(device, non_blocking=True)
         num_durations = all_durations.shape[0]
 
-        # initial state, needed for torch.jit to compile (cannot handle None)
-        state = (
-            self.decoder.initialize_state(encoder_output_projected)
-            if prev_batched_state is None
-            else prev_batched_state.predictor_state
-        )
-        # sample state, will be replaced further when the decoding for hypothesis is done
-        last_decoder_state = (
-            self.decoder.initialize_state(encoder_output_projected)
-            if prev_batched_state is None
-            else prev_batched_state.predictor_state
-        )
-
         # indices of elements in batch (constant)
         batch_indices = torch.arange(batch_size, dtype=torch.long, device=device)
-        # last found labels - initially <SOS> (<blank>) symbol
-        labels = (
-            torch.full_like(batch_indices, fill_value=self._SOS)
-            if prev_batched_state is None
-            else prev_batched_state.labels.clone()
-        )
 
         # time indices
         last_timesteps = torch.maximum(encoder_output_length - 1, torch.zeros_like(encoder_output_length))
@@ -376,32 +358,35 @@ class GreedyBatchedTDTLoopLabelsComputer(
 
         # masks for utterances in batch
         active_mask: torch.Tensor = time_indices < encoder_output_length
+        active_mask_prev = active_mask.clone()
         advance_mask = torch.empty_like(active_mask)
 
-        # for storing the last state we need to know what elements became "inactive" on this step
-        active_mask_prev = torch.empty_like(active_mask)
-        became_inactive_mask = torch.empty_like(active_mask)
-
-        if self.ngram_lm_batch is not None:
-            if prev_batched_state is None:
-                batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
-            else:
-                batch_lm_states = prev_batched_state.lm_state
-        else:
-            batch_lm_states = None
-
-        # loop while there are active utterances
-        while active_mask.any():
-            active_mask_prev.copy_(active_mask, non_blocking=True)
-            # stage 1: get decoder (prediction network) output
-            prev_state = state  # save to return state before last label if utterance is fully decoded
+        if prev_batched_state is None:
+            # initial state, needed for torch.jit to compile (cannot handle None)
+            state = self.decoder.initialize_state(encoder_output_projected)
+            # last found labels - initially <SOS> (<blank>) symbol
+            labels = torch.full_like(batch_indices, fill_value=self._SOS)
             decoder_output, state, *_ = self.decoder.predict(
                 labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
             )
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+            # ngram lm
+            if self.ngram_lm_batch is not None:
+                batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+            else:
+                batch_lm_states = None
+        else:
+            decoder_output = prev_batched_state.predictor_output
+            state = prev_batched_state.predictor_state
+            batch_lm_states = prev_batched_state.lm_state
 
-            # stage 2: get joint output, iteratively seeking for non-blank labels
+        # loop while there are active utterances
+        while active_mask.any():
+            # stage 1: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
+            active_mask_prev.copy_(active_mask)
+
+            # stage 1.1: get first joint output
             logits = (
                 self.joint.joint_after_projection(
                     encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1),
@@ -432,7 +417,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
             blank_mask = labels == self._blank_index
             # for blank labels force duration >= 1
             durations.masked_fill_(torch.logical_and(durations == 0, blank_mask), 1)
-            time_indices_current_labels.copy_(time_indices, non_blocking=True)
+            time_indices_current_labels.copy_(time_indices)
             if use_alignments:
                 alignments.add_results_masked_(
                     active_mask=active_mask,
@@ -449,7 +434,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
             torch.less(time_indices, encoder_output_length, out=active_mask)
             torch.logical_and(active_mask, blank_mask, out=advance_mask)
 
-            # inner loop: find next non-blank labels (if exist)
+            # stage 1.2: inner loop - find next non-blank labels (if exist)
             while advance_mask.any():
                 # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
                 # store current time indices to use further for storing the results
@@ -498,27 +483,15 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 torch.less(time_indices, encoder_output_length, out=active_mask)
                 torch.logical_and(active_mask, blank_mask, out=advance_mask)
 
-            # stage 3: filter labels and state, store hypotheses
-            # select states for hyps that became inactive (is it necessary?)
-            # this seems to be redundant, but used in the `loop_frames` output
-            torch.ne(active_mask, active_mask_prev, out=became_inactive_mask)
-            self.decoder.batch_replace_states_mask(
-                src_states=prev_state,
-                dst_states=last_decoder_state,
-                mask=became_inactive_mask,
-            )
-            labels_mask = torch.logical_and(active_mask_prev, labels != self._blank_index)
-            self.decoder.batch_replace_states_mask(
-                src_states=state,
-                dst_states=last_decoder_state,
-                mask=became_inactive_mask & labels_mask,
-            )
-
+            # NB: difference between RNN-T and TDT here, at the end of utterance:
+            # For RNN-T, if we found a non-blank label, the utterance is active (need to find blank to stop decoding)
+            # For TDT, we could find a non-blank label, add duration, and the utterance may become inactive
+            found_labels_mask = torch.logical_and(active_mask_prev, labels != self._blank_index)
             # store hypotheses
             if self.max_symbols is not None:
                 # pre-allocated memory, no need for checks
                 batched_hyps.add_results_masked_no_checks_(
-                    labels_mask,
+                    found_labels_mask,
                     labels,
                     time_indices_current_labels,
                     scores,
@@ -527,16 +500,45 @@ class GreedyBatchedTDTLoopLabelsComputer(
             else:
                 # auto-adjusted storage
                 batched_hyps.add_results_masked_(
-                    labels_mask,
+                    found_labels_mask,
                     labels,
                     time_indices_current_labels,
                     scores,
                     durations if self.include_duration else None,
                 )
 
-            # stage 4: to avoid looping, go to next frame after max_symbols emission
+            # stage 3: get decoder (prediction network) output with found labels
+            # NB: if active_mask is False, this step is redundant;
+            # but such check will require device-to-host synchronization, so we avoid it
+            # preserve state/decoder_output for inactive elements
+            prev_state = state
+            prev_decoder_output = decoder_output
+            decoder_output, state, *_ = self.decoder.predict(
+                labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
+            )
+            decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+
+            # preserve correct states/outputs for inactive elements
+            self.decoder.batch_replace_states_mask(
+                src_states=prev_state,
+                dst_states=state,
+                mask=~found_labels_mask,
+            )
+            torch.where(
+                found_labels_mask.unsqueeze(-1).unsqueeze(-1), decoder_output, prev_decoder_output, out=decoder_output
+            )
+
+            if self.ngram_lm_batch is not None:
+                # select necessary LM states based on chosen labels
+                torch.where(
+                    active_mask,
+                    batch_lm_states_candidates[batch_indices, labels * found_labels_mask],
+                    batch_lm_states,
+                    out=batch_lm_states,
+                )
+
+            # stage 4: to avoid infinite looping, go to the next frame after max_symbols emission
             if self.max_symbols is not None:
-                # TODO: is it correct for last decoder state?
                 # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
                 # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
                 force_blank_mask = torch.logical_and(
@@ -554,15 +556,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 torch.minimum(time_indices, last_timesteps, out=safe_time_indices)
                 # same as: active_mask = time_indices < encoder_output_length
                 torch.less(time_indices, encoder_output_length, out=active_mask)
-            if self.ngram_lm_batch is not None:
-                # select necessary LM states based on chosen labels
-                torch.where(
-                    active_mask,
-                    batch_lm_states_candidates[batch_indices, labels * active_mask],
-                    batch_lm_states,
-                    out=batch_lm_states,
-                )
 
+        # fix timestamps for iterative decoding
         if prev_batched_state is not None:
             batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
             if use_alignments:
@@ -571,8 +566,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # return the last labels from the previous state in this case
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
-            predictor_state=last_decoder_state,
-            predictor_output=None,
+            predictor_state=state,
+            predictor_output=decoder_output,
             labels=(
                 torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
                 if prev_batched_state is not None
@@ -640,11 +635,10 @@ class GreedyBatchedTDTLoopLabelsComputer(
             # manual loop instead of using graphs
             self._before_outer_loop()
             while self.state.active_mask_any.item():
-                self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
                 while self.state.advance_mask_any.item():
-                    self._inner_loop_code()
-                self._after_inner_loop()
+                    self._inner_loop_step_find_next_non_blank()
+                self._after_inner_loop_step()
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
 
@@ -656,8 +650,8 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # return the last labels from the previous state in this case
         last_labels = self.state.batched_hyps.get_last_labels(pad_id=self._SOS)
         decoding_state = BatchedGreedyDecodingState(
-            predictor_state=copy.deepcopy(self.state.last_decoder_state),
-            predictor_output=None,
+            predictor_state=self.decoder.clone_states(self.state.decoder_state),
+            predictor_output=self.state.decoder_output.clone(),
             labels=(
                 torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
                 if prev_batched_state is not None
@@ -668,7 +662,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 if prev_batched_state is None
                 else encoder_output_length + prev_batched_state.decoded_length
             ),
-            lm_state=self.state.batch_lm_states,
+            lm_state=self.state.batch_lm_states.clone() if self.state.batch_lm_states is not None else None,
             time_jumps=self.state.time_indices - self.state.encoder_output_length,
         )
 
@@ -736,16 +730,24 @@ class GreedyBatchedTDTLoopLabelsComputer(
             include_duration_confidence=self.include_duration_confidence,
             include_duration=self.include_duration,
         )
-        self.state.all_durations = self.durations.to(self.state.device)
+        self.state.all_durations = self.durations.to(self.state.device, non_blocking=True)
 
-        self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        # init decoder state
+        self.state.labels.fill_(self._SOS)
+        decoder_output, new_state, *_ = self.decoder.predict(
+            self.state.labels.unsqueeze(1),
+            self.decoder.initialize_state(self.state.encoder_output_projected),
+            add_sos=False,
+            batch_size=self.state.batch_size,
+        )
+        self.state.decoder_state_after_sos = new_state
         self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
-        self.state.prev_decoder_state = self.decoder.initialize_state(encoder_output_projected)
-        decoder_output, *_ = self.decoder.predict(
-            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
+        self.decoder.batch_replace_states_all(
+            src_states=self.state.decoder_state_after_sos, dst_states=self.state.decoder_state
         )
         # to avoid recalculation of joint projection, store decoder output in state
-        self.state.decoder_output = self.joint.project_prednet(decoder_output)
+        self.state.decoder_output_after_sos = self.joint.project_prednet(decoder_output)
+        self.state.decoder_output = self.state.decoder_output_after_sos.clone()
 
         if self.ngram_lm_batch is not None:
             device = encoder_output_projected.device
@@ -787,10 +789,9 @@ class GreedyBatchedTDTLoopLabelsComputer(
         with torch.cuda.stream(s):
             for _ in range(num_runs):
                 self._before_outer_loop()
-                self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
-                self._inner_loop_code()
-                self._after_inner_loop()
+                self._inner_loop_step_find_next_non_blank()
+                self._after_inner_loop_step()
         torch.cuda.current_stream().wait_stream(s)
         self.state.encoder_output_length.fill_(0)
 
@@ -816,7 +817,6 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 self.separate_graphs.before_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
-            self._before_inner_loop_get_decoder_output()
             self._before_inner_loop_get_joint_output()
 
         with (
@@ -826,7 +826,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 self.separate_graphs.inner_loop_code, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
-            self._inner_loop_code()
+            self._inner_loop_step_find_next_non_blank()
 
         with (
             torch.cuda.stream(stream_for_graph),
@@ -835,7 +835,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 self.separate_graphs.after_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
             ),
         ):
-            self._after_inner_loop()
+            self._after_inner_loop_step()
 
     def _full_graph_compile(self):
         """Compile full graph for decoding"""
@@ -869,7 +869,6 @@ class GreedyBatchedTDTLoopLabelsComputer(
             with with_conditional_node(
                 outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
             ):
-                self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
                 # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
@@ -886,61 +885,40 @@ class GreedyBatchedTDTLoopLabelsComputer(
                 with with_conditional_node(
                     inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
                 ):
-                    self._inner_loop_code()
-                self._after_inner_loop()
+                    self._inner_loop_step_find_next_non_blank()
+                self._after_inner_loop_step()
 
     def _init_decoding_state(
         self, current_batch_size: int, prev_batched_state: Optional[BatchedGreedyDecodingState] = None
     ):
         # NB: we can speedup the case when prev_batched_state is None by using CUDA graphs
         if prev_batched_state is None:
-            # initial state
+            # last found labels - initially <SOS> (<blank>) symbol
+            self.state.labels.fill_(self._SOS)
             self.decoder.batch_replace_states_all(
-                src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
-                dst_states=self.state.decoder_state,
+                src_states=self.state.decoder_state_after_sos, dst_states=self.state.decoder_state
             )
+            self.state.decoder_output.copy_(self.state.decoder_output_after_sos)
             # initial state - lm
             if self.ngram_lm_batch is not None:
                 self.state.batch_lm_states.copy_(
                     self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
                 )
-
-            # last found labels - initially <SOS> (<blank>) symbol
-            self.state.labels.fill_(self._SOS)
             self.state.time_indices.fill_(0)
         else:
+            # labels
+            self.state.labels[:current_batch_size].copy_(prev_batched_state.labels[:current_batch_size])
             # initial state
             self.decoder.batch_replace_states_all(
                 src_states=prev_batched_state.predictor_state,
                 dst_states=self.state.decoder_state,
                 batch_size=current_batch_size,
             )
-            # sample state, will be replaced further when the decoding for hypothesis is done
-            self.decoder.batch_replace_states_all(
-                src_states=prev_batched_state.predictor_state,
-                dst_states=self.state.last_decoder_state,
-                batch_size=current_batch_size,
-            )
+            self.state.decoder_output.copy_(prev_batched_state.predictor_output)
             # initial state - lm
-            # TODO: is lm correct?
             if self.ngram_lm_batch is not None:
                 self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
-            # labels
-            self.state.labels[:current_batch_size].copy_(
-                prev_batched_state.labels[:current_batch_size], non_blocking=True
-            )
-            self.state.time_indices[:current_batch_size].copy_(prev_batched_state.time_jumps[:current_batch_size])
-
-    def _fix_timestamps_for_iterative_decoding(
-        self, current_batch_size: int, prev_batched_state: BatchedGreedyDecodingState
-    ):
-        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
-            :current_batch_size
-        ].unsqueeze(1)
-        if self.state.alignments is not None:
-            self.state.alignments.timestamps[:current_batch_size] -= prev_batched_state.decoded_length[
-                :current_batch_size
-            ].unsqueeze(1)
+            self.state.time_indices.copy_(prev_batched_state.time_jumps)
 
     def _before_outer_loop(self):
         """Clear state and compute initial active mask"""
@@ -951,7 +929,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         self.state.scores.fill_(0.0)
 
         # time indices
-        self.state.time_indices_current_labels.fill_(0)
+        self.state.time_indices_current_labels.copy_(self.state.time_indices)
         # safe time indices: guaranteed to be < encoder_output_length
         torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
         torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
@@ -959,37 +937,14 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # masks for utterances in batch
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
 
-        # for storing the last state we need to know what elements became "inactive" on this step
         # same as: self.active_mask_any = active_mask.any()
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
-    def _before_inner_loop_get_decoder_output(self):
-        """Get decoder output"""
-        # stage 1: get decoder (prediction network) output
-        # TODO: avoid prev_decoder_state + check lm states
-        self.decoder.batch_replace_states_all(
-            src_states=self.state.decoder_state, dst_states=self.state.prev_decoder_state
-        )
-        decoder_output, new_state, *_ = self.decoder.predict(
-            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
-        )
-        self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
-        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-        self.state.decoder_output.copy_(decoder_output_projected)
-
-        # get lm scores/states
-        if self.ngram_lm_batch is not None:
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
-                states=self.state.batch_lm_states
-            )  # vocab_size_no_blank
-            self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
-            self.state.lm_scores.copy_(lm_scores.to(dtype=self.state.float_dtype))
-
     def _before_inner_loop_get_joint_output(self):
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
-        # stage 2: get joint output, iteratively seeking for non-blank labels
+        # stage 1: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
-        self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
+        self.state.active_mask_prev.copy_(self.state.active_mask)
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
@@ -1003,9 +958,17 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # same as: scores, labels = logits[:, : -self.state.all_durations.shape[0]].max(-1)
         torch.max(logits[:, : -self.state.all_durations.shape[0]], dim=-1, out=(self.state.scores, self.state.labels))
         if self.ngram_lm_batch is not None:
+            # get lm scores/states
+            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
+                states=self.state.batch_lm_states
+            )  # vocab_size_no_blank
+            self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
+            self.state.lm_scores.copy_(lm_scores.to(dtype=self.state.float_dtype))
+            # combined scores with LM - without blank
             scores_w_lm, labels_w_lm = (
                 logits[:, : -self.state.all_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
             ).max(dim=-1)
+            # preserve "blank" / "non-blank" category
             torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_lm, out=self.state.labels)
             torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_lm, out=self.state.scores)
         jump_durations_indices = logits[:, -self.state.all_durations.shape[0] :].argmax(dim=-1)
@@ -1015,12 +978,12 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # checking max_symbols is not needed, since we already forced advancing time indices for such cases
         torch.eq(self.state.labels, self._blank_index, out=self.state.blank_mask)
         # blank_mask = self.labels == self._blank_index
-        self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
+        self.state.time_indices_current_labels.copy_(self.state.time_indices)
         # for blank labels force duration >= 1
         durations.masked_fill_(torch.logical_and(durations == 0, self.state.blank_mask), 1)
 
         if self.state.durations is not None:
-            self.state.durations.copy_(durations, non_blocking=True)
+            self.state.durations.copy_(durations)
 
         if self.state.alignments is not None:
             self.state.alignments.add_results_masked_no_checks_(
@@ -1042,7 +1005,7 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # same as: self.advance_mask_any = advance_mask.any()
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
-    def _inner_loop_code(self):
+    def _inner_loop_step_find_next_non_blank(self):
         """Find next non-blank labels - one iteration"""
         # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
         # store current time indices to use further for storing the results
@@ -1109,45 +1072,57 @@ class GreedyBatchedTDTLoopLabelsComputer(
         torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
-    def _after_inner_loop(self):
-        """Store hypotheses, state for finished hypotheses, avoid looping"""
-        # stage 3: filter labels and state, store hypotheses
-        # select states for hyps that became inactive (is it necessary?)
-        # this seems to be redundant, but used in the `loop_frames` output
-        torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
-        labels_mask = torch.logical_and(self.state.active_mask_prev, self.state.labels != self._blank_index)
-        # TODO: why is this working?
-        self.decoder.batch_replace_states_mask(
-            src_states=self.state.prev_decoder_state,
-            dst_states=self.state.last_decoder_state,
-            mask=self.state.became_inactive_mask,
-        )
-        self.decoder.batch_replace_states_mask(
-            src_states=self.state.decoder_state,
-            dst_states=self.state.last_decoder_state,
-            mask=self.state.became_inactive_mask & labels_mask,
-        )
+    def _after_inner_loop_step(self):
+        """After inner loop: store labels, query decoder/LM, force max symbols"""
+        self._after_inner_loop_store_labels()
+        self._after_inner_loop_select_lm_states()
+        self._after_inner_loop_get_decoder_output()
+        self._after_inner_loop_force_max_symbols()
 
+    def _after_inner_loop_store_labels(self):
+        """Stage 3.1: Store hypotheses, update decoder state"""
+        self.state.found_labels_mask.copy_(
+            torch.logical_and(self.state.active_mask_prev, self.state.labels != self._blank_index)
+        )
         self.state.batched_hyps.add_results_masked_no_checks_(
-            labels_mask,
+            self.state.found_labels_mask,
             self.state.labels,
             self.state.time_indices_current_labels,
             self.state.scores,
             self.state.durations,
         )
 
+    def _after_inner_loop_select_lm_states(self):
+        """Stage 3.2: Select LM states with new labels"""
         if self.ngram_lm_batch is not None:
             # select necessary LM states based on chosen labels
             torch.where(
                 self.state.active_mask,
                 self.state.batch_lm_states_candidates[
-                    self.state.batch_indices, self.state.labels * self.state.active_mask
+                    self.state.batch_indices, self.state.labels * self.state.found_labels_mask
                 ],
                 self.state.batch_lm_states,
                 out=self.state.batch_lm_states,
             )
 
-        # stage 4: to avoid looping, go to next frame after max_symbols emission
+    def _after_inner_loop_get_decoder_output(self):
+        """Stage 3.3: Get decoder (prediction network) output using new labels"""
+        decoder_output, new_state, *_ = self.decoder.predict(
+            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
+        )
+        self.decoder.batch_replace_states_mask(
+            src_states=new_state, dst_states=self.state.decoder_state, mask=self.state.found_labels_mask
+        )
+        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        torch.where(
+            self.state.found_labels_mask.unsqueeze(-1).unsqueeze(-1),
+            decoder_output_projected,
+            self.state.decoder_output,
+            out=self.state.decoder_output,
+        )
+
+    def _after_inner_loop_force_max_symbols(self):
+        """Stage 4: to avoid looping, go to next frame after max_symbols emission"""
         # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
         # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
         force_blank_mask = torch.logical_and(
@@ -1166,3 +1141,18 @@ class GreedyBatchedTDTLoopLabelsComputer(
         # same as: active_mask = time_indices < encoder_output_length
         torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
+
+    def _fix_timestamps_for_iterative_decoding(
+        self, current_batch_size: int, prev_batched_state: BatchedGreedyDecodingState
+    ):
+        """
+        Fix timestamps: if we are in iterative decoding mode,
+        we need to add the length of the previous batch to current timestamps
+        """
+        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
+            :current_batch_size
+        ].unsqueeze(1)
+        if self.state.alignments is not None:
+            self.state.alignments.timestamps[:current_batch_size] -= prev_batched_state.decoded_length[
+                :current_batch_size
+            ].unsqueeze(1)
