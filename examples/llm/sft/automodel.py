@@ -402,7 +402,7 @@ def main():
     if args.mock_dataset:
         dataset = HFMockDataModule(
             seq_length=args.seq_length,
-            micro_batch_size=args.atch_size,
+            micro_batch_size=args.batch_size,
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
