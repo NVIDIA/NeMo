@@ -21,6 +21,7 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.lightning.io import export_ckpt
 from nemo.utils import logging
 
 llm_available = True
@@ -222,3 +223,19 @@ def load_connector(path, target):
     if exporter is None:
         raise ValueError(f"Unsupported model type: {model_class}")
     return exporter(Path(path))
+
+
+def export_to_hf(model_path, model_dir):
+    """
+    Export the model to the Hugging Face format.
+
+    Args:
+        model_path (str): The path to the model.
+        model_dir (str): The directory to save the model.
+    """
+    return export_ckpt(
+        path=model_path,
+        target='hf',
+        output_path=Path(model_dir),
+        overwrite=True,
+        load_connector=load_connector)
