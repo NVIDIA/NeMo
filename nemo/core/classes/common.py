@@ -59,20 +59,28 @@ _HAS_HYDRA = True
 
 # Added these for now but these should be updated based on collections
 ALLOWED_TARGET_PREFIXES = [
-    "nemo.collections.", "nemo.core.", "nemo.utils.",
-    "torch.nn.", "torch.optim.", "torch.utils.data.",
-    "lightning.pytorch.callbacks.", "lightning.pytorch.loggers.",
-    "lightning.pytorch.strategies.", "lightning.pytorch.accelerators.",
+    "nemo.collections.",
+    "nemo.core.",
+    "nemo.utils.",
+    "torch.nn.",
+    "torch.optim.",
+    "torch.utils.data.",
+    "lightning.pytorch.callbacks.",
+    "lightning.pytorch.loggers.",
+    "lightning.pytorch.strategies.",
+    "lightning.pytorch.accelerators.",
     "omegaconf.",
 ]
+
 
 def _is_target_allowed(target_path: str) -> bool:
     if not isinstance(target_path, str):
         return False
     return any(target_path.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES)
 
+
 def _validate_config_targets_recursive(config_node: Any):
-    if isinstance(config_node, Mapping): # Handles DictConfig and dict
+    if isinstance(config_node, Mapping):  # Handles DictConfig and dict
         if "_target_" in config_node:
             target_path = config_node["_target_"]
             if not _is_target_allowed(target_path):
@@ -83,9 +91,10 @@ def _validate_config_targets_recursive(config_node: Any):
                 )
         for key, value in config_node.items():
             _validate_config_targets_recursive(value)
-    elif isinstance(config_node, Sequence) and not isinstance(config_node, str): # Handles ListConfig and list
+    elif isinstance(config_node, Sequence) and not isinstance(config_node, str):  # Handles ListConfig and list
         for item in config_node:
             _validate_config_targets_recursive(item)
+
 
 def safe_instantiate(config: DictConfig, *args, **kwargs):
     """
@@ -95,6 +104,7 @@ def safe_instantiate(config: DictConfig, *args, **kwargs):
     if config is not None:
         _validate_config_targets_recursive(config)
     return hydra.utils.instantiate(config, *args, **kwargs)
+
 
 def is_typecheck_enabled():
     """
@@ -553,7 +563,9 @@ class Serialization(ABC):
                 except Exception as e:
                     # record previous error
                     tb = traceback.format_exc()
-                    prev_error = f"Model instantiation failed!\nTarget class:\t{target_cls_path}" f"\nError(s):\t{e}\n{tb}"
+                    prev_error = (
+                        f"Model instantiation failed!\nTarget class:\t{target_cls_path}" f"\nError(s):\t{e}\n{tb}"
+                    )
                     logging.debug(prev_error + "\nFalling back to `cls`.")
 
             # target class resolution was unsuccessful, fall back to current `cls`
@@ -727,7 +739,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         """
         Should list all pre-trained models available via NVIDIA NGC cloud.
-        Note: There is no check that requires model names and aliases to be unique. In the case of a collision, 
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collision,
         whatever model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
