@@ -213,7 +213,7 @@ def main():
     parser.add_argument(
         '--batch-size',
         '--micro-batch-size',
-        dest=batch_size,
+        dest='batch_size',
         default=1, type=int, help='Micro batch size to use for training.'
     )
     parser.add_argument(
