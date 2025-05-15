@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from pathlib import Path
-
+from typing import TYPE_CHECKING
 import torch
 
 from nemo.export.huggingface.utils import (
@@ -27,6 +27,11 @@ from nemo.export.huggingface.utils import (
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
+
+if TYPE_CHECKING:
+    from transformers import LlamaForCausalLM
+    from transformers import LlamaConfig as HFLlamaConfig
+
 
 LlamaModel = get_model("LlamaModel")
 
@@ -184,7 +189,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
         )
 
     @property
-    def tokenizer(self) -> "TokenizerSpec":
+    def tokenizer(self):
         """Get the tokenizer from the NeMo model.
 
         Returns:

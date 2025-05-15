@@ -13,13 +13,16 @@
 # limitations under the License.
 
 from pathlib import Path
-
+from typing import TYPE_CHECKING
 import torch
 
-from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config
+from nemo.export.huggingface.utils import ckpt_load, get_model, get_tokenizer, io_model_exporter, load_config, torch_dtype_from_mcore_config
 from nemo.lightning import io
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
+
+if TYPE_CHECKING:
+    from transformers import MistralForCausalLM, MistralConfig
 
 MistralModel = get_model("MistralModel")
 
@@ -100,7 +103,7 @@ class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"])
         return transformed
 
     @property
-    def tokenizer(self) -> "TokenizerSpec":
+    def tokenizer(self):
         """Get the tokenizer from the NeMo model.
 
         Returns:
@@ -122,7 +125,7 @@ class HFMistralExporter(io.ModelConnector["MistralModel", "MistralForCausalLM"])
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.seq_length,
+            max_position_embeddings=source.seq_length or 32768,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
