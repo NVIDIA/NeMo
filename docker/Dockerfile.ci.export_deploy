@@ -89,7 +89,7 @@ RUN \
   --mount=type=bind,source=nemo/__init__.py,target=/tmp/NeMo/nemo/__init__.py <<"EOF" bash -ex
 
     bash /tmp/NeMo/install_dep.sh --library all --mode install
-    bash /tmp/NeMo/install_nemo.sh --module deploy
+    pip install --no-cache-dir ".[deploy]"
     rm -rf $NEMO_DIR || true
 EOF
 
