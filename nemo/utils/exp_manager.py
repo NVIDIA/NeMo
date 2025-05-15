@@ -164,6 +164,7 @@ class CallbackParams:
     save_last_n_optim_states: Optional[int] = -1
     multistorageclient_enabled: Optional[bool] = False
 
+
 @dataclass
 class StepTimingParams:
     """StepTimingParams POD"""

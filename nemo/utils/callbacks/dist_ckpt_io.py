@@ -25,9 +25,9 @@ from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch import Callback
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
+from multistorageclient.types import MSC_PROTOCOL
 
 from nemo.utils import logging
-from multistorageclient.types import MSC_PROTOCOL
 
 try:
     from megatron.core import dist_checkpointing

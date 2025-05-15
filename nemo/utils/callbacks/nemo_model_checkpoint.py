@@ -26,7 +26,7 @@ from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from lightning.pytorch.trainer import call
 from lightning.pytorch.utilities import rank_zero_info
-from torch import Tensor 
+from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
@@ -232,7 +232,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             if self.multistorageclient_enabled:
                 if not multistorageclient.os.path.exists(maybe_injected_best_model_path):
                     return
-                
+
             if not os.path.exists(maybe_injected_best_model_path):
                 return
 
@@ -242,7 +242,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             self.previous_best_path = self.best_model_path
             old_state_dict = deepcopy(pl_module.state_dict())
-            checkpoint = multistorageclient.torch.load(maybe_injected_best_model_path, map_location='cpu', weights_only=False)
+            checkpoint = multistorageclient.torch.load(
+                maybe_injected_best_model_path, map_location='cpu', weights_only=False
+            )
             if 'state_dict' in checkpoint:
                 checkpoint = checkpoint['state_dict']
             # get a new instanace of the model
@@ -295,7 +297,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 )
             else:
                 if self.multistorageclient_enabled:
-                    if multistorageclient.os.path.exists(self.best_model_path) and multistorageclient.os.path.isdir(self.best_model_path):
+                    if multistorageclient.os.path.exists(self.best_model_path) and multistorageclient.os.path.isdir(
+                        self.best_model_path
+                    ):
                         self.best_model_path = self.best_model_path.split('.ckpt')[0]
 
                 else:
@@ -540,7 +544,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     ) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
         if self.multistorageclient_enabled:
-            exists = self._fs.exists(filepath) # todo(avm): unsure if we need this check 
+            exists = self._fs.exists(filepath)  # todo(avm): unsure if we need this check
         else:
             exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
 
