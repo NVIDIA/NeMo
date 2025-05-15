@@ -23,7 +23,7 @@ from nemo.deploy.nlp.trtllm_pytorch_deployable import TensorRTLLMPyotrchDeployab
 LOGGER = logging.getLogger("NeMo")
 
 
-def get_args(argv):
+def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Deploy TensorRT-LLM PyTorch models to Triton",
@@ -60,12 +60,12 @@ def get_args(argv):
     parser.add_argument("-ecp", "--enable_chunked_prefill", action="store_true", help="Enable chunked prefill")
     parser.add_argument("-ucg", "--use_cuda_graph", action="store_true", help="Use CUDA graph")
     parser.add_argument("-dm", "--debug_mode", action="store_true", help="Enable debug mode")
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     return args
 
 
-def trtllm_deploy(argv):
-    args = get_args(argv)
+def trtllm_deploy():
+    args = get_args()
 
     if args.debug_mode:
         loglevel = logging.DEBUG
@@ -122,4 +122,4 @@ def trtllm_deploy(argv):
 
 
 if __name__ == '__main__':
-    trtllm_deploy(sys.argv[1:])
+    trtllm_deploy()

@@ -18,7 +18,7 @@ import sys
 from nemo.deploy.nlp import NemoQueryTRTLLMPytorch
 
 
-def get_args(argv):
+def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"Queries Triton server running a TensorRT-LLM PyTorch backend model",
@@ -34,7 +34,7 @@ def get_args(argv):
     parser.add_argument("-t", "--temperature", type=float, help="temperature")
     parser.add_argument("-it", "--init_timeout", default=60.0, type=float, help="init timeout for the triton server")
 
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     return args
 
 
@@ -74,8 +74,8 @@ def query_llm(
     )
 
 
-def query(argv):
-    args = get_args(argv)
+def query():
+    args = get_args()
 
     if args.prompt_file is not None:
         with open(args.prompt_file, "r") as f:
@@ -95,4 +95,4 @@ def query(argv):
 
 
 if __name__ == '__main__':
-    query(sys.argv[1:])
+    query()
