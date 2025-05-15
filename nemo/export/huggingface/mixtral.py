@@ -21,7 +21,7 @@ from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from transformers import MixtralForCausalLM, MixtralConfig
+    from transformers import MixtralConfig, MixtralForCausalLM
 
 MixtralModel = get_model("MixtralModel")
 
