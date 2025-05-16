@@ -104,9 +104,6 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
         "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
-    # if 'cu_seqlens' in batch:
-    #     forward_args['packed_seq_params'] = get_packed_seq_params(batch)
-
     return model(**forward_args)
 
 
@@ -582,16 +579,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 labels = labels[:, : self._language_max_sequence_length]
                 loss_mask = loss_mask[:, : self._language_max_sequence_length]
 
-        # Pipeline parallel expects fixed input size. Check if we need to pad.
-        if self._language_is_pipeline_parallel and language_seq_len < self._language_max_sequence_length:
-            padded_seq_len = self._language_max_sequence_length - language_seq_len
-            input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
-            if position_ids is not None:
-                position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
         packed_sequence = packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
         max_seq_len = self._language_max_sequence_length
 
-
         # Pipeline parallel expects fixed input size. Check if we need to pad.
         if self._language_is_pipeline_parallel and language_seq_len < self._language_max_sequence_length:
             padded_seq_len = self._language_max_sequence_length - language_seq_len
@@ -599,7 +589,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             if position_ids is not None:
                 position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
 
-            # TODO: WIP
             if packed_sequence:
                 last_seqlen = packed_seq_params.cu_seqlens_q[-1] - packed_seq_params.cu_seqlens_q[-2]
                 last_seqlen_padded = max_seq_len - packed_seq_params.cu_seqlens_q_padded[-2]
@@ -614,24 +603,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         # language_embeddings is a container for text, image and video embeddings; to feed to decoder
         language_embeddings = None
 
-
         # Create the language_embeddings (if this is the first language model stage).
         if self.pre_process:
-
-            # Note: This adds absolute position embedding but not RoPE.
-            # Each image is counted as one position.
-            # RoPE is added in language_model forward. Each image embedding is one position.
-            if self.sequence_parallel_lm:
-                # Pad to nearest multiple of TP world size for embedding.
-                tp_world_size = ps.get_tensor_model_parallel_world_size()
-                padded_seq_len = (
-                    int((input_ids.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size) - input_ids.shape[1]
-                )
-                if padded_seq_len != 0:
-                    input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
-                    if position_ids is not None:
-                        position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
-
             input_ids_text = input_ids.clone()
             # MultiModal Token indices are assumed to be values
             input_ids_text[input_ids_text < 0] = 0
