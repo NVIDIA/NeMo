@@ -18,9 +18,9 @@ from typing import Callable
 
 import torch
 import torch.nn as nn
+from megatron.core import parallel_state
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
-from megatron.core import parallel_state
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.nn import functional as F
 
