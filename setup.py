@@ -25,7 +25,7 @@ from itertools import chain
 
 import setuptools
 
-spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
+spec = importlib.util.spec_from_file_location('package_info', 'nemo_export_deploy/package_info.py')
 package_info = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package_info)
 
