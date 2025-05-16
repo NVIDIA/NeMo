@@ -531,6 +531,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         packed_sequence: bool = False,
         num_image_embeddings_per_tile: int = 576,
+        pixel_shuffle_ratio: float = 1.,
         seed: int = 1234,
         image_tag_type: Optional[str] = None,
     ) -> None:
@@ -560,7 +561,9 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.seed = seed
         self.packed_sequence = packed_sequence
-        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
+        self.num_image_embeddings_per_tile = int(
+            num_image_embeddings_per_tile * pixel_shuffle_ratio * pixel_shuffle_ratio
+        )
         self.init_global_step = 0
         self.image_tag_type = image_tag_type
 

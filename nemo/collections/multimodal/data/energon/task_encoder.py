@@ -68,6 +68,7 @@ class MultiModalTaskEncoder(
         packed_sequence=False,
         packed_sequence_size=-1,
         num_image_embeddings_per_tile=576,
+        pixel_shuffle_ratio=1.0,
         image_tag_type=None,
     ):
         """
@@ -87,7 +88,9 @@ class MultiModalTaskEncoder(
         self.tokenizer = tokenizer
         self.sample_config = multimodal_sample_config
         self.packed_sequence = packed_sequence
-        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile  # only used with seq packing
+        self.num_image_embeddings_per_tile = int(
+            num_image_embeddings_per_tile * pixel_shuffle_ratio * pixel_shuffle_ratio
+        )  # only used with seq packing
         self.image_tag_type = image_tag_type
         self.packed_sequence_size = packed_sequence_size
         self.encoders: Dict[str, SampleEncoder] = {

@@ -135,6 +135,7 @@ def main(args):
             image_processor=image_processor,
             num_workers=4,
             packed_sequence=args.use_packed_sequence,
+            pixel_shuffle_ratio=0.5,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
             image_tag_type="internvl"
         )
@@ -171,6 +172,7 @@ def main(args):
                 # leave some space for perf padding, otherwise after packing and padding,
                 # it will go beyond max seq len, then it will need a truncation.
                 packed_sequence_size=int(decoder_seq_length * 0.9),
+                pixel_shuffle_ratio=0.5,
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
                 image_tag_type="internvl"
             ),
@@ -326,7 +328,7 @@ if __name__ == "__main__":
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
-    parser.add_argument("--tp_size", type=int, required=False, default=1)
+    parser.add_argument("--tp_size", type=int, required=False, default=2)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
