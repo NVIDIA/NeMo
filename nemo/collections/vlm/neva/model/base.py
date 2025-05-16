@@ -701,7 +701,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # truncate final embedding
         if final_embedding is not None:
             # transpose final_embeddings to sbhd
-            # note this will also transpose thd, which is fine
             final_embedding = final_embedding.transpose(1, 0).contiguous()
             # Truncate if exceeding the language model's max sequence length.
             if final_embedding.shape[0] > self._language_max_sequence_length:

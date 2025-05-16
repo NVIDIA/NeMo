@@ -342,14 +342,10 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         final_labels = labels
         final_loss_mask = loss_mask
 
-        combined_embeddings = combined_embeddings.permute(1, 0, 2)
         # Convert combined_embeddings to SBHD (or T1HD) format
-        combined_embeddings = combined_embeddings.contiguous()
+        combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if self.context_parallel_lm > 1:
-                combined_embeddings = combined_embeddings.transpose(1, 0)
-                # _process_embedding_token_parallel needs embeddings to be of shape B,S,H
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
                     combined_embeddings, final_labels, final_loss_mask, packed_seq_params
