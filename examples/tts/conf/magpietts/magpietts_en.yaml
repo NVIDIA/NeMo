@@ -171,6 +171,7 @@ trainer:
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 0
   benchmark: false
+  gradient_clip_val: 2.5
 
 exp_manager:
   exp_dir: null
