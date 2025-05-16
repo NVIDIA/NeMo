@@ -32,10 +32,10 @@ from vllm.config import (
     SchedulerConfig,
     VllmConfig,
 )
-from vllm.v1.engine.llm_engine import LLMEngine
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
 from vllm.v1.core.sched.scheduler import Scheduler as V1Scheduler
+from vllm.v1.engine.llm_engine import LLMEngine
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
