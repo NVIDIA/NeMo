@@ -191,6 +191,7 @@ def full_model_tp2_dp4_mock() -> run.Partial:
 
     return recipe
 
+
 @run.cli.factory(target=llm.train)
 def fp8_test() -> run.Partial:
     '''
@@ -217,14 +218,14 @@ def fp8_test() -> run.Partial:
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
-    recipe.trainer.plugins=run.Config(
+    recipe.trainer.plugins = run.Config(
         nl.MegatronMixedPrecision,
         precision="bf16-mixed",
-        fp8 = 'hybrid',
-        fp8_margin = 0,
-        fp8_amax_history_len = 1024,
-        fp8_amax_compute_algo = "max",
-        fp8_params = False,
+        fp8='hybrid',
+        fp8_margin=0,
+        fp8_amax_history_len=1024,
+        fp8_amax_compute_algo="max",
+        fp8_params=False,
     )
     recipe.trainer.max_steps = 100
     return recipe
