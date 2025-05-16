@@ -542,8 +542,11 @@ class MagpieTTSModel(ModelPT):
             n_unmasked = C - n_masked
             # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
+            if use_cfg:
+                actual_batch_size = topk_indices.size(0) // 2
+                assert (topk_indices[actual_batch_size:] == topk_indices[:actual_batch_size]).all(), f"Topk indices are not the same for conditional and unconditional codes"
 
-            # replace masks of the top-k confident codebooks with the the codes that were sampled for them
+            # replace masks of the top-k confident codebooks with the codes that were sampled for them
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
             codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
             
@@ -589,10 +592,9 @@ class MagpieTTSModel(ModelPT):
             probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
             sampled_codes = torch.multinomial(probs.view(B*C, -1), 1).view(B, C)
             if use_cfg:
-                # TODO @rfejgin: why do we need to keep second half of the batch? can probably optimize this
                 sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
                 probs[actual_batch_size:] = probs[:actual_batch_size]
-            confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
+            confidences = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
 
             # TODO
             # * are end of utterance-logits-somehow overwritten ? should we force those to max confidence?? may require
@@ -605,16 +607,25 @@ class MagpieTTSModel(ModelPT):
             if noise_scale > 0.0:
                 # get noise from uniform distribution in the interval [-0.5, 0.5), scale it by `noise_scale`, 
                 # and anneal it to 0 as we approach the end of the unmasking process
-                noise = (torch.rand_like(confidences) - 0.5) * noise_scale * (1-progress)
+                noise = (torch.rand_like(confidences) - 0.5) * noise_scale * (1-(step+2)/n_steps) # the +2 makes sure that by the last iteration the noise is exactly 0
                 confidences += noise
+                # the conditional and unconditional get different noise and must be fixed to be the same again
+                confidences[actual_batch_size:] = confidences[:actual_batch_size]                
+            confidence_eps = 0.1
+            assert confidences.max() + confidence_eps < max_confidence, f"Predicted confidence is approaching max_confidence: {confidences.max()}"
             # for unmasked codebooks, set confidence to max so that they will remain unmasked
-            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))                
+            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+            
         
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
-        if use_cfg:
+
+        if use_cfg: 
+            # drop unconditional codes
             codes = codes[:actual_batch_size]
+
         return codes
+
 
     def local_transformer_sample_autoregressive(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
         # dec_output: (B, E)
