@@ -20,7 +20,6 @@ import lightning.pytorch as pl
 from nemo import lightning as nl
 from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -220,7 +219,7 @@ def main():
         help='Enables trust_remote_code to load HF models with unverified sources',
     )
     parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
-    parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate')
+    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate')
     parser.add_argument('--no-lce', action='store_false', help='Disables LCE')
     parser.add_argument('--start-of-turn-token', default=None, help='Chat turn token')
     parser.add_argument(
@@ -256,7 +255,7 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr, warmup_steps=50))
+        optimizer = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=args.lr))  # foreach need to be False for TP
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
