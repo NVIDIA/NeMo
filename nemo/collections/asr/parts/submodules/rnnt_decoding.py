@@ -776,8 +776,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         char_offsets: List[Dict[str, Union[str, float]]],
         encoded_char_offsets: List[Dict[str, Union[str, float]]],
         word_delimiter_char: str,
-        supported_punctuation: Optional[Set]
-        ) -> List[Dict[str, Union[str, float]]]:
+        supported_punctuation: Optional[Set],
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Implemented by subclass in order to get the words offsets.
         """
@@ -1456,7 +1456,15 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
     @staticmethod
     def get_words_offsets(
-        char_offsets: List[Dict[str, Union[str, float,]]],
+        char_offsets: List[
+            Dict[
+                str,
+                Union[
+                    str,
+                    float,
+                ],
+            ]
+        ],
         encoded_char_offsets: List[Dict[str, Union[str, float]]],
         word_delimiter_char: str = " ",
         supported_punctuation: Optional[Set] = None,
@@ -1887,7 +1895,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
         **Note**: Only supports Sentencepiece based tokenizers !
 
         Args:
-            char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset", 
+            char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
                         where "char" is decoded with the tokenizer.
             encoded_char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
                         where "char" is the original id/ids from the hypotheses (not decoded with the tokenizer).

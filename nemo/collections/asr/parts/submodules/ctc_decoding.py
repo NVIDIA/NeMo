@@ -591,8 +591,8 @@ class AbstractCTCDecoding(ConfidenceMixin):
         char_offsets: List[Dict[str, Union[str, float]]],
         encoded_char_offsets: List[Dict[str, Union[str, float]]],
         word_delimiter_char: str,
-        supported_punctuation: Optional[Set]
-        ) -> List[Dict[str, Union[str, float]]]:
+        supported_punctuation: Optional[Set],
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Implemented by subclass in order to get the words offsets.
         """
