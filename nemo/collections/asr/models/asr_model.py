@@ -17,6 +17,7 @@ from typing import List, Optional
 
 import torch
 
+from nemo.collections.asr.parts.mixins.mixins import IPLMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -30,7 +31,7 @@ from nemo.utils.cast_utils import cast_all
 __all__ = ['ASRModel']
 
 
-class ASRModel(ModelPT, ABC):
+class ASRModel(ModelPT, ABC, IPLMixin):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss = {}
         tensorboard_logs = {}
@@ -186,6 +187,8 @@ class ASRModel(ModelPT, ABC):
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
         WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        if self.check_should_stop():
+            self.trainer.should_stop = True
 
     def on_validation_epoch_start(self) -> None:
         """
