@@ -1,6 +1,5 @@
 # **NeMo Export and Deploy**
 
-
 ## Introduction
 
 NVIDIA NeMo Export and Deploy library ...
@@ -16,7 +15,6 @@ Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/playbooks/index.
 - For an in-depth exploration of the main features of NeMo 2.0, see the [Feature Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/features/index.html#feature-guide).
 - To transition from NeMo 1.0 to 2.0, see the [Migration Guide](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/migration/index.html#migration-guide) for step-by-step instructions.
 
-
 ## Get Started with NeMo Framework
 
 Getting started with NeMo ...
@@ -27,13 +25,40 @@ Getting started with NeMo ...
 
 ## Requirements
 
-- Python 3.10 or above
-- Pytorch 2.5 or above
+- Python 3.10 or above (Recommended: Python 3.12)
+- Pytorch 2.5 or above (Recommended: Pytorch 2.6)
 - NVIDIA GPU (if you intend to do model training)
 
 ## Install NeMo Export and Deploy
 
-The NeMo Framework can be ...
+Start an interactive terminal inside a `nvidia/cuda` container:
+
+```bash
+docker run --rm -it --entrypoint bash --runtime nvidia --gpus all nvcr.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+```
+
+Install NeMo Export-Deploy:
+
+```bash
+apt update
+apt install -y python3-pip python3-venv git libopenmpi-dev vim
+git clone https://github.com/nvidia/nemo
+cd nemo
+git switch ko3n1g/onur/nemo-export-deploy-repo
+python3 -m venv venv
+source venv/bin/activate
+
+# Required for TransformerEngine 2.2
+pip install "torch==2.6.0" wheel_stub pybind11 "Cython>=3.0.0"
+export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+
+# Install NeMo Export-Deploy
+pip install --no-build-isolation --no-cache-dir '.[all]'
+
+# Use devel version of NeMo-Run and Mcore
+pip install git+https://github.com/NVIDIA/Megatron-LM.git 
+pip install git+https://github.com/NVIDIA/NeMo-Run.git 
+```
 
 ### Support matrix
 
@@ -54,16 +79,6 @@ Please refer to the following table for current support levels:
 | `darwin` - `arm64`         | Limited support   | Limited support           |
 | `windows` - `amd64/x64_64` | No support yet    | No support yet            |
 | `windows` - `arm64`        | No support yet    | No support yet            |
-
-### Pip
-
-Install NeMo in a fresh Conda environment:
-
-```bash
-pip install ...
-```
-
-
 
 ## Licenses
 

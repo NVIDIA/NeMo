@@ -17,15 +17,15 @@
 
 
 import importlib.util
-import setuptools
-import subprocess
 import os
+import subprocess
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
 
+import setuptools
 
-spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
+spec = importlib.util.spec_from_file_location('package_info', 'nemo_export_deploy/package_info.py')
 package_info = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package_info)
 
@@ -45,6 +45,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
     long_description = fh.read()
     long_description_content_type = "text/markdown"
 
+
 def req_file(filename, folder="requirements"):
     files = [filename] if not isinstance(filename, list) else filename
     ans = []
@@ -53,12 +54,14 @@ def req_file(filename, folder="requirements"):
             ans.extend(list(map(str.strip, f.readlines())))
     return ans
 
+
 install_requires = req_file("requirements.txt")
 
 extras_require = {
     'test': req_file("requirements_test.txt"),
     'export': req_file(["requirements_export.txt"]),
     'deploy': req_file('requirements_deploy.txt'),
+    'lightning': req_file('requirements_lightning.txt'),
 }
 
 extras_require['all'] = list(chain(*extras_require.values()))
@@ -69,6 +72,7 @@ extras_require['export_deploy'] = req_file(["requirements_export.txt", "requirem
 ###############################################################################
 #                            Code style checkers                              #
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
+
 
 class StyleCommand(distutils_cmd.Command):
     __ISORT_BASE = 'isort'
@@ -134,6 +138,7 @@ class StyleCommand(distutils_cmd.Command):
 
     def finalize_options(self):
         pass
+
 
 ###############################################################################
 
