@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -173,25 +172,10 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-        if cp_size is None:
-            cp_size = 1
-            if dp_size is None:
-                dp_size = devices * num_nodes
-            else:
-                assert (
-                    dp_size == devices * num_nodes
-                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
-        else:
-            if dp_size is None:
-                dp_size = 1
-                assert (
-                    cp_size == devices * num_nodes
-                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
-            else:
-                assert (
-                    dp_size * cp_size == devices * num_nodes
-                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-        print(f"Using FSDP2 with DP={dp_size}, TP={1}, CP={cp_size}")
+            assert (
+                dp_size * tp_size * cp_size == devices * num_nodes
+            ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+        print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -246,13 +230,19 @@ def main():
         action='store_true',
         help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
     )
+    parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
     parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
     parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
     parser.add_argument(
-        '--accumulate_grad_batches', type=int, default=1, help='Number of batches to accumulate gradient over.'
+        '--accumulate-grad-batches',
+        '--accumulate_grad_batches',
+        type=int,
+        default=1,
+        help='Number of batches to accumulate gradient over.',
     )
     parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
     parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
+    parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
     parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
     parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
     parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
@@ -325,6 +315,8 @@ def main():
     if args.enable_cpu_offload and args.use_te_optimizer:
         args.use_te_optimizer = False
 
+    print(f"Accumulate grad batches: {args.accumulate_grad_batches}")
+
     wandb = None
     if args.wandb_project is not None:
         model = '_'.join(args.model.split('/')[-2:])
@@ -346,7 +338,7 @@ def main():
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
         optimizer = fdl.build(
-            pytorch_adam_with_cosine_annealing(max_lr=args.lr, foreach=False)
+            llm.adam.pytorch_adam_with_flat_lr(lr=args.lr)
         )  # foreach need to be False for TP
 
     if args.fp8:
@@ -406,10 +398,16 @@ def main():
             pad_seq_len_divisible=16 if args.fp8 else None,
         )
     else:
+        if args.packed_sequence_size > 0:
+            assert args.attn_implementation == 'flash_attention_2', (
+                "Packed sequences is currently supported only "
+                "with flash_attention_2. Please set --attn_implementation flash_attention_2"
+            )
         dataset = make_squad_hf_dataset(
             tokenizer=model.tokenizer,
             micro_batch_size=args.batch_size,
             seq_length=args.seq_length,
+            packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
         )
@@ -421,6 +419,7 @@ def main():
             devices=args.devices,
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
+            max_epochs=args.max_epochs,
             accelerator='gpu',
             strategy=strategy,
             log_every_n_steps=args.log_every_n_steps,
