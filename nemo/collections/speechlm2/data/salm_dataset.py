@@ -15,13 +15,13 @@ from itertools import groupby
 
 import torch
 import torch.utils.data
-from lhotse import CutSet
+from lhotse import CutSet, fastcopy
 from lhotse.dataset.collation import collate_audio, collate_vectors
 
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
-from nemo.collections.common.data.lhotse.text_adapters import TextTurn
+from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, TextTurn
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
-from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
+from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter, PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
 
@@ -64,22 +64,39 @@ class SALMDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, conversations: CutSet) -> dict:
         all_cuts = []
-        example_idx_to_audio_idxs = []
-        cntr = 0
         for conversation in conversations:
-            assert isinstance(conversation, NeMoMultimodalConversation)
-            example_idx_to_audio_idxs.append([])
             for cut in conversation.list_cuts():
                 all_cuts.append(cut)
-                example_idx_to_audio_idxs[-1].append(cntr)
-                cntr += 1
         audios, audio_lens = collate_audio(CutSet(all_cuts))
+        audio_conv = conversations.map(drop_response, apply_fn=None).to_eager()
+        text_conv = audio_conv.map(to_text_conversation, apply_fn=None).to_eager()
         return {
             "audios": audios,
             "audio_lens": audio_lens,
-            "input_ids": collate_vectors([c.input_ids for c in conversations], padding_value=self.pad_id),
-            "loss_mask": collate_vectors([c.mask for c in conversations], padding_value=0).to(torch.bool),
+            "audio_conversations": audio_conv,
+            "text_conversations": text_conv,
         }
+
+
+def drop_response(conv: NeMoMultimodalConversation) -> NeMoMultimodalConversation:
+    if conv.turns[-1].role == "assistant":
+        return fastcopy(conv, turns=conv.turns[:-1], custom=conv.custom.copy())
+
+
+def to_text_conversation(conv: NeMoMultimodalConversation) -> NeMoMultimodalConversation:
+    turns = []
+    for turn in conv.turns:
+        if isinstance(turn, AudioTurn):
+            assert len(turn.cut.supervisions) > 0, f"The cut has no supervisions. {turn.cut=}"
+            assert turn.cut.supervisions[0].text is not None, f"The cut's supervision has no text. {turn.cut=}"
+            turn = TextTurn(value=turn.cut.supervisions[0].text, role=turn.role)
+        turns.append(turn)
+    return NeMoMultimodalConversation(
+        id=conv.id,
+        turns=turns,
+        token_equivalent_duration=conv.token_equivalent_duration,
+        custom=conv.custom.copy(),
+    )
 
 
 @registered_prompt_format_fn(NeMoMultimodalConversation, Llama3PromptFormatter)

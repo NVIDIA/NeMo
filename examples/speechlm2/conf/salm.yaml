@@ -109,12 +109,12 @@ data:
         tags:
           # Uncomment below line to include a system prompt.
           # system_prompt: "some system prompt"
-          context: "Repeat after me, typing in lowercase."
+          # context: ""
     seed: 42
     shuffle: true
     shard_seed: "randomized"
     num_workers: 1
-    batch_size: 4
+    batch_size: 32
     # Optional bucketing:
     # batch_size: null
     # batch_duration: 100
@@ -138,9 +138,9 @@ data:
             tags:
               # Uncomment below line to include a system prompt.
               # system_prompt: "some system prompt"
-              context: "Repeat after me, typing in lowercase."
+              # context: "Repeat after me, typing in lowercase."
     sample_rate: 16000
-    batch_size: 1
+    batch_size: 32
     seed: 42
     shard_seed: "randomized"
 

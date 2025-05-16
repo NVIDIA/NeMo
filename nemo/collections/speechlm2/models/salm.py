@@ -14,6 +14,7 @@
 import warnings
 from collections import defaultdict
 from itertools import repeat
+from time import perf_counter
 from typing import Any, Optional
 
 import torch
@@ -32,8 +33,10 @@ from torch.distributed.tensor.parallel import (
     loss_parallel,
     parallelize_module,
 )
+from torch.nn.utils.rnn import pad_sequence
 from transformers import GenerationConfig
 
+from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
@@ -135,6 +138,39 @@ class SALM(LightningModule, HFHubMixin):
         * Take care of any necessary slicing to align the shapes of source audio,
             target audio, and target token ids.
         """
+        # Run LLM inference in text mode to generate the labels.
+        text_conversations = batch["text_conversations"]
+        llm_responses = self.generate(
+            prompts=[
+                [{"role": turn.role, "content": turn.value} for turn in conv.turns] for conv in text_conversations
+            ],
+            generation_config=GenerationConfig(
+                do_sample=True,
+                max_length=256,
+            ),
+        ).cpu()
+
+        # Construct equivalent training examples with prompt text transcription replaced by audio placeholder tokens.
+        formatter = PromptFormatter.resolve(self.cfg.prompt_format)(self.tokenizer)
+        input_ids = []
+        loss_mask = []
+        for audio_conv, text_conv, answer_ids in zip(batch["audio_conversations"], text_conversations, llm_responses):
+            audio_conv.apply_prompt_format(formatter)
+            text_conv.apply_prompt_format(formatter)
+            prefix_len = text_conv.context_ids.shape[0]
+            input_ids.append(torch.cat([audio_conv.context_ids, answer_ids[prefix_len:]]))
+            loss_mask.append(
+                torch.cat(
+                    [torch.zeros(audio_conv.context_ids.shape[0]), torch.ones(answer_ids.shape[0] - prefix_len)],
+                ).to(torch.bool)
+            )
+        input_ids = pad_sequence(input_ids, batch_first=True, padding_value=self.text_pad_id).to(
+            self.device, non_blocking=True
+        )
+        loss_mask = pad_sequence(loss_mask, batch_first=True, padding_value=0).to(self.device, non_blocking=True)
+        batch["input_ids"] = input_ids
+        batch["loss_mask"] = loss_mask
+
         # Source audio encoding.
         # Input audio: (B, T_samples)
         # Audio embeddings: (B, T, H)
@@ -142,15 +178,15 @@ class SALM(LightningModule, HFHubMixin):
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
         audio_embs = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
-        input_ids_to_embed = torch.where(batch["input_ids"] == self.audio_locator_tag_id, 0, batch["input_ids"])
+        input_ids_to_embed = torch.where(input_ids == self.audio_locator_tag_id, 0, input_ids)
         text_embs = self.embed_tokens(input_ids_to_embed)
         input_embs, target_ids, attention_mask = replace_placeholders_and_build_targets(
-            input_ids=batch["input_ids"],
+            input_ids=input_ids,
             embeds=text_embs,
             padding_id=self.text_pad_id,
             placeholder_id=self.audio_locator_tag_id,
             replacements=audio_embs,
-            target_ids=batch["input_ids"].where(batch["loss_mask"], -100),  # CrossEntropyLoss().ignore_index
+            target_ids=input_ids.where(loss_mask, -100),  # CrossEntropyLoss().ignore_index
         )
         input_embs = input_embs[:, :-1]
         attention_mask = attention_mask[:, :-1]
@@ -252,7 +288,7 @@ class SALM(LightningModule, HFHubMixin):
                 )
 
             preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
-            refs = inputs["target_ids"].view(-1)
+            refs = inputs["target_ids"].reshape(-1)
             preds = preds[refs != -100]
             refs = refs[refs != -100]
             accuracy = preds.eq(refs).float().mean()
