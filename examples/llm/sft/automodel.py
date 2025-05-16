@@ -321,7 +321,7 @@ def main():
     try:
         args.accumulate_grad_batches = calculate_valid_accumulate_grad_batches(
             global_batch_size=args.global_batch_size,
-            micro_batch_size=args.micro_batch_size,
+            micro_batch_size=args.batch_size,
             devices=args.devices,
             num_nodes=args.num_nodes,
             tp_size=args.tp_size,
