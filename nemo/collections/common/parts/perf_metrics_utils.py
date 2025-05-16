@@ -23,6 +23,7 @@ LLM_VOCAB_SIZE_MAP = {
     "gpt3": 51200,
     "llama2": 32000,
     "llama3": 128256,
+    "llama4": 202048,
     "nemotron": 256000,
     "bert": 29000,
     "mixtral": 32000,

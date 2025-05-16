@@ -31,7 +31,7 @@ _model_flops_map = {
     "gpt3": flops_formulas.gpt3,
     "llama2": flops_formulas.llama2,
     "llama3": flops_formulas.llama3,
-    "llama4": flops_formulas.llama3,  # TODO: add llama4 flops formulas
+    "llama4": flops_formulas.llama4,
     "nemotron": flops_formulas.nemotron,
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
@@ -107,6 +107,9 @@ class FLOPsMeasurementCallback(Callback):
         config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
         config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
         config_kwargs["mtp_num_layers"] = self.model_cfg.mtp_num_layers
+        config_kwargs["no_rope_freq"] = getattr(self.model_cfg, "no_rope_freq", None)
+        config_kwargs["attention_chunk_size"] = getattr(self.model_cfg, "attention_chunk_size", None)
+
 
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
@@ -208,7 +211,6 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
     ):
         self.data_cfg = data_config
         self.flops_config_dict = dict()
-
         for model_name, model_cfg in model_name_config_dict.items():
             kwargs = dict()
             kwargs["gbs"] = self.data_cfg.global_batch_size
