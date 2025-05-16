@@ -76,6 +76,12 @@ def slurm_executor(
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
     }
+
+    # Assuming 4 GPU's per node as GB200, might need to revisit in future!
+    if num_gpus_per_node == 4:
+        env_vars["NCCL_NET_GDR_LEVEL"] = "PHB" #For NCCL 2.25
+        env_vars["NCCL_NET_GDR_C2C"] = 1 #For NCCL 2.26
+
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
