@@ -52,10 +52,10 @@ model:
   aligner_encoder_train_steps: 50000
 
   # Local transformer parameters for autoregressive codebook prediction within a frame
-  local_transformer_type: "none" # "none", "autoregressive", "maskgit"
+  local_transformer_type: "autoregressive" # "none", "autoregressive", "maskgit"
   # Below args are only relevant if use_local_transformer is true
   local_transformer_loss_scale: 1.0
-  local_transformer_n_layers: 1
+  local_transformer_n_layers: 3
   local_transformer_n_heads: 1
   local_transformer_hidden_dim: 256
 
@@ -171,6 +171,7 @@ trainer:
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 0
   benchmark: false
+  gradient_clip_val: 2.5
 
 exp_manager:
   exp_dir: null
