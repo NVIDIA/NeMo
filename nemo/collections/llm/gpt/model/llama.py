@@ -26,7 +26,6 @@ from torch import nn
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 from nemo.collections.llm.utils import Config
-from nemo.export.huggingface.llama import HFLlamaExporter
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -770,7 +769,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
 
 
 @io.model_exporter(LlamaModel, "hf-peft")
-class HFLlamaPEFTExporter(HFLlamaExporter):
+class HFLlamaPEFTExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
     """Exporter for converting NeMo Llama models with PEFT adapters to Hugging Face format.
 
     This class extends HFLlamaExporter to handle Parameter-Efficient Fine-Tuning (PEFT)
@@ -964,6 +963,15 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
             lora_dropout=self.peft_obj.dropout,
             use_dora=isinstance(self.peft_obj, DoRA),
         )
+    
+    @property
+    def tokenizer(self) -> "TokenizerSpec":
+        """Get the tokenizer from the NeMo model.
+
+        Returns:
+            TokenizerSpec: Tokenizer from the NeMo model
+        """
+        return io.load_context(str(self), subpath="model").tokenizer
 
 
 def apply_rope_scaling(
