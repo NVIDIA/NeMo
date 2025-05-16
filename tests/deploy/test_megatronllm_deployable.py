@@ -21,51 +21,53 @@ from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
 
 
 @pytest.fixture
-def mock_model_and_tokenizer():
-    """Fixture to mock the model and tokenizer setup."""
-    with patch('nemo.collections.llm.inference.setup_mcore_engine') as mock_setup:
-        mock_engine = MagicMock()
-        mock_model = MagicMock()
-        mock_tokenizer = MagicMock()
-        mock_tokenizer.tokenizer.tokenizer = MagicMock()
-        mock_tokenizer.tokenizer.tokenizer.chat_template = "{{messages}}"
-        mock_tokenizer.tokenizer.tokenizer.bos_token = "<bos>"
-        mock_tokenizer.tokenizer.tokenizer.eos_token = "<eos>"
-        mock_setup.return_value = (mock_engine, mock_model, mock_tokenizer)
-        yield mock_setup
+def mock_engine_and_tokenizer():
+    """Fixture to mock the engine and tokenizer needed for testing."""
+    mock_engine = MagicMock()
+    mock_model = MagicMock()
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.tokenizer.tokenizer = MagicMock()
+    mock_tokenizer.tokenizer.tokenizer.chat_template = "{{messages}}"
+    mock_tokenizer.tokenizer.tokenizer.bos_token = "<bos>"
+    mock_tokenizer.tokenizer.tokenizer.eos_token = "<eos>"
+    
+    return mock_engine, mock_model, mock_tokenizer
 
 
 @pytest.fixture
-def deployable(mock_model_and_tokenizer):
+def deployable(mock_engine_and_tokenizer):
     """Fixture to create a deployable instance with mocked dependencies."""
-    return MegatronLLMDeployableNemo2(
-        nemo_checkpoint_filepath="dummy.nemo",
-        num_devices=1,
-        num_nodes=1,
-        tensor_model_parallel_size=1,
-        pipeline_model_parallel_size=1,
-        context_parallel_size=1,
-        expert_model_parallel_size=1,
-        params_dtype="bfloat16",
-        inference_batch_times_seqlen_threshold=1000,
-        inference_max_seq_length=4096,
-        max_batch_size=32,
-        random_seed=42,
-        enable_flash_decode=True,
-        legacy_ckpt=False,
-    )
+    mock_engine, mock_model, mock_tokenizer = mock_engine_and_tokenizer
+    
+    # Patch the __init__ method to avoid file loading
+    with patch.object(MegatronLLMDeployableNemo2, '__init__', return_value=None):
+        deployable = MegatronLLMDeployableNemo2()
+        
+        # Set required attributes manually
+        deployable.mcore_engine = mock_engine
+        deployable.inference_wrapped_model = mock_model
+        deployable.mcore_tokenizer = mock_tokenizer
+        deployable.nemo_checkpoint_filepath = "dummy.nemo"
+        deployable.max_batch_size = 32
+        deployable.enable_cuda_graphs = True
+        
+        yield deployable
 
 
 @pytest.mark.run_only_on("GPU")
-def test_initialization(deployable, mock_model_and_tokenizer):
+def test_initialization(deployable):
     """Test initialization of the deployable class."""
     assert deployable.nemo_checkpoint_filepath == "dummy.nemo"
-    mock_model_and_tokenizer.assert_called_once()
+    assert deployable.max_batch_size == 32
+    assert deployable.enable_cuda_graphs is True
 
 
 @pytest.mark.run_only_on("GPU")
-def test_generate(deployable):
-    """Test text generation functionality."""
+def test_generate_without_cuda_graphs(deployable):
+    """Test text generation without CUDA graphs."""
+    # Temporarily disable CUDA graphs
+    deployable.enable_cuda_graphs = False
+    
     prompts = ["Hello", "World"]
     inference_params = CommonInferenceParams(
         temperature=1.0,
@@ -79,20 +81,66 @@ def test_generate(deployable):
     with patch.object(deployable.mcore_engine, 'generate') as mock_generate:
         mock_result = MagicMock()
         mock_result.generated_text = "Generated text"
-        mock_generate.return_value = [mock_result]
+        mock_generate.return_value = [mock_result, mock_result]
 
         results = deployable.generate(prompts, inference_params)
-        assert len(results) == 1
-        mock_generate.assert_called_once()
+        assert len(results) == 2
+        mock_generate.assert_called_once_with(prompts=prompts, add_BOS=False, common_inference_params=inference_params)
+
+
+@pytest.mark.run_only_on("GPU")
+def test_generate_with_cuda_graphs(deployable):
+    """Test text generation with CUDA graphs enabled."""
+    # Ensure CUDA graphs is enabled
+    deployable.enable_cuda_graphs = True
+    deployable.max_batch_size = 4
+    
+    prompts = ["Hello", "World"]
+    inference_params = CommonInferenceParams(
+        temperature=1.0,
+        top_k=1,
+        top_p=0.0,
+        num_tokens_to_generate=256,
+        return_log_probs=False,
+    )
+
+    # Mock the generate method
+    with patch.object(deployable.mcore_engine, 'generate') as mock_generate:
+        mock_result1 = MagicMock()
+        mock_result1.generated_text = "Generated text 1"
+        mock_result2 = MagicMock()
+        mock_result2.generated_text = "Generated text 2"
+        mock_result_pad = MagicMock()
+        mock_result_pad.generated_text = "Padding text"
+        mock_generate.return_value = [mock_result1, mock_result2, mock_result_pad, mock_result_pad]
+
+        results = deployable.generate(prompts, inference_params)
+        
+        # Should only return the actual results, not the padding
+        assert len(results) == 2
+        
+        # Check that the padding was applied in the call
+        called_args = mock_generate.call_args[1]
+        assert len(called_args['prompts']) == 4  # Should pad to max_batch_size
+        assert called_args['prompts'][:2] == prompts  # Original prompts should be first
+        assert called_args['add_BOS'] is False
+        assert called_args['common_inference_params'] == inference_params
 
 
 @pytest.mark.run_only_on("GPU")
 def test_apply_chat_template(deployable):
     """Test chat template application."""
     messages = [{"role": "user", "content": "Hello"}]
-    template = deployable.apply_chat_template(messages)
-    assert isinstance(template, str)
-    assert messages[0]["content"] in template
+    
+    # Set up jinja2 mock
+    from jinja2 import Template
+    template_mock = MagicMock()
+    template_mock.render.return_value = "Rendered template with Hello"
+    
+    with patch('nemo.deploy.nlp.megatronllm_deployable.Template', return_value=template_mock):
+        template = deployable.apply_chat_template(messages)
+        assert template == "Rendered template with Hello"
+        template_mock.render.assert_called_once()
 
 
 @pytest.mark.run_only_on("GPU")
@@ -115,25 +163,33 @@ def test_str_to_dict(deployable):
 @pytest.mark.run_only_on("GPU")
 def test_triton_input_output(deployable):
     """Test Triton input and output tensor definitions."""
-    inputs = deployable.get_triton_input
-    outputs = deployable.get_triton_output
-
-    assert len(inputs) == 9  # Number of input tensors
-    assert len(outputs) == 2  # Number of output tensors
-
-    # Check input tensor names
-    input_names = [tensor.name for tensor in inputs]
-    assert "prompts" in input_names
-    assert "max_length" in input_names
-    assert "max_batch_size" in input_names
-    assert "top_k" in input_names
-    assert "top_p" in input_names
-    assert "temperature" in input_names
-    assert "random_seed" in input_names
-    assert "compute_logprob" in input_names
-    assert "apply_chat_template" in input_names
-
-    # Check output tensor names
-    output_names = [tensor.name for tensor in outputs]
-    assert "sentences" in output_names
-    assert "log_probs" in output_names
+    # Mock the Tensor class from pytriton.model_config
+    with patch('nemo.deploy.nlp.megatronllm_deployable.Tensor') as mock_tensor:
+        # Set up mock to return itself for testing
+        mock_tensor.side_effect = lambda name, shape, dtype, optional=False: MagicMock(name=name, shape=shape, dtype=dtype, optional=optional)
+        
+        inputs = deployable.get_triton_input
+        outputs = deployable.get_triton_output
+        
+        # Extract mock calls to see what was created
+        input_calls = mock_tensor.call_args_list[:9]  # First 9 calls are for inputs
+        output_calls = mock_tensor.call_args_list[9:]  # Rest are for outputs
+        
+        # Check inputs (simplified to just check count and first param names)
+        assert len(input_calls) == 9
+        input_names = [call[1]['name'] for call in input_calls]
+        assert "prompts" in input_names
+        assert "max_length" in input_names
+        assert "max_batch_size" in input_names
+        assert "top_k" in input_names
+        assert "top_p" in input_names
+        assert "temperature" in input_names
+        assert "random_seed" in input_names
+        assert "compute_logprob" in input_names
+        assert "apply_chat_template" in input_names
+        
+        # Check outputs
+        assert len(output_calls) == 2
+        output_names = [call[1]['name'] for call in output_calls]
+        assert "sentences" in output_names
+        assert "log_probs" in output_names
