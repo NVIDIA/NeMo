@@ -32,6 +32,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPFSDPStrategy,
     PipelineMixedPrecisionPlugin,
 )
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import (
     AsyncFinalizableCheckpointIO,
@@ -199,6 +200,7 @@ class MegatronTrainerBuilder:
         precision = self.cfg.trainer.precision
         strategy = self._training_strategy()
         plugins = self._plugins()
+        callbacks.extend(CallbackGroup.get_instance().callbacks)
         callbacks = self._callbacks(callbacks)
         trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
         # Restore the precision value after Trainer is built.
@@ -227,6 +229,7 @@ class MegatronT5TrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self, callbacks=None) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
+        callbacks.extend(CallbackGroup.get_instance().callbacks)
         callbacks = self._callbacks(callbacks)
         return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
 

@@ -55,6 +55,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup, wrap_methods_with_callbacks
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
@@ -232,6 +233,7 @@ class ModelPT(LightningModule, Model):
 
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
+        wrap_methods_with_callbacks(cls)
 
     def on_fit_start(self) -> None:
         if self.cfg.get("dump_debug_info", False):
@@ -2121,3 +2123,6 @@ class ModelPT(LightningModule, Model):
             return copy.deepcopy(optim_config)
         else:
             return OmegaConf.create(optim_config)
+
+
+ModelPT = wrap_setup_training_data(ModelPT)
