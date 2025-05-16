@@ -126,7 +126,6 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
-    compute_dtype: str = "float32"
     matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
@@ -223,8 +222,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
-    if cfg.compute_dtype != "float32":
-        asr_model.to(getattr(torch, cfg.compute_dtype))
 
     model_is_tdt = hasattr(asr_model.loss, '_loss') and type(asr_model.loss._loss).__name__ == 'TDTLossNumba'
     if cfg.merge_algo is None:
