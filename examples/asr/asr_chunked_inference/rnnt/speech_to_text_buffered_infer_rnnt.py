@@ -64,7 +64,7 @@ import copy
 import glob
 import math
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -126,14 +126,13 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
-    allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
     # Decoding strategy for RNNT models
-    decoding: RNNTDecodingConfig = field(default_factory=RNNTDecodingConfig)
+    decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
     # Decoding configs
     max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
@@ -163,7 +162,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
-    torch.set_float32_matmul_precision("high")  # TODO: param
 
     cfg = OmegaConf.structured(cfg)
 
@@ -184,23 +182,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
+            device = [0]  # use 0th CUDA device
             accelerator = 'gpu'
-            map_location = torch.device('cuda:0')  # use 0th CUDA device
-        elif cfg.allow_mps and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            logging.warning(
-                "MPS device (Apple Silicon M-series GPU) support is experimental."
-                " Env variable `PYTORCH_ENABLE_MPS_FALLBACK=1` should be set in most cases to avoid failures."
-            )
-            accelerator = 'mps'
-            map_location = torch.device('mps')
         else:
+            device = 1
             accelerator = 'cpu'
-            map_location = torch.device('cpu')
     else:
+        device = [cfg.cuda]
         accelerator = 'gpu'
-        map_location = torch.device(f'cuda:{cfg.cuda}')
-
-    logging.info(f"Inference will be done on device : {map_location}")
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+    logging.info(f"Inference will be done on device : {device}")
 
     asr_model, model_name = setup_model(cfg, map_location)
 
