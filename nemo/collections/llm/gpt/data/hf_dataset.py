@@ -203,7 +203,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         persistent_workers (bool, optional): Whether to keep worker threads alive between epochs. Defaults to True.
         seq_length (int, optional): Maximum sequence length for tokenized inputs. Defaults to 1024.
         micro_batch_size (int, optional): Batch size per device. Defaults to 2.
-        global_batch_size (int, optional): Total batch size across all devices. Defaults to 2.
         pad_token_id (int, optional): Token ID used for padding sequences. Defaults to 0.
         use_dist_sampler (bool, optional): Whether to enable distributed sampling. Defaults to False.
         train_aliases (list, optional): Alternative names for the training split. Defaults to ["train", "training"].
@@ -249,7 +248,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         persistent_workers=True,
         seq_length=1024,
         micro_batch_size=2,
-        global_batch_size=2,
         pad_token_id=0,
         use_dist_sampler=False,
         train_aliases=["train", "training"],
@@ -297,7 +295,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
         self.pad_token_id = pad_token_id
 
         self.use_dist_sampler = use_dist_sampler
@@ -556,7 +553,6 @@ class HFMockDataModule(pl.LightningDataModule):
         seq_length: int = 2048,
         vocab_size: int = 1024,
         micro_batch_size: int = 4,
-        global_batch_size: int = 8,
         rampup_batch_size=None,
         num_train_samples: int = 10_000,
         num_val_samples: int = 10_000,
@@ -572,7 +568,6 @@ class HFMockDataModule(pl.LightningDataModule):
         super().__init__()
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
