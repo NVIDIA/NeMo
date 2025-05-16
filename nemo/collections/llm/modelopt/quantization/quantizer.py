@@ -14,6 +14,7 @@
 
 import copy
 import os
+import pprint
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -279,6 +280,7 @@ class Quantizer:
         if decoder_type == "gemma" and "int8_sq" in self.quantization_config.algorithm:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
 
+        logging.info(f"Using quant_cfg:\n{pprint.pformat(quant_cfg)}")
         return quant_cfg
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
@@ -505,41 +507,6 @@ def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration
     return _get_iterator
 
 
-huggingface_model_type_pattern_match = {
-    "GPT2": "gpt",
-    "Mllama": "mllama",
-    "Llama": "llama",
-    "Mistral": "llama",
-    "GPTJ": "gptj",
-    "FalconForCausalLM": "falcon",
-    "RWForCausalLM": "falcon",
-    "baichuan": "baichuan",
-    "MPT": "mpt",
-    "Bloom": "bloom",
-    "ChatGLM": "chatglm",
-    "QWen": "qwen",
-    "RecurrentGemma": "recurrentgemma",
-    "Gemma2": "gemma2",
-    "Gemma": "gemma",
-    "phi3small": "phi3small",
-    "phi3": "phi3",
-    "PhiMoEForCausalLM": "phi3",
-    "phi": "phi",
-    "TLGv4ForCausalLM": "phi",
-    "MixtralForCausalLM": "llama",
-    "ArcticForCausalLM": "llama",
-    "StarCoder": "gpt",
-    "Dbrx": "dbrx",
-    "T5": "t5",
-    "Bart": "bart",
-    "GLM": "glm",
-    "InternLM2ForCausalLM": "internlm",
-    "ExaoneForCausalLM": "exaone",
-    "Nemotron": "gpt",
-    "Deepseek": "deepseek",
-    "Whisper": "whisper",
-}
-
 gpt_model_type = [
     (llm.Baichuan2Model, "baichuan"),
     (llm.ChatGLMModel, "chatglm"),
@@ -574,9 +541,7 @@ def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausa
         Optional[str]: The inferred decoder type or None if no match is found.
     """
     if isinstance(model, llm.HFAutoModelForCausalLM):
-        for k, v in huggingface_model_type_pattern_match.items():
-            if k.lower() in type(model.model).__name__.lower():
-                return v
+        return mte.model_utils.get_model_type(model.model)
     else:
         for config_class, decoder_type in gpt_model_type:
             if isinstance(model, config_class):
