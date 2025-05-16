@@ -78,7 +78,7 @@ def make_squad_hf_dataset(
         input_ids = context_ids + answer_ids
         return dict(
             input_ids=input_ids,
-            labels=input_ids[1:] + [eos_token_id] or [input_ids[-1]],
+            labels=input_ids[1:] + [eos_token_id or input_ids[-1]],
             loss_mask=[0] * len(context_ids) + [1] * len(answer_ids),
         )
 
