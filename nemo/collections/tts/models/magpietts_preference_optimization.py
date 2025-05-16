@@ -437,6 +437,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
         
         self.loss_type = self.cfg.get('loss_type', 'grpo')
+        assert self.loss_type in ['grpo', 'dr_grpo'], f"Unknown loss type: {self.loss_type}"
+        self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
@@ -576,6 +578,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         best_ssim_achievable = self.cfg.get("best_ssim_achievable", 0.9) # Examples with this speaker similarity or higher will have SSIM reward of 1
         mean_cer_dataset = self.cfg.get("mean_cer_dataset", 0.1) # CER equal to this value will have reward of 0.5
         mean_ssim_dataset = self.cfg.get("mean_ssim_dataset", 0.6) # SSIM equal to this value will have reward of 0.5
+        all_groups_mean_reward = 0.0
+        all_groups_std_reward = 0.0
         for group_idx in range(num_groups):
             group_start_idx = group_idx * num_generations_per_item
             group_end_idx = group_start_idx + num_generations_per_item
@@ -617,19 +621,21 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
             mean_reward /= num_generations_per_item
             std_reward = np.std(group_rewards)
+            all_groups_mean_reward += mean_reward
+            all_groups_std_reward += std_reward
             for idx in range(group_start_idx, group_end_idx):
-                if self.loss_type == "grpo":
-                    batch_metrics[idx]['advantage'] = (batch_metrics[idx]['reward'] - mean_reward) / (std_reward + 1e-4)
-                elif self.loss_type == "dr_grpo":
-                    batch_metrics[idx]['advantage'] = batch_metrics[idx]['reward'] - mean_reward
+                batch_metrics[idx]['advantage'] = batch_metrics[idx]['reward'] - mean_reward
+                if self.scale_rewards:
+                    batch_metrics[idx]['advantage'] = batch_metrics[idx]['advantage'] / (std_reward + 1e-4)
 
-
+        all_groups_mean_reward = all_groups_mean_reward / num_groups
+        all_groups_std_reward = all_groups_std_reward / num_groups
         advantages = [x['advantage'] for x in batch_metrics]
         advantages = torch.tensor(advantages, device=self.device)
-        print("Mean reward: ", mean_reward)
+        print("Mean reward: ", all_groups_mean_reward)
         return {
-            'mean_reward': torch.tensor(mean_reward, device=self.device),
-            'std_reward': torch.tensor(std_reward, device=self.device),
+            'mean_reward': torch.tensor(all_groups_mean_reward, device=self.device),
+            'std_reward': torch.tensor(all_groups_std_reward, device=self.device),
             'batch_repeated': batch_repeated,
             'metrics': batch_metrics,
             'predicted_codes': predicted_codes,
