@@ -49,12 +49,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         max_batch_size (int): Maximum batch size. Defaults to 8.
         max_num_tokens (int): Maximum total tokens across all sequences in a batch. Defaults to 8192.
         dtype (str): Model data type. Defaults to "auto".
-        attn_backend (str): Attention kernel backend. Defaults to 'TRTLLM'.
-        enable_overlap_scheduler (bool): Whether to enable overlap scheduler. Defaults to False.
-        torch_compile_enabled (bool): Whether to enable torch compile. Defaults to False.
-        enable_attention_dp (bool): Whether to enable attention data parallelism. Defaults to False.
-        enable_chunked_prefill (bool): Whether to enable chunked prefill. Defaults to False.
-        use_cuda_graph (bool): Whether to use CUDA graph. Defaults to False.
         **kwargs: Additional keyword arguments to pass to model loading.
     """
 
@@ -69,19 +63,13 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         max_batch_size: int = 8,
         max_num_tokens: int = 8192,
         dtype: str = "auto",
-        attn_backend: str = 'TRTLLM',
-        enable_overlap_scheduler: bool = False,
-        torch_compile_enabled: bool = False,
-        enable_chunked_prefill: bool = False,
-        use_cuda_graph: bool = False,
         **kwargs,
     ):
-        pytorch_config = PyTorchConfig(
-            attn_backend=attn_backend,
-            enable_overlap_scheduler=enable_overlap_scheduler,
-            torch_compile_enabled=torch_compile_enabled,
-            use_cuda_graph=use_cuda_graph,
-        )
+        config_args = {}
+        for k in list(kwargs.keys()):
+            if k in PyTorchConfig.__annotations__.keys():
+                config_args[k] = kwargs.pop(k)
+        pytorch_config = PyTorchConfig(**config_args)
 
         self.model = LLM(
             model=hf_model_id_path,
@@ -94,7 +82,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             max_num_tokens=max_num_tokens,
             dtype=dtype,
             pytorch_backend_config=pytorch_config,
-            enable_chunked_prefill=enable_chunked_prefill,
             **kwargs,
         )
 
@@ -105,6 +92,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
+        **kwargs,
     ) -> List[str]:
         """Generate text based on the provided input prompts.
 
@@ -117,6 +105,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             temperature: Sampling temperature. Defaults to None.
             top_k: Number of highest probability tokens to consider. Defaults to None.
             top_p: Cumulative probability threshold for token sampling. Defaults to None.
+            **kwargs: Additional keyword arguments to sampling params.
 
         Returns:
             List[str]: A list of generated texts, one for each input prompt.
@@ -132,6 +121,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            **kwargs,
         )
 
         outputs = self.model.generate(
