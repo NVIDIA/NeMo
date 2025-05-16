@@ -80,6 +80,8 @@ class CompletionRequest(BaseModel):
     top_p: float = 0.0
     top_k: int = 0
     logprobs: int = None
+    top_logprobs: int = None  # Added
+    echo: bool = None or False
 
     @model_validator(mode='after')
     def set_greedy_params(self):
@@ -137,7 +139,7 @@ def convert_numpy(obj):
         return obj
 
 
-def _helper_fun(url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template):
+def _helper_fun(url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template, n_top_logprobs, echo):
     """
     run_in_executor doesn't allow to pass kwargs, so we have this helper function to pass args as a list
     """
@@ -150,14 +152,15 @@ def _helper_fun(url, model, prompts, temperature, top_k, top_p, compute_logprob,
         compute_logprob=compute_logprob,
         max_length=max_length,
         apply_chat_template=apply_chat_template,
+        n_top_logprobs=n_top_logprobs,
         init_timeout=300,
+        echo=echo
     )
     return output
 
 
 async def query_llm_async(
-    *, url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template
-):
+    *, url, model, prompts, temperature, top_k, top_p, compute_logprob, max_length, apply_chat_template, n_top_logprobs, echo):
     """
     Sends requests to `NemoQueryLLMPyTorch.query_llm` in a non-blocking way, allowing the server to process
     concurrent requests. This way enables batching of requests in the underlying Triton server.
@@ -179,6 +182,8 @@ async def query_llm_async(
             compute_logprob,
             max_length,
             apply_chat_template,
+            n_top_logprobs,
+            echo
         )
     return result
 
@@ -204,17 +209,17 @@ async def completions_v1(request: CompletionRequest):
         compute_logprob=True if request.logprobs == 1 else False,
         max_length=request.max_tokens,
         apply_chat_template=False,
+        n_top_logprobs=request.top_logprobs,
+        echo=request.echo
     )
 
     output_serializable = convert_numpy(output)
     output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
     if request.logprobs == 1:
-        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0][
-            "logprobs"
-        ]["token_logprobs"][0]
-        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"][
-            "top_logprobs"
-        ][0]
+        if request.echo:
+            output_serializable["choices"][0]["logprobs"]["token_logprobs"] = [None] + output_serializable["choices"][0]["logprobs"]["token_logprobs"][0]
+        else:
+            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"]["top_logprobs"][0]
     logging.info(f"Output: {output_serializable}")
     return output_serializable
 
@@ -250,6 +255,8 @@ async def chat_completions_v1(request: CompletionRequest):
         compute_logprob=True if request.logprobs == 1 else False,
         max_length=request.max_tokens,
         apply_chat_template=True,
+        n_top_logprobs=request.top_logprobs,
+        echo=request.echo
     )
     # Add 'role' as 'assistant' key to the output dict
     output["choices"][0]["message"] = {"role": "assistant", "content": output["choices"][0]["text"]}
