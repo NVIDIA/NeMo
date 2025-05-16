@@ -36,6 +36,7 @@ try:
 except ImportError:
     LHOTSE_AVAILABLE = False
 
+
 def resolve_cache_dir() -> pathlib.Path:
     """
     Utility method to resolve a cache directory for NeMo that can be overriden by an environment variable.
@@ -155,6 +156,7 @@ def ais_binary() -> str:
         )
         return None
 
+
 def datastore_path_to_local_path(store_path: str) -> str:
     """Convert a data store path to a path in a local cache.
 
@@ -231,6 +233,7 @@ def open_best(path: str, mode: str = "rb"):
     if is_datastore_path(path):
         return open_datastore_object_with_binary(path)
     return open(path, mode=mode)
+
 
 def get_datastore_object(path: str, force: bool = False, num_retries: int = 5) -> str:
     """Download an object from a store path and return the local path.
