@@ -64,7 +64,7 @@ import copy
 import glob
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -126,13 +126,14 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
+    matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
     # Decoding strategy for RNNT models
-    decoding: RNNTDecodingConfig = RNNTDecodingConfig()
+    decoding: RNNTDecodingConfig = field(default_factory=RNNTDecodingConfig)
 
     # Decoding configs
     max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
@@ -162,6 +163,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     """
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
+    torch.set_float32_matmul_precision(cfg.matmul_precision)
 
     cfg = OmegaConf.structured(cfg)
 
