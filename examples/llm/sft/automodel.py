@@ -337,9 +337,7 @@ def main():
         # Faster convergence but may lead to memory issues
         optimizer = fdl.build(llm.adam.te_adam_with_flat_lr(lr=args.lr))
     else:
-        optimizer = fdl.build(
-            llm.adam.pytorch_adam_with_flat_lr(lr=args.lr)
-        )  # foreach need to be False for TP
+        optimizer = fdl.build(llm.adam.pytorch_adam_with_flat_lr(lr=args.lr))  # foreach need to be False for TP
 
     if args.fp8:
         from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
