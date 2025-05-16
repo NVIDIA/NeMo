@@ -251,7 +251,7 @@ class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
     @staticmethod
     def is_llama4(source_config):
         """Check if the model config is for Llama4."""
-        return "Llama4Config" in source_config._target_
+        return "llama4" in source_config._target_.lower()
 
     def create_llama4_config(self, source):
         """Create a HF Llama4TextConfig from the NeMo Llama4Config."""
