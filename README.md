@@ -31,9 +31,15 @@ Getting started with NeMo ...
 
 ## Install NeMo Export and Deploy
 
+Start an interactive terminal inside a `nvidia/cuda` container:
+
 ```bash
 docker run --rm -it --entrypoint bash --runtime nvidia --gpus all nvcr.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+```
 
+Install NeMo Export-Deploy:
+
+```bash
 apt update
 apt install -y python3-pip python3-venv git libopenmpi-dev vim
 git clone https://github.com/nvidia/nemo
