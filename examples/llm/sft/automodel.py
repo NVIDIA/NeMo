@@ -163,9 +163,6 @@ def make_strategy(
             find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
-        print(
-            f"Using FSDP2 strategy with DP size: {dp_size}, TP size: {tp_size}, devices: {devices}, num_nodes: {num_nodes}"
-        )
 
         offload_policy = None
         if enable_cpu_offload:
@@ -173,25 +170,12 @@ def make_strategy(
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
-        if cp_size is None:
-            cp_size = 1
-            if dp_size is None:
-                dp_size = devices * num_nodes
-            else:
-                assert (
-                    dp_size == devices * num_nodes
-                ), "Data Parallel size must equal to devices * num_nodes when not using Tensor Parallel"
-        else:
-            if dp_size is None:
-                dp_size = 1
-                assert (
-                    cp_size == devices * num_nodes
-                ), "Tensor Parallel size must equal to devices * num_nodes when not using Data Parallel"
-            else:
-                assert (
-                    dp_size * cp_size == devices * num_nodes
-                ), "Data Parallel size * Tensor Parallel size must equal to devices * num_nodes"
-        print(f"Using FSDP2 with DP={dp_size}, TP={1}, CP={cp_size}")
+
+        assert (
+            dp_size * tp_size * cp_size == devices * num_nodes
+        ), "Data Parallel size * Tensor Parallel size * Context Parallel size must equal to devices * num_nodes"
+        print(f"Using FSDP2 with DP={dp_size}, TP={tp_size}, CP={cp_size}")
+
         return nl.FSDP2Strategy(
             data_parallel_size=dp_size,
             tensor_parallel_size=tp_size,
@@ -428,7 +412,7 @@ def main():
             limit_val_batches=args.limit_val_batches,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=False,
+            use_distributed_sampler=True,  # needed to use PL DistributedSampler
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
