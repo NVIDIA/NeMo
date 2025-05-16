@@ -18,7 +18,7 @@ from .mistral import HFMistralExporter
 from .mixtral import HFMixtralExporter
 from .starcoder2 import HFStarcoder2Exporter
 from .utils import change_paths_to_absolute_paths, torch_dtype_from_mcore_config
-
+from .export import load_connector, export_to_hf
 __all__ = [
     "HFLlamaExporter",
     "HFGemmaExporter",
@@ -27,4 +27,6 @@ __all__ = [
     "HFStarcoder2Exporter",
     "change_paths_to_absolute_paths",
     "torch_dtype_from_mcore_config",
+    "load_connector",
+    "export_to_hf",
 ]
