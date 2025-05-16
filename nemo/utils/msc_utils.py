@@ -39,22 +39,25 @@ def is_msc_url(path: Union[str, Path]):
     """
     if isinstance(path, Path):
         return False
-    
+
     has_msc_prefix = path and path.startswith(msc.types.MSC_PROTOCOL)
-    
+
     if HAVE_MSC:
         return has_msc_prefix
-    
+
     if not HAVE_MSC and has_msc_prefix:
-        raise ValueError("Multi-Storage Client is not installed. Please install it with "
-                         '"pip install multi-storage-client" to handle msc:// URLs.')
-    
+        raise ValueError(
+            "Multi-Storage Client is not installed. Please install it with "
+            '"pip install multi-storage-client" to handle msc:// URLs.'
+        )
+
     return False
 
 
 def import_msc():
     """Import multistorageclient if it is installed."""
     if not HAVE_MSC:
-        raise ValueError("Multi-Storage Client is not installed. Please install it with "
-                         '"pip install multi-storage-client".')
+        raise ValueError(
+            "Multi-Storage Client is not installed. Please install it with " '"pip install multi-storage-client".'
+        )
     return msc

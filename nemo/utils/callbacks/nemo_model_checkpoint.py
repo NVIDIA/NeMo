@@ -659,7 +659,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         if not is_global_rank_zero():
             raise AssertionError("_remove_unfinished_checkpoints should run only on rank 0")
-        
+
         if is_msc_url(checkpoint_dir):
             msc = import_msc()
             existing_marker_filepaths = msc.glob(
