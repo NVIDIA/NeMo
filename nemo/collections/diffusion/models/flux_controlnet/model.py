@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
+from megatron.core import parallel_state
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.nn import functional as F
 from contextlib import nullcontext
@@ -217,6 +218,7 @@ class FluxControlNet(VisionModule):
         self.single_blocks.load_state_dict(flux.single_blocks.state_dict(), strict=False)
 
     def get_fp8_context(self):
+        "context manager for fp8 recipe"
         # This is first and last 2 for mamba
         if not self.config.fp8:
             fp8_context = nullcontext()
