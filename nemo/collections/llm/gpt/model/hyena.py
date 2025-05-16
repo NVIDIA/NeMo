@@ -300,6 +300,7 @@ class HyenaTestConfig(HyenaConfig):
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
     use_short_conv_bias: bool = False
+    use_b2b_causal_conv1d: bool = False
 
 
 @dataclass
