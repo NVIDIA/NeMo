@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -243,7 +243,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
             ["data_parallel", "context_parallel", "tensor_parallel"],
         ):
-            mesh_shape.append(dim)
+            mesh_shape.append(int(dim))
             mesh_dim_names.append(name)
 
         self._device_mesh = init_device_mesh(

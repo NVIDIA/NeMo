@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -551,7 +551,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
+            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf", use_fast=False)
             self.image_processor = image_processor or processor.image_processor
 
         if self.packed_sequence:
