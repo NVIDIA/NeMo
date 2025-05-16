@@ -19,10 +19,7 @@ from typing import Dict
 import torch
 from megatron.energon import VQASample
 
-from nemo.collections.multimodal.data.energon.config import (
-    ImageTextSample,
-    MultiModalSampleConfig,
-)
+from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
 from nemo.collections.multimodal.data.energon.sample_encoder import VQASampleEncoder
 from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
 from nemo.utils import logging
