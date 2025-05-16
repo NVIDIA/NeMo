@@ -771,7 +771,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         return hypotheses_list
 
     @abstractmethod
-    def get_words_offsets(self) -> List[Dict[str, Union[str, float]]]:
+    def get_words_offsets(
+        self,
+        char_offsets: List[Dict[str, Union[str, float]]],
+        encoded_char_offsets: List[Dict[str, Union[str, float]]],
+        word_delimiter_char: str,
+        supported_punctuation: Optional[Set]
+        ) -> List[Dict[str, Union[str, float]]]:
         """
         Implemented by subclass in order to get the words offsets.
         """
@@ -1098,11 +1104,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
     @staticmethod
     def _get_segment_offsets(
-        offsets: Dict[str, Union[str, float]],
+        offsets: List[Dict[str, Union[str, float]]],
         segment_delimiter_tokens: List[str],
         supported_punctuation: Optional[Set] = None,
         segment_gap_threshold: Optional[int] = None,
-    ) -> Dict[str, Union[str, float]]:
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Utility method which constructs segment time stamps out of word time stamps.
 
@@ -1450,11 +1456,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
     @staticmethod
     def get_words_offsets(
-        char_offsets: Dict[str, Union[str, float]],
-        encoded_char_offsets: Dict[str, Union[str, float]],
+        char_offsets: List[Dict[str, Union[str, float,]]],
+        encoded_char_offsets: List[Dict[str, Union[str, float]]],
         word_delimiter_char: str = " ",
         supported_punctuation: Optional[Set] = None,
-    ) -> Dict[str, Union[str, float]]:
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
 
@@ -1462,7 +1468,12 @@ class RNNTDecoding(AbstractRNNTDecoding):
             This code is a port of the Hugging Face code for word time stamp construction.
 
         Args:
-            offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
+            char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
+                        where "char" is decoded with the tokenizer.
+            encoded_char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
+                        where "char" is the original id/ids from the hypotheses (not decoded with the tokenizer).
+                        As we are working with char-based models here, we are using the `char_offsets` to get the word offsets.
+                        `encoded_char_offsets` is passed for keeping the consistency with `AbstractRNNTDecoding`'s abstract method.
             word_delimiter_char: Character token that represents the word delimiter. By default, " ".
             supported_punctuation: Set containing punctuation marks in the vocabulary.
 
@@ -1865,20 +1876,22 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
     def get_words_offsets(
         self,
-        char_offsets: Dict[str, Union[str, float]],
-        encoded_char_offsets: Dict[str, Union[str, float]],
+        char_offsets: List[Dict[str, Union[str, float]]],
+        encoded_char_offsets: List[Dict[str, Union[str, float]]],
         word_delimiter_char: str = " ",
         supported_punctuation: Optional[Set] = None,
-    ) -> Dict[str, Union[str, float]]:
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Utility method which constructs word time stamps out of sub-word time stamps.
 
         **Note**: Only supports Sentencepiece based tokenizers !
 
         Args:
-            char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
-            hypothesis: Hypothesis object that contains `text` field, where each token is a sub-word id
-                after ctc collapse.
+            char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset", 
+                        where "char" is decoded with the tokenizer.
+            encoded_char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
+                        where "char" is the original id/ids from the hypotheses (not decoded with the tokenizer).
+                        This is needed for subword tokenization models.
             word_delimiter_char: Character token that represents the word delimiter. By default, " ".
             supported_punctuation: Set containing punctuation marks in the vocabulary.
 

@@ -70,13 +70,6 @@ class BaseTimestampsTest:
         ]
 
     @property
-    def segment_offsets_expected_output(self):
-        return [
-            {'segment': 'e e.', 'start_offset': 0, 'end_offset': 7},
-            {'segment': 'e?', 'start_offset': 10, 'end_offset': 15},
-        ]
-
-    @property
     def char_offsets_wpe(self):
         char_offsets = [
             {"char": 105, "start_offset": 0, "end_offset": 1},
