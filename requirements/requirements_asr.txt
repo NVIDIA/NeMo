@@ -5,7 +5,7 @@ g2p_en
 jiwer
 kaldi-python-io
 kaldiio
-lhotse~=1.31.0
+lhotse!=1.31.0
 # Align with upstream PyTorch requirements
 librosa>=0.10.1
 marshmallow
