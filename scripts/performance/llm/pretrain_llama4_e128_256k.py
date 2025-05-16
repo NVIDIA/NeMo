@@ -132,7 +132,7 @@ if __name__ == "__main__":
         ),
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
+        plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
