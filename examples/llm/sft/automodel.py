@@ -405,6 +405,7 @@ def main():
             tokenizer=model.tokenizer,
             micro_batch_size=args.batch_size,
             seq_length=args.seq_length,
+            start_of_turn_token=args.start_of_turn_token,
             packed_sequence_size=args.packed_sequence_size,
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
