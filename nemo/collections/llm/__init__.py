@@ -185,7 +185,6 @@ from nemo.collections.llm.t5.model import (
     t5_data_step,
     t5_forward_step,
 )
-from nemo.export.huggingface import HFLlamaExporter
 
 __all__ = [
     "MockDataModule",
@@ -341,7 +340,6 @@ __all__ = [
     "hf_dataset",
     "HFAutoModelForCausalLM",
     "HFMockDataModule",
-    "HFLlamaExporter",
 ]
 
 

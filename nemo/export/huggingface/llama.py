@@ -37,8 +37,7 @@ if TYPE_CHECKING:
 LlamaModel = get_model("LlamaModel")
 
 
-# TODO: test multiple Llama model types, test Llama4
-@io_model_exporter(LlamaModel, "hf")
+@io_model_exporter(LlamaModel, "hf", register=False)
 class HFLlamaExporter(io.ModelConnector["LlamaModel", "LlamaForCausalLM"]):
     """Exporter for converting NeMo Llama models to Hugging Face format.
 

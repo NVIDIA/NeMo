@@ -52,12 +52,20 @@ def get_model(name: str):
     )
 
 
-def io_model_exporter(cls, format, register=True):
+def io_model_exporter(cls, format, register=False):
     """
-    Wrapper around `nemo.lightning.io.model_exporter` that (1) registers the
-    exporter with the NeMo IO system and (2) stores a reference to the exporter
-    class in the local `_EXPORTERS_REGISTRY` so it can be retrieved through
+    Wrapper around `nemo.lightning.io.model_exporter` that:
+    (1) registers the exporter with the NeMo IO system
+    (2) stores a reference to the exporter class in the local `_EXPORTERS_REGISTRY` so it can be retrieved through
     `get_exporter`. If register is set to False, the model will not be connected to the llm.GPTModel.
+
+    Args:
+        cls: The model class to export.
+        format: The format to export the model to.
+        register: If set to False, the model will not be connected to the llm.GPTModel.
+            Disabling this allows to have two exporters, while the exporters are being moved to nemo.export.
+    Returns:
+        The decorated exporter class.
     """
 
     base_decorator = lambda exporter_cls: exporter_cls
