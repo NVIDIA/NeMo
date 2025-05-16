@@ -79,7 +79,7 @@ def make_squad_hf_dataset(
         return dict(
             input_ids=input_ids,
             labels=input_ids[1:] + [eos_token_id] or [input_ids[-1]],
-            loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
+            loss_mask=[0] * len(context_ids) + [1] * len(answer_ids),
         )
 
     def formatting_prompts_func_with_chat_template(example, start_of_turn_token=None):
