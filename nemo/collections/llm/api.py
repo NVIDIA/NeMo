@@ -805,7 +805,7 @@ def evaluate(
     if framework_name is None:
         framework_module_name = find_framework(task_name)
     else:
-        framework_module_name = f"core_evals.{framework_name}"
+        framework_module_name = f"core_evals.{framework_name.replace('-', '_')}"
     try:
         evaluate = importlib.import_module(".evaluate", package=framework_module_name)
     except ImportError:
