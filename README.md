@@ -48,9 +48,16 @@ git switch ko3n1g/onur/nemo-export-deploy-repo
 python3 -m venv venv
 source venv/bin/activate
 
+# Required for TransformerEngine 2.2
 pip install "torch==2.6.0" wheel_stub pybind11 "Cython>=3.0.0"
 export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+
+# Install NeMo Export-Deploy
 pip install --no-build-isolation --no-cache-dir '.[all]'
+
+# Use devel version of NeMo-Run and Mcore
+pip install git+https://github.com/NVIDIA/Megatron-LM.git 
+pip install git+https://github.com/NVIDIA/NeMo-Run.git 
 ```
 
 ### Support matrix
