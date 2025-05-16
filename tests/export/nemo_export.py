@@ -124,7 +124,10 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         task_ids=task_ids,
                         lora_uids=lora_uids,
                     )
-                    model_output = model_output[0][0].strip().lower()
+                    model_output = model_output[0]
+                    if not isinstance(model_output, str):
+                        model_output = model_output[0]
+                    model_output = model_output.strip().lower()
                 all_actual_outputs.append(model_output)
 
                 if expected_output == model_output:
@@ -302,7 +305,11 @@ def run_inference(
                 return (None, None)
 
         if use_vllm:
-            exporter = vLLMExporter()
+            if lora:
+                from nemo.export.vllm_exporter import _vLLMExporter
+                exporter = _vLLMExporter()
+            else:
+                exporter = vLLMExporter()
 
             exporter.export(
                 nemo_checkpoint=checkpoint_path,

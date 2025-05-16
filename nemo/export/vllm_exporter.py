@@ -64,7 +64,7 @@ except Exception:
     use_pytriton = False
 
 
-class vLLMExporter(ITritonDeployable):
+class _vLLMExporter(ITritonDeployable):
     """
     The vLLMExporter class implements conversion from a Nemo checkpoint format to something compatible with vLLM,
     loading the model in vLLM, and binding that model to a Triton server.
@@ -536,3 +536,6 @@ class vLLMExporter(ITritonDeployable):
             return self._forward_streaming(request_ids)
         else:
             return self._forward_regular(request_ids)
+
+from nemo.export.vllm_hf_exporter import vLLMHFExporter
+vLLMExporter = vLLMHFExporter
