@@ -331,7 +331,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.is_global_zero:
             logging.info(f'{base_path} already exists, moving existing checkpoint to {available_path}')
             if is_msc_url(base_path):
-                # TODO: multistorageclient doesn't have "rename" function, therefore no-op but we should 
+                # TODO: multistorageclient doesn't have "rename" function, therefore no-op but we should
                 # refactor this once multistorageclient have rename function supported.
                 pass
             else:

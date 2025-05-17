@@ -52,7 +52,7 @@ class SaveRestoreConnector:
         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
-            model_config.yaml - model configuration in .yaml format. 
+            model_config.yaml - model configuration in .yaml format.
                 You can deserialize this into cfg argument for model's constructor
             model_wights.ckpt - model checkpoint
 
