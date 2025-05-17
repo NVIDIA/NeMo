@@ -183,6 +183,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
 
     config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
 
+    if gpu.lower() == "gb200":
+        args.gpus_per_node = 4
+
     num_gpus = config.get("num_gpus") if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
     mbs = config.get("mbs") if args.micro_batch_size is None else args.micro_batch_size
