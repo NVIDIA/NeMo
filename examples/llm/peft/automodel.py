@@ -58,7 +58,6 @@ def make_squad_hf_dataset(tokenizer, batch_size, fp8=False):
         split="train",
         micro_batch_size=batch_size,
         pad_token_id=tokenizer.eos_id or 0,
-        global_batch_size=batch_size,
         pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
     )
     datamodule.map(
@@ -79,6 +78,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
         offload_policy = None
