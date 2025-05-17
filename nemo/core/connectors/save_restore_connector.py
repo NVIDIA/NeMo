@@ -36,6 +36,10 @@ from nemo.utils.msc_utils import import_msc, is_msc_url
 
 
 class SaveRestoreConnector:
+    """
+    Connector for saving and restoring models.
+    """
+
     def __init__(self) -> None:
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
@@ -48,7 +52,8 @@ class SaveRestoreConnector:
         You can use "restore_from" method to fully restore instance from .nemo file.
 
         .nemo file is an archive (tar.gz) with the following:
-            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_config.yaml - model configuration in .yaml format. 
+                You can deserialize this into cfg argument for model's constructor
             model_wights.ckpt - model checkpoint
 
         Args:
@@ -201,7 +206,8 @@ class SaveRestoreConnector:
             A potentially modified state dict.
         """
 
-        # NOTE and TODO (sandeepsub) This is duplicated across save_restore_connector and nlp_save_restore_connector. This shouldn't be here.
+        # NOTE and TODO (sandeepsub) This is duplicated across save_restore_connector and nlp_save_restore_connector.
+        # This shouldn't be here.
         if conf.get('megatron_amp_O2', False):
             new_state_dict = {}
             for key in state_dict.keys():
@@ -300,7 +306,9 @@ class SaveRestoreConnector:
 
             To convert the .nemo tarfile into multiple Module level PyTorch checkpoints
             ::
-            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts', split_by_module=True)
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from(
+                'asr.nemo', './asr_ckpts', split_by_module=True
+            )
 
 
             To restore a module from a Module level checkpoint
@@ -414,12 +422,14 @@ class SaveRestoreConnector:
         else:
             if verify_src_exists:
                 raise FileNotFoundError(
-                    f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
+                    f"src path does not exist or it is not a path in nemo file. "
+                    f"src value I got was: {src}. Absolute: {os.path.abspath(src)}"
                 )
             else:
                 # artifact is optional and we simply return None
                 logging.warning(
-                    f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
+                    f"src path does not exist or it is not a path in nemo file. "
+                    f"src value I got was: {src}. Absolute: {os.path.abspath(src)}"
                 )
                 return None
 
@@ -689,6 +699,9 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str, members: Optional[list[str]] = None) -> str:
+        """
+        Unpack a nemo file.
+        """
         if is_msc_url(path2file):
             out_folder = SaveRestoreConnector._unpack_nemo_file_with_multistorageclient(path2file, out_folder, members)
         else:
@@ -703,6 +716,9 @@ class SaveRestoreConnector:
     def _unpack_nemo_file_with_multistorageclient(
         path2file: str, out_folder: str, members: Optional[list[str]] = None
     ) -> str:
+        """
+        Unpack a nemo file with multistorageclient.
+        """
         msc = import_msc()
         if not msc.os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
@@ -743,6 +759,9 @@ class SaveRestoreConnector:
 
     @property
     def model_config_yaml(self) -> str:
+        """
+        Get the path to the model config yaml file.
+        """
         return self._model_config_yaml
 
     @model_config_yaml.setter
@@ -751,6 +770,9 @@ class SaveRestoreConnector:
 
     @property
     def model_weights_ckpt(self) -> str:
+        """
+        Get the path to the model weights checkpoint file.
+        """
         return self._model_weights_ckpt
 
     @model_weights_ckpt.setter
@@ -759,6 +781,9 @@ class SaveRestoreConnector:
 
     @property
     def model_extracted_dir(self) -> Optional[str]:
+        """
+        Get the path to the model extracted directory.
+        """
         return self._model_extracted_dir
 
     @model_extracted_dir.setter
@@ -767,6 +792,9 @@ class SaveRestoreConnector:
 
     @property
     def pack_nemo_file(self) -> bool:
+        """
+        Get the flag for packing a nemo file.
+        """
         return self._pack_nemo_file
 
     @pack_nemo_file.setter
