@@ -262,7 +262,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.fp8_autocast:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-            te_accelerate(self.model, fp8_autocast)
+            te_accelerate(self.model, self.fp8_autocast)
 
         if self.use_linear_ce_loss:
             # scan the model for fp8 layers, if found disable lce
