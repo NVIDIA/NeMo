@@ -201,7 +201,7 @@ def logger(ckpt_folder, save_every_n_train_steps) -> nl.NeMoLogger:
     )
 
     return nl.NeMoLogger(
-        name="nemo2_sft",
+        name="nemo2_finetune",
         log_dir=ckpt_folder,
         use_datetime_version=False,  # must be false if using auto resume
         ckpt=ckpt,
@@ -210,7 +210,7 @@ def logger(ckpt_folder, save_every_n_train_steps) -> nl.NeMoLogger:
 
 
 def main():
-    """Example script to run SFT with a HF transformers-instantiated model on squad."""
+    """Example script to run SFT/PEFT with a HF transformers-instantiated model on squad."""
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -308,6 +308,7 @@ def main():
         'run with --attn-implementation=flash_attention_2',
     )
     parser.add_argument('--start-of-turn-token', default=None, help='Chat turn token')
+    parser.add_argument('--lora', action='store_true', help='Enables PEFT (LoRA) finetuning; Default: off (SFT).')
 
     args = parser.parse_args()
     if args.dp_size is None:
@@ -371,7 +372,7 @@ def main():
         trust_remote_code=args.trust_remote_code,
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
-        use_linear_ce_loss=not args.no_lce,
+        use_linear_ce_loss=args.no_lce,
     )
 
     assert (
@@ -427,7 +428,13 @@ def main():
             limit_dataset_samples=args.limit_dataset_samples,
             fp8=args.fp8,
         )
-
+    if args.peft:
+        peft = llm.peft.LoRA(
+            target_modules=['*_proj'],
+            dim=8,
+        )
+    else:
+        peft = None
     llm.api.finetune(
         model=model,
         data=dataset,
@@ -448,6 +455,7 @@ def main():
             callbacks=callbacks,
             precision="bf16-mixed",
         ),
+        peft=peft,
         optim=optimizer,
         log=logger(args.ckpt_folder, args.max_steps // 2),
         resume=resume,
