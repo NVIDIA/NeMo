@@ -272,7 +272,7 @@ def main():
         use_liger_kernel=args.liger,
         load_in_4bit=args.load_in_4bit,
         enable_grad_ckpt=args.enable_grad_ckpt,
-        use_linear_ce_loss=not args.no_lce,
+        use_linear_ce_loss=args.no_lce,
     )
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, True, args.enable_cpu_offload)
 
