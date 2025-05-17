@@ -17,10 +17,11 @@ import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import ceil
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
 import torch
+from lhotse.cut import MixedCut, MonoCut
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
@@ -43,6 +44,7 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import process_aed_timestamp_outputs
 from nemo.collections.common import tokenizers
+from nemo.collections.common.data.lhotse.cutset import flatten_mixed
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
@@ -225,9 +227,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # TODO: PytorchMetrics lets you join two metrics together to save compute.
         # But need to make wer and bleu have same outputs first
         self.wer = WER(self.decoding, log_prediction=self.cfg.get("log_prediction"))
-        self.bleu = BLEU(
-            self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=False
-        )  # Wer is handling logging
+
+        # Resolves bleu_tokenizer config if multiple configs are passed.
+        bleu_tokenizer = self.cfg.get("bleu_tokenizer", "13a")
+        if type(bleu_tokenizer) is DictConfig:
+            bleu_tokenizer = OmegaConf.to_container(bleu_tokenizer)
+        self.bleu = BLEU(self.decoding, tokenize=bleu_tokenizer, log_prediction=False)  # WER is handling logging
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
@@ -698,9 +703,54 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         return transf_log_probs, encoded_len, enc_states, enc_mask
 
+    # Wrapper function for updating output dict with metrics.
+    # Performs single update, reset loop with metric functions.
+    # Expand as needed.
+    def _eval(
+        self,
+        output_dict: Dict[str, torch.Tensor],
+        batch: PromptedAudioToTextMiniBatch,
+        encoded_states: torch.Tensor,
+        encoded_len: torch.Tensor,
+        encoded_mask: torch.Tensor,
+        eval_prefix: Literal["val", "test", "training_batch"],
+        return_all_metrics: bool,
+    ):
+        self.wer.update(
+            predictions=encoded_states,
+            predictions_lengths=encoded_len,
+            targets=batch.transcript,
+            targets_lengths=batch.transcript_lens,
+            predictions_mask=encoded_mask,
+            input_ids=batch.prompt,
+        )
+        # TODO: Remove conditional once wer reflects bleu batch behavior.
+        wer, wer_num, wer_denom = self.wer.compute()
+        if return_all_metrics:
+            output_dict.update(
+                {f"{eval_prefix}_wer": wer, f"{eval_prefix}_wer_num": wer_num, f"{eval_prefix}_wer_denom": wer_denom}
+            )
+        else:
+            output_dict.update({f"{eval_prefix}_wer": wer})
+        self.wer.reset()
+
+        self.bleu.update(
+            predictions=encoded_states,
+            predictions_lengths=encoded_len,
+            targets=batch.transcript,
+            targets_lengths=batch.transcript_lens,
+            predictions_mask=encoded_mask,
+            input_ids=batch.prompt,
+            langs=[c.custom["target_lang"] for c in flatten_mixed(batch.cuts)],
+        )
+        bleu_metrics = self.bleu.compute(prefix=f"{eval_prefix}_", return_all_metrics=return_all_metrics)
+        output_dict.update(bleu_metrics)
+        self.bleu.reset()
+
+        return output_dict
+
     # PTL-specific methods
     def training_step(self, batch: PromptedAudioToTextMiniBatch, batch_nb):
-
         if batch is None:
             return torch.tensor([0.0])
 
@@ -727,19 +777,37 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             loss_mask = lens_to_mask(input_ids_lens, maxlen) & ~lens_to_mask(batch.prompt_lens - 1, maxlen)
         else:
             loss_mask = None
-        audio_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
+        transf_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
 
-        tensorboard_logs = {
-            'train_loss': audio_loss,
-            'learning_rate': torch.as_tensor(self._optimizer.param_groups[0]['lr']),
-            'batch_size': torch.as_tensor(batch.audio.shape[0]),
-            'num_frames': num_frames,
-            'num_tokens': num_tokens,
-            'input_to_padding_ratio': num_frames / tot_frames,
-            'output_to_padding_ratio': num_tokens / tot_tokens,
-        }
+        output_dict = {}
+        # Train step evaluation. From other asr models.
+        if hasattr(self, '_trainer') and self._trainer is not None:
+            log_every_n_steps = self._trainer.log_every_n_steps
+        else:
+            log_every_n_steps = 1
+        if (batch_nb + 1) % log_every_n_steps == 0:
+            output_dict = self._eval(
+                output_dict=output_dict,
+                batch=batch,
+                encoded_states=enc_states,
+                encoded_len=encoded_len,
+                encoded_mask=enc_mask,
+                eval_prefix="training_batch",
+                return_all_metrics=False,
+            )
 
-        return {'loss': audio_loss, 'log': tensorboard_logs}
+        output_dict.update(
+            {
+                'train_loss': transf_loss,
+                'learning_rate': torch.as_tensor(self._optimizer.param_groups[0]['lr']),
+                'batch_size': torch.as_tensor(batch.audio.shape[0]),
+                'num_frames': num_frames,
+                'num_tokens': num_tokens,
+                'input_to_padding_ratio': num_frames / tot_frames,
+                'output_to_padding_ratio': num_tokens / tot_tokens,
+            }
+        )
+        return {"loss": transf_loss, "log": output_dict}
 
     def validation_pass(self, batch: PromptedAudioToTextMiniBatch, batch_idx, dataloader_idx=0, eval_mode="val"):
         input_ids, labels = batch.get_decoder_inputs_outputs()
@@ -762,33 +830,20 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         else:
             loss_mask = None
             num_measurements = transf_log_probs.shape[0] * transf_log_probs.shape[1]
+
         transf_loss = self.loss(log_probs=transf_log_probs, labels=labels, output_mask=loss_mask)
         self.val_loss(loss=transf_loss, num_measurements=num_measurements)
-        output_dict = {f'{eval_mode}_loss': transf_loss}
+        output_dict = {f"{eval_mode}_loss": transf_loss}
 
-        self.wer.update(
-            predictions=enc_states,
-            predictions_lengths=encoded_len,
-            targets=batch.transcript,
-            targets_lengths=batch.transcript_lens,
-            predictions_mask=enc_mask,
-            input_ids=batch.prompt,
+        output_dict = self._eval(
+            output_dict=output_dict,
+            batch=batch,
+            encoded_states=enc_states,
+            encoded_len=encoded_len,
+            encoded_mask=enc_mask,
+            eval_prefix=eval_mode,
+            return_all_metrics=True,  # Need all metrics for computation at end of cycle.
         )
-        wer, wer_num, wer_denom = self.wer.compute()
-        output_dict.update({"val_wer": wer, "val_wer_num": wer_num, "val_wer_denom": wer_denom})
-        self.wer.reset()
-
-        self.bleu.update(
-            predictions=enc_states,
-            predictions_lengths=encoded_len,
-            targets=batch.transcript,
-            targets_lengths=batch.transcript_lens,
-            predictions_mask=enc_mask,
-            input_ids=batch.prompt,
-        )
-        bleu_metrics = self.bleu.compute(prefix=f"{eval_mode}_")
-        output_dict.update(bleu_metrics)
-        self.bleu.reset()
 
         return output_dict
 
@@ -802,10 +857,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         metrics = self.validation_pass(batch, batch_idx, dataloader_idx, eval_mode="test")
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
-            self.validation_step_outputs[dataloader_idx].append(metrics)
+        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+            self.test_step_outputs[dataloader_idx].append(metrics)
         else:
-            self.validation_step_outputs.append(metrics)
+            self.test_step_outputs.append(metrics)
         return metrics
 
     def test_dataloader(self):
