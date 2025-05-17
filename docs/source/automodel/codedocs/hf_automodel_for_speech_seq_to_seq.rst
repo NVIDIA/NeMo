@@ -12,7 +12,7 @@ Overview
 
 Initialization
 --------------
-.. constructor:: HFAutoModelForSpeechSeq2Seq(*, model_name='gpt2', load_pretrained_weights=True, tokenizer=None, loss_fn=masked_cross_entropy, model_transform=None, model_accelerator=None, trust_remote_code=False)
+.. constructor:: HFAutoModelForSpeechSeq2Seq(*, model_name='gpt2', load_pretrained_weights=True, tokenizer=None, loss_fn=masked_cross_entropy, model_transform=None, fp8_autocast=False, trust_remote_code=False)
 
     Initializes the `HFAutoModelForSpeechSeq2Seq` module.
 
@@ -28,8 +28,8 @@ Initialization
         The loss function to use. Defaults to `masked_cross_entropy`.
     model_transform : Optional[Any], optional
         A transformation function or object to apply to the model (default is `None`).
-    model_accelerator : Optional[Any], optional
-        Accelerator configuration for the model (default is `None`).
+    fp8_autocast: Optional[Bool]
+        Enables FP8 autocast
     trust_remote_code : bool, optional
         Whether to trust remote code when loading models and tokenizers (default is `False`).
 
@@ -51,8 +51,8 @@ is_hf_model : bool
     Flag indicating if the model is a Hugging Face model.
 model_transform : Optional[Any]
     Transformation applied to the model.
-model_accelerator : Optional[Any]
-    Accelerator configuration for the model.
+fp8_autocast: Optional[Bool]
+    Enables FP8 autocast
 trust_remote_code : bool
     Flag indicating whether to trust remote code for model loading.
 

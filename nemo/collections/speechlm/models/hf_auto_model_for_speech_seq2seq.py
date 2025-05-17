@@ -37,7 +37,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         tokenizer=None,
         loss_fn=masked_cross_entropy,
         model_transform=None,
-        model_accelerator=None,
+        fp8_autocast=False,
         trust_remote_code=False,
         param_dtype=torch.bfloat16,
         reduce_dtype=torch.float32,
@@ -55,7 +55,7 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_pretrained_weights = load_pretrained_weights
         self.is_hf_model = True
         self.model_transform = model_transform
-        self.model_accelerator = model_accelerator
+        self.fp8_autocast = fp8_autocast
         self.trust_remote_code = trust_remote_code
         self.mp_policy = MixedPrecisionPolicy(
             param_dtype=param_dtype,
