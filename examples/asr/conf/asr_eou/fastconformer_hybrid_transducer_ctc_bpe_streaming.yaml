@@ -166,7 +166,7 @@ model:
     # An example of settings for multi-lookahead:
     #    att_context_size: [[70,13],[70,6],[70,1],[70,0]]
     #    att_context_probs: [0.25, 0.25, 0.25, 0.25, 0.25]
-    att_context_size: [70, 13] # -1 means unlimited context
+    att_context_size: [70, 1] # -1 means unlimited context
     att_context_style: chunked_limited # regular or chunked_limited
     att_context_probs: null
 
