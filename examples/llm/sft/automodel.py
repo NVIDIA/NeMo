@@ -364,7 +364,7 @@ def main():
         trust_remote_code=args.trust_remote_code,
         use_liger_kernel=args.liger,
         enable_grad_ckpt=args.enable_grad_ckpt,
-        use_linear_ce_loss=not args.no_lce,
+        use_linear_ce_loss=args.no_lce,
     )
 
     assert (
