@@ -57,6 +57,14 @@ get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
 )
 
+try:
+    import multistorageclient
+    from multistorageclient.types import MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
+
+    MUTLISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MUTLISTORAGECLIENT_AVAILABLE = False
+
 
 try:
     # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
@@ -918,7 +926,6 @@ def check_resume(
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
-
         if is_global_rank_zero() or not (is_s3_url(dirpath) and is_multistorageclient_url(dirpath)):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):

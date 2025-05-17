@@ -22,6 +22,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from typing import Callable, Generator, Optional, Set, Union
+
 import torch
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf
@@ -743,11 +744,11 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _save_state_dict_to_disk(state_dict, filepath):
-        torch.save(state_dict, filepath)
+        multistorageclient.torch.save(state_dict, filepath)
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu', weights_only=False)
+        return multistorageclient.torch.load(model_weights, map_location='cpu', weights_only=False)
 
     @property
     def model_config_yaml(self) -> str:
