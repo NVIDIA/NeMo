@@ -379,6 +379,7 @@ def distill(
     teacher_model_path: AnyPath,
     data: pl.LightningDataModule,
     trainer: Trainer,
+    distillation_config_path: Optional[AnyPath] = None,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
@@ -397,6 +398,8 @@ def distill(
         teacher_model_path (Path): Path to teacher model NeMo checkpoint to distill from.
         data (pl.LightningDataModule): The data module containing training data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        distillation_config_path (Optional[Path]): Path to distillation config YAML file.
+            If not provided, by default will perform logits-only distillation.
         log (NeMoLogger): A nemologger instance.
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
@@ -435,6 +438,7 @@ def distill(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=teacher_model_path,
+        distillation_config_path=distillation_config_path,
     )
     model.__io__ = _student_model.__io__
 
@@ -590,6 +594,7 @@ def deploy(
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
     enable_flash_decode: bool = True,
+    legacy_ckpt: bool = False,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
@@ -636,6 +641,7 @@ def deploy(
             benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
         enable_flash_decode (bool): If True runs in-framework deployment with flash decode enabled (not supported for
             the trtllm backend).
+        legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False
     """
     import os
 
@@ -675,6 +681,7 @@ def deploy(
             inference_max_seq_length=max_input_len,
             enable_flash_decode=enable_flash_decode,
             max_batch_size=max_batch_size,
+            legacy_ckpt=legacy_ckpt,
         )
 
         if torch.distributed.is_initialized():
