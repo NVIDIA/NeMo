@@ -169,7 +169,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # See: allreduce_word_and_position_embeddings
             model_parallel_params = []
             if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-                parallel_state.is_rank_in_embedding_group()
+                parallel_state.is_rank_in_embedding_group(
+                    ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+                )
             ):
                 if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
                     'share_decoder_tokens_head_embeddings', True
@@ -581,7 +583,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # All-reduce word_embeddings' grad across first, last stages to ensure that word_embeddings
         # parameters stay in sync.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_rank_in_embedding_group()
+            parallel_state.is_rank_in_embedding_group(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            )
         ):
             if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
                 'share_decoder_tokens_head_embeddings', True
@@ -947,7 +951,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             return None
 
         # only the last pipeline parallel stages return loss
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False) and len(step_outputs):
+        if parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+        ) and len(step_outputs):
             averaged_loss = {k: torch.stack([x[k] for x in step_outputs]).mean() for k in step_outputs[0].keys()}
         else:
             # if we are here we assume that only loss is available and hidden transforms are disabled
@@ -1526,7 +1532,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 micro_batch_size=get_micro_batch_size(),
             )
             # get output tensor
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+            if parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()
+            ):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
