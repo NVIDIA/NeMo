@@ -89,11 +89,8 @@ def is_te_accelerated(model):
         logging.warning("Transformer Engine is not available.")
         return False
     else:
-        for name, module in model.named_modules():
-            if isinstance(module, (te.LayerNorm, te.Linear, te.TransformerLayer)):
-                return True
-
-        return False
+        te_cls = (te.LayerNorm, te.Linear, te.TransformerLayer)
+        return any(map(lambda x: isinstance(x, te_cls), model.modules()))
 
 
 def apply_fp8_autocast(model, fp8_recipe_handler=None):

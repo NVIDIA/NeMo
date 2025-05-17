@@ -77,7 +77,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         tokenizer=None,
         loss_fn=masked_cross_entropy,
         model_transform=None,
-        model_accelerator=None,
         trust_remote_code=False,
         default_dtype=torch.bfloat16,
         load_in_4bit=False,
@@ -86,6 +85,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         enable_grad_ckpt=False,
         device_map="cpu",
         use_linear_ce_loss=True,
+        fp8_autocast=False,
     ):
         """
         Initialize the HFAutoModelForCausalLM.
@@ -96,7 +96,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             tokenizer (AutoTokenizer, optional): A pre-configured tokenizer. Defaults to None.
             loss_fn (callable, optional): Loss function to use. Defaults to masked_cross_entropy.
             model_transform (callable, optional): Function to transform the model after creation. Defaults to None.
-            model_accelerator (callable, optional): Function to accelerate or optimize the model. Defaults to None.
             trust_remote_code (bool, optional): Whether to trust remote code during model/tokenizer loading.
                 Defaults to False.
             default_dtype (torch.dtype, optional): Default data type for the model. Defaults to torch.bfloat16.
@@ -115,7 +114,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.load_pretrained_weights = load_pretrained_weights
         self.is_hf_model = True
         self.model_transform = model_transform
-        self.model_accelerator = model_accelerator
         self.trust_remote_code = trust_remote_code
         self.default_dtype = default_dtype
         self.load_in_4bit = load_in_4bit
@@ -128,7 +126,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.timestamp = None
         self.enable_grad_ckpt = enable_grad_ckpt
         self.use_linear_ce_loss = use_linear_ce_loss
-
+        self.fp8_autocast = fp8_autocast
         if self.use_linear_ce_loss and not HAVE_LINEAR_LOSS_CE:
             logging.warning(
                 "Dependency for linear CE loss is not available. \
@@ -261,10 +259,10 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 del self.model
                 return self.configure_model()
 
-        if self.model_accelerator is not None:
+        if self.fp8_autocast:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
-            te_accelerate(self.model, self.model_accelerator.fp8_autocast)
+            te_accelerate(self.model, fp8_autocast)
 
         if self.use_linear_ce_loss:
             # scan the model for fp8 layers, if found disable lce

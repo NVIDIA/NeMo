@@ -356,16 +356,9 @@ def main():
             llm.adam.pytorch_adam_with_flat_lr(lr=args.lr, foreach=False)
         )  # foreach need to be False for TP
 
-    if args.fp8:
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
-
-        model_accelerator = TEConfig(fp8_autocast=True)
-    else:
-        model_accelerator = None
-
     model = llm.HFAutoModelForCausalLM(
         model_name=args.model,
-        model_accelerator=model_accelerator,
+        fp8_autocast=args.fp8,
         attn_implementation=args.attn_implementation,
         loss_fn=chunked_cross_entropy if args.use_chunked_ce else masked_cross_entropy,
         trust_remote_code=args.trust_remote_code,
