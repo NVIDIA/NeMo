@@ -18,7 +18,7 @@ model:
   token_init_bias_value: -1000.0  # only applicable when token_init_method='constant'
   layer_idx_list: [0, -1]  # extract features from the first and last layers of ASR encoder
   num_eou_classes: 4
-  eou_class_weights: null
+  eou_class_weights: [1,1,100,100]
   rnnt_loss_weight: 0.0
   ctc_loss_weight: 0.0
   eou_loss_weight: 1.0
@@ -56,6 +56,7 @@ model:
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
     check_tokenizer: false
+    add_eou_to_text: false
 
     random_padding:
       prob: 0.9
@@ -101,6 +102,7 @@ model:
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
     check_tokenizer: false
+    add_eou_to_text: false
 
   test_ds:
     manifest_filepath: null
@@ -121,6 +123,7 @@ model:
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
     check_tokenizer: false
+    add_eou_to_text: false
 
   # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   # We recommend to use vocab size of 1024 with SPE Unigram for most languages

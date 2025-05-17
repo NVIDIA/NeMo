@@ -216,16 +216,22 @@ class ASREOUModelMixin:
 
         return eou_metrics_list, eob_metrics_list
 
-    def _aggregate_eou_metrics(self, outputs: List[dict], mode: str):
-        if f'{mode}_eou_metrics' not in outputs[0]:
+    def _aggregate_eou_metrics(self, outputs: List[dict], mode: str, is_ctc: bool = False):
+        if f'{mode}_eou_metrics' not in outputs[0] and not is_ctc:
+            return {}
+        if f'{mode}_eou_metrics_ctc' not in outputs[0] and is_ctc:
             return {}
 
         # Aggregate EOU/EOB metrics
         eou_metrics = []  # type: List[EOUResult]
         eob_metrics = []  # type: List[EOUResult]
         for x in outputs:
-            eou_metrics.extend(x[f'{mode}_eou_metrics'])
-            eob_metrics.extend(x[f'{mode}_eob_metrics'])
+            if is_ctc:
+                eou_metrics.extend(x[f'{mode}_eou_metrics_ctc'])
+                eob_metrics.extend(x[f'{mode}_eob_metrics_ctc'])
+            else:
+                eou_metrics.extend(x[f'{mode}_eou_metrics'])
+                eob_metrics.extend(x[f'{mode}_eob_metrics'])
         num_eou_utterances = sum([x.num_utterances for x in eou_metrics])
         eou_latency = flatten_nested_list([x.latency for x in eou_metrics])
         eou_early_cutoff = flatten_nested_list([x.early_cutoff for x in eou_metrics])
@@ -841,7 +847,7 @@ class EncDecHybridRNNTCTCBPEEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMix
         eou_metrics = self._aggregate_eou_metrics(outputs, mode)
         tensorboard_logs.update(eou_metrics)
 
-        eou_metrics_ctc = self._aggregate_eou_metrics(outputs, mode)
+        eou_metrics_ctc = self._aggregate_eou_metrics(outputs, mode, is_ctc=True)
         for key, value in eou_metrics_ctc.items():
             tensorboard_logs[f'{key}_ctc'] = value
 
@@ -1339,10 +1345,6 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
 
         eou_metrics = self._aggregate_eou_metrics(outputs, mode)
         tensorboard_logs.update(eou_metrics)
-
-        eou_metrics_ctc = self._aggregate_eou_metrics(outputs, mode)
-        for key, value in eou_metrics_ctc.items():
-            tensorboard_logs[f'{key}_ctc'] = value
 
         self.macro_accuracy.tp = torch.stack([x[f'{mode}_eou_acc_stats'][0] for x in outputs]).sum(axis=0)
         self.macro_accuracy.fp = torch.stack([x[f'{mode}_eou_acc_stats'][1] for x in outputs]).sum(axis=0)

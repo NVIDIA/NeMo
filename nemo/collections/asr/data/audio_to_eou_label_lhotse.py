@@ -146,6 +146,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         )  # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
         self.add_sep_before_eou = self.cfg.get('add_sep_before_eou', False)
+        self.add_eou_to_text = self.cfg.get('add_eou_to_text', True)
         self.padding_cfg = self.cfg.get('random_padding', None)
         self.augmentor = None
         self.len_augmentor = None
@@ -333,9 +334,12 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if not text:
                 # skip empty utterances
                 continue
-            eou_string = self.eob_string if is_backchannel[i] else self.eou_string
-            if self.add_sep_before_eou:
-                eou_string = " " + eou_string
+            if self.add_eou_to_text:
+                eou_string = self.eob_string if is_backchannel[i] else self.eou_string
+                if self.add_sep_before_eou:
+                    eou_string = " " + eou_string
+            else:
+                eou_string = ""
             total_text += text + eou_string + " "
         total_text = total_text.strip()
         return torch.as_tensor(self.tokenizer(total_text))
