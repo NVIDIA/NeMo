@@ -14,6 +14,7 @@
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -32,6 +33,7 @@ class MockTokenizer:
         self.eos_id = 2
         self.bos_id = 1
         self.space_sensitive = False
+        self.tokenizer = MagicMock()
 
     def text_to_ids(self, text):
         # Simple mock implementation - converts each character to its ASCII value
@@ -280,7 +282,7 @@ def test_chat_dataset(temp_chat_jsonl_file, tokenizer):
     assert isinstance(dataset, GPTSFTChatDataset)
     item = dataset[0]
     assert 'input_ids' in item
-    assert 'mask' in item
+    assert 'loss_mask' in item
 
     # Test collate_fn for chat dataset
     batch = [dataset[0], dataset[0]]
