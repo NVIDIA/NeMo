@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 import torch
 import torch.nn.functional as F
 import yaml
+from megatron.core import parallel_state
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
@@ -56,7 +57,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     """
 
     transformer_layer_spec: Union['ModuleSpec', Callable[["GPTConfig"], 'ModuleSpec']] = partial(
-        get_gpt_decoder_block_spec, use_transformer_engine=HAVE_TE
+        get_gpt_decoder_block_spec, use_transformer_engine=HAVE_TE,
     )
 
     # Model

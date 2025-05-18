@@ -357,7 +357,8 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
 def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
     """Get the ModuleSpec for full Transformer layer from Transformer Engine."""
     assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
-    num_layers = get_num_layers_to_build(transformer_config)
+    vp_stage = None if transformer_config.get('virtual_pipeline_model_parallel_size', None) is None else parallel_state.get_virtual_pipeline_model_parallel_rank()
+    num_layers = get_num_layers_to_build(transformer_config, vp_stage)
     return TransformerBlockSubmodules(
         layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
     )

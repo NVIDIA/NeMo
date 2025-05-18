@@ -156,6 +156,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
 
     if use_te and spec_name == '':
         spec_name = 'te_gpt'
+    vp_stage = None if not transformer_config or transformer_config.get('virtual_pipeline_model_parallel_size', None) is None else parallel_state.get_virtual_pipeline_model_parallel_rank()
     name_spec_dict = {
         "": get_gpt_layer_local_spec(num_experts, moe_grouped_gemm),
         "te_gpt": get_gpt_layer_with_transformer_engine_spec(num_experts, moe_grouped_gemm, fp8=fp8),
@@ -164,7 +165,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(transformer_config),
         "modelopt": get_gpt_layer_modelopt_spec(num_experts),
         "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
-        "decoder_block_gpt": get_gpt_decoder_block_spec(transformer_config, use_te),
+        "decoder_block_gpt": get_gpt_decoder_block_spec(transformer_config, use_te, vp_stage=vp_stage),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
