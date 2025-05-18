@@ -20,7 +20,7 @@ def main():
     args = parser.parse_args()
     
     key_words_list = []
-    for line in open(args.key_words_file).readlines():
+    for line in open(args.key_words_file, encoding='utf-8').readlines():
         # item = line.strip().split("_")[0].lower()
         item = line.strip().lower()
         if item not in key_words_list:

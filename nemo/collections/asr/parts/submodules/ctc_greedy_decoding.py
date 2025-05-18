@@ -21,6 +21,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -518,6 +519,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         confidence_method_cfg: Optional[DictConfig] = None,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        btree_model: Optional[str | Path] = None,
+        btree_alpha: float = 0.0,
     ):
         super().__init__()
 
@@ -535,7 +538,14 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
         else:
             self.ngram_lm_batch = None
+            
+        # init ngram lm
+        if btree_model is not None:
+            self.wb_batch = GPUBoostingTreeModel.from_file(lm_path=btree_model, vocab_size=self.blank_id)
+        else:
+            self.wb_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
+        self.btree_alpha = btree_alpha
         self._cuda_graphs_state: CTCDecoderCudaGraphsState | None = None
 
     @typecheck()
@@ -575,12 +585,17 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         if decoder_output.ndim == 2:
             if self.ngram_lm_batch is not None:
                 raise NotImplementedError
+            if self.wb_batch is not None:
+                raise NotImplementedError
             hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
         else:
-            if self.ngram_lm_batch is None:
+            if self.ngram_lm_batch is None and self.wb_batch is None:
                 hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
             else:
-                self.ngram_lm_batch.to(decoder_output.device)
+                if self.ngram_lm_batch is not None:
+                    self.ngram_lm_batch.to(decoder_output.device)
+                if self.wb_batch is not None:
+                    self.wb_batch.to(decoder_output.device)
                 hypotheses = self._greedy_decode_logprobs_batched_lm(decoder_output, decoder_lengths)
         packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
         return (packed_result,)
@@ -693,19 +708,30 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         max_time = logits.shape[1]
         device = logits.device
         float_dtype = logits.dtype
-        batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+        
+        if self.ngram_lm_batch is not None:
+            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+        if self.wb_batch is not None:
+            batch_wb_states = self.wb_batch.get_init_states(batch_size=batch_size, bos=False)
+            
         predictions_labels = torch.zeros([batch_size, max_time], device=device, dtype=torch.long)
         predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
         batch_indices = torch.arange(batch_size, device=device, dtype=torch.long)
         last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
 
         for i in range(max_time):
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
-            lm_scores = lm_scores.to(dtype=float_dtype)
-
             labels = torch.argmax(logits[:, i], dim=-1)
             log_probs_w_lm = logits[:, i]  # .clone()
-            log_probs_w_lm[:, :-1] += self.ngram_lm_alpha * lm_scores
+            
+            if self.ngram_lm_batch is not None:
+                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
+                lm_scores = lm_scores.to(dtype=float_dtype)
+                log_probs_w_lm[:, :-1] += self.ngram_lm_alpha * lm_scores
+            if self.wb_batch is not None:
+                wb_scores, batch_wb_states_candidates = self.wb_batch.advance(states=batch_wb_states)
+                wb_scores = wb_scores.to(dtype=float_dtype)
+                log_probs_w_lm[:, :-1] += self.btree_alpha * wb_scores
+
             # log_probs_w_lm[:, -1] = NEG_INF - no need, argmax without last label
             # use scatter instead of
             # log_probs_w_lm[batch_indices, last_labels] = NEG_INF
@@ -714,12 +740,20 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
             blank_or_repeated = (labels == self.blank_id) | (labels == last_labels)
             torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
-            torch.where(
-                blank_or_repeated,
-                batch_lm_states,
-                batch_lm_states_candidates[batch_indices, labels * ~blank_or_repeated],
-                out=batch_lm_states,
-            )
+            if self.ngram_lm_batch is not None:
+                torch.where(
+                    blank_or_repeated,
+                    batch_lm_states,
+                    batch_lm_states_candidates[batch_indices, labels * ~blank_or_repeated],
+                    out=batch_lm_states,
+                )
+            if self.wb_batch is not None:
+                torch.where(
+                    blank_or_repeated,
+                    batch_wb_states,
+                    batch_wb_states_candidates[batch_indices, labels * ~blank_or_repeated],
+                    out=batch_wb_states,
+                )
             predictions_labels[:, i] = labels
             # TODO: logprobs
             last_labels = labels
@@ -909,12 +943,12 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         log_probs = x
 
-        # predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop(
-        #     logits=x, out_len=out_len
-        # )
-        predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop_cuda_graphs(
+        predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop(
             logits=x, out_len=out_len
         )
+        # predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop_cuda_graphs(
+        #     logits=x, out_len=out_len
+        # )
 
         # In CTC greedy decoding, each output maximum likelihood token
         # is calculated independent of the other tokens.
@@ -981,6 +1015,9 @@ class GreedyCTCInferConfig:
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: float = 0.0
 
+    btree_model: Optional[str] = None
+    btree_alpha: float = 0.0
+    
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
         self.confidence_method_cfg = OmegaConf.structured(

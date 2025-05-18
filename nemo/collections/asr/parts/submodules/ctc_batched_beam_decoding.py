@@ -232,6 +232,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         print(btree_alpha)
 
         self.ngram_lm_batch = None
+        self.wb_batch = None
         if ngram_lm_model is not None:
             assert self._blank_index != 0
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
