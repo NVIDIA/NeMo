@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Literal, Optional, Sequence, Union
+from typing import Literal, Optional, Sequence, TypeAlias, Union
 
 import torch
 from torchmetrics.functional.text.bleu import _bleu_score_compute, _bleu_score_update
-from torchmetrics.functional.text.sacre_bleu import _SacreBLEUTokenizer
 from torchmetrics.text import SacreBLEUScore
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
@@ -27,7 +26,7 @@ from nemo.utils import logging
 __all__ = ['BLEU']
 
 
-def move_dimension_to_the_front(tensor, dim_index):
+def _move_dimension_to_the_front(tensor, dim_index):
     all_dims = list(range(tensor.ndim))
     return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
@@ -51,85 +50,65 @@ class BLEU(SacreBLEUScore):
 
         def on_validation_epoch_end(self):
             ...
-            bleu_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
-            bleu_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
-            bleu_num = torch.stack([x[f"val_bleu_num"] for x in outputs]).sum(dim=0)
-            bleu_denom = torch.stack([x[f"val_bleu_denom"] for x in outputs]).sum(dim=0)
-
+            bleu_num = torch.stack([x['val_bleu_num'] for x in self.val_outputs]).sum()
+            bleu_denom = torch.stack([x['val_bleu_denom'] for x in self.val_outputs]).sum()
+            bleu_pred_len = torch.stack([x['val_bleu_pred_len'] for x in self.val_outputs]).sum()
+            bleu_target_len = torch.stack([x['val_bleu_target_len'] for x in self.val_outputs]).sum()
             val_bleu = {"val_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
             tensorboard_logs.update(val_bleu)
-
             self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-        decoding: An instance of CTCDecoding, RNNTDecoding, or MultiTaskDecoding.
-        tokenize: Desired tokenizer for BLEU evaluation. (Depending on language, this will drastically affect BLEU score.)
-        n_gram: Maximum number of n_grams to compute BLEU values over. Max: 4.
-        lowercase: Whether to lowercase all inputs.
-        weights: List of float values to weight each n_gram score.
-        log_prediction: Whether to log a single decoded sample per call.
-        batch_dim_index: Index corresponding to batch dimension. (For RNNT.)
-        dist_dync_on_step: Whether to perform reduction on forward pass of metric.
+        decoding: Decoder instance (CTCDecoding, RNNTDecoding, or MultiTaskDecoding) for converting model outputs to text.
+        tokenize: Tokenizer name for BLEU evaluation (affects BLEU score based on language/tokenization).
+        n_gram: Maximum n-gram order for BLEU calculation (default: 4).
+        lowercase: If True, lowercases all input texts before evaluation.
+        weights: Optional sequence of float weights for each n-gram order.
+        smooth: If True, applies smoothing to BLEU calculation.
+        multi_tokenize: If True, allows specifying a different tokenizer per sample (see `tokenizers` argument in `update`).
+        log_prediction: If True, logs the first reference and prediction in each batch.
+        batch_dim_index: Index of the batch dimension in input tensors.
+        dist_sync_on_step: If True, synchronizes metric state across distributed workers on each step.
 
     Returns:
-        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
-            distances for all prediction - reference pairs, total number of words in all references.
+        Dictionary containing BLEU score and component statistics (numerator, denominator, prediction_lengths, target_lengths).
     """
 
     full_state_update: bool = True
+    SacreBLEUToken: TypeAlias = Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]
 
     def __init__(
         self,
         decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
-        tokenize: Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"] | Dict[str,  Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]] = "13a",
+        tokenize: SacreBLEUToken = "13a",
         n_gram: int = 4,
         lowercase: bool = False,
         weights: Optional[Sequence[float]] = None,
         smooth: bool = False,
+        multi_tokenize: bool = False,
         log_prediction=True,
         batch_dim_index=0,
         dist_sync_on_step=False,
     ):
         self.log_prediction = log_prediction
         self.batch_dim_index = batch_dim_index
+
         self.decoding = decoding
-        self.decode = None
-        self.multi_token = type(tokenize) is dict
-        self._tokenizer = {}
+        self._init_decode()
+
+        self.tokenize = tokenize
+        self.multi_tokenize = multi_tokenize
 
         super().__init__(
-            tokenize=tokenize["default"] if self.multi_token else tokenize,
+            tokenize=self.tokenize,
             n_gram=n_gram,
             lowercase=lowercase,
             weights=weights,
             smooth=smooth,
             dist_sync_on_step=dist_sync_on_step,
         )
-        if self.multi_token:
-            for k, v in tokenize.items():
-               self._tokenizer[k] =  _SacreBLEUTokenizer(v, lowercase)
-
-        if isinstance(self.decoding, AbstractRNNTDecoding):
-            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
-                encoder_output=predictions, encoded_lengths=predictions_lengths
-            )
-        elif isinstance(self.decoding, AbstractCTCDecoding):
-            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.ctc_decoder_predictions_tensor(
-                decoder_outputs=predictions,
-                decoder_lengths=predictions_lengths,
-                fold_consecutive=self.fold_consecutive,
-            )
-        elif isinstance(self.decoding, AbstractMultiTaskDecoding):
-            self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids, targets: self.decoding.decode_predictions_tensor(
-                encoder_hidden_states=predictions,
-                encoder_input_mask=predictions_mask,
-                decoder_input_ids=input_ids,
-                return_hypotheses=False,
-            )
-        else:
-            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
-
+        
 
     def update(
         self,
@@ -139,7 +118,7 @@ class BLEU(SacreBLEUScore):
         targets_lengths: torch.Tensor,
         predictions_mask: Optional[torch.Tensor] = None,
         input_ids: Optional[torch.Tensor] = None,
-        langs: Optional[str] = None,
+        tokenizers: Optional[Sequence[str]] = None,
     ):
         """
         Updates metric state.
@@ -154,47 +133,46 @@ class BLEU(SacreBLEUScore):
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
             input_ids: an int torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
+            tokenizers: an optional sequence of strings of ``length == batch size``. Each element is passed as 
+                the SacreBLEU tokenizer type for corresponding element in batch. If a sequence element is ``None``,
+                the initial tokenizer type from ``BLEU.__init__`` is used. If ``tokenizers == None`` then all elements
+                in batch are tokenized with initial tokenizer type. 
         """
-        if self.multi_token:
-            assert langs is not None, "BLEU metrics configured for multiple tokens but metric update called without tokenizer args."
+        if tokenizers is not None:
+            assert len(tokenizers) == targets_lengths.shape[0] , f"BLEU metrics configured for multiple tokenizers, but got only '{len(tokenizers)}' tokenizer keywords for '{targets_lengths.shape[0]}' samples"
 
-        references = []
         with torch.no_grad():
+            # get predictions
+            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
+
+            # prepare references
             tgt_lenths_cpu_tensor = targets_lengths.long().cpu()
             targets_cpu_tensor = targets.long().cpu()
+
             # check batch_dim_index is first dim
             if self.batch_dim_index != 0:
-                targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+                targets_cpu_tensor = _move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+
             # iterate over batch
             for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
-                references.append([reference])  # needs parentheses to allow multiple targets
-            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
 
-        if self.log_prediction:
-            logging.info("\n")
-            logging.info(f"reference:{references[0]}")
-            logging.info(f"predicted:{hypotheses[0]}")
-
-        if self.multi_token:
-            for h, r, l in zip(hypotheses, references, langs):
                 self.preds_len, self.target_len = _bleu_score_update(
-                            [h.text],
-                            [r],
+                            [hypotheses[ind].text],
+                            [[reference]],  # Nested list as BLEU permits multiple references per prediction.
                             self.numerator,
                             self.denominator,
                             self.preds_len,
                             self.target_len,
                             self.n_gram,
-                            self._tokenizer.get(l, self._tokenizer["default"]),
+                            self._get_tokenizer(tokenizers[ind] if tokenizers else None),  # `None` arg uses default tokenizer.
                         )
-        else:
-            super().update(
-                [h.text for h in hypotheses],
-                references
-            )
+                if self.log_prediction and ind == 0:
+                    logging.info("\n")
+                    logging.info(f"reference:{reference}")
+                    logging.info(f"predicted:{hypotheses[0]}")    
 
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
@@ -235,3 +213,36 @@ class BLEU(SacreBLEUScore):
         return _bleu_score_compute(
             predictions_lengths, targets_lengths, numerator, denominator, self.n_gram, self.weights, self.smooth
         )
+
+    # Wrapper for tokenizer access. Uses default if None.
+    def _get_tokenizer(self, tokenize=None):
+        if not self.multi_tokenize or tokenize is None:
+            return self.tokenizer
+        elif tokenize not in  self.tokenizer._TOKENIZE_FN:
+            raise KeyError(f"Sample passed BLEU tokenizer key '{tokenize}' but BLEU config only support '{self.tokenizer._TOKENIZE_FN.keys()}'")
+        # Lower level function of torchmetric SacreBLEU call.
+        tok = getattr(self.tokenizer, self.tokenizer._TOKENIZE_FN[tokenize])
+        return lambda line: self.tokenizer._lower(tok(line), self.tokenizer.lowercase).split()
+
+    def _init_decode(self):
+        self.decode = None
+        if isinstance(self.decoding, AbstractRNNTDecoding):
+            # Just preload all potential SacreBLEU tokenizers.
+            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.rnnt_decoder_predictions_tensor(
+                encoder_output=predictions, encoded_lengths=predictions_lengths
+            )
+        elif isinstance(self.decoding, AbstractCTCDecoding):
+            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids, targets: self.decoding.ctc_decoder_predictions_tensor(
+                decoder_outputs=predictions,
+                decoder_lengths=predictions_lengths,
+                fold_consecutive=self.fold_consecutive,
+            )
+        elif isinstance(self.decoding, AbstractMultiTaskDecoding):
+            self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids, targets: self.decoding.decode_predictions_tensor(
+                encoder_hidden_states=predictions,
+                encoder_input_mask=predictions_mask,
+                decoder_input_ids=input_ids,
+                return_hypotheses=False,
+            )
+        else:
+            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
