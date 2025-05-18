@@ -74,6 +74,7 @@ def lens_to_mask(lens, max_length):
     mask = arange.expand(batch_size, max_length) < lens.unsqueeze(1)
     return mask
 
+
 def _config_check(cfg):
     if 'tokenizer' not in cfg:
         raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
@@ -90,13 +91,16 @@ def _config_check(cfg):
     if "lm_dec_hidden" not in cfg.model_defaults:
         raise ValueError("`cfg.model_defaults` must have `lm_dec_hidden` key !")
 
+
 def _get_bleu_tokenizers_from_cuts(cuts):
     """
     Helper function for multi tokenizer BLEU evaluation.
     Looks for `bleu_tokenizer` property to pass to BLEU metric.
     """
+
     def _get_lang(c):
         return c.custom.get("bleu_tokenizer", None)
+
     # Dataloader passes multiple types of cuts. Need to diambiguate to access custom.
     # TODO: resolve in lhotse backend.
     return [_get_lang(c.first_non_padding_cut) if isinstance(c, MixedCut) else _get_lang(c) for c in cuts]
@@ -716,16 +720,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     # Wrapper function for updating output dict with metrics.
     # Performs single update, reset loop with metric functions.
     # Expand as needed.
-    # TODO: This should be offloaded to a single MultiTaskEval 
-    def _eval(self, 
-              output_dict: Dict[str, torch.Tensor],
-              batch: PromptedAudioToTextMiniBatch,
-              encoded_states: torch.Tensor, 
-              encoded_len: torch.Tensor, 
-              encoded_mask: torch.Tensor,
-              eval_prefix: Literal["val", "test", "training_batch"],
-              return_all_metrics: bool,
-        ):
+    # TODO: This should be offloaded to a single MultiTaskEval
+    def _eval(
+        self,
+        output_dict: Dict[str, torch.Tensor],
+        batch: PromptedAudioToTextMiniBatch,
+        encoded_states: torch.Tensor,
+        encoded_len: torch.Tensor,
+        encoded_mask: torch.Tensor,
+        eval_prefix: Literal["val", "test", "training_batch"],
+        return_all_metrics: bool,
+    ):
 
         self.wer.update(
             predictions=encoded_states,
@@ -753,7 +758,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             targets_lengths=batch.transcript_lens,
             predictions_mask=encoded_mask,
             input_ids=batch.prompt,
-            tokenizers=_get_bleu_tokenizers_from_cuts(batch.cuts) if self.bleu.multi_tokenize else None  # Pass None to use single tokenizer.
+            tokenizers=(
+                _get_bleu_tokenizers_from_cuts(batch.cuts) if self.bleu.multi_tokenize else None
+            ),  # Pass None to use single tokenizer.
         )
         bleu_metrics = self.bleu.compute(prefix=f"{eval_prefix}_", return_all_metrics=return_all_metrics)
         output_dict.update(bleu_metrics)

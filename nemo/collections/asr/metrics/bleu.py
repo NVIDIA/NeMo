@@ -76,7 +76,9 @@ class BLEU(SacreBLEUScore):
     """
 
     full_state_update: bool = True
-    SacreBLEUToken: TypeAlias = Literal["none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"]
+    SacreBLEUToken: TypeAlias = Literal[
+        "none", "13a", "zh", "intl", "char", "ja-mecab", "ko-mecab", "flores101", "flores200"
+    ]
 
     def __init__(
         self,
@@ -108,7 +110,6 @@ class BLEU(SacreBLEUScore):
             smooth=smooth,
             dist_sync_on_step=dist_sync_on_step,
         )
-        
 
     def update(
         self,
@@ -133,13 +134,15 @@ class BLEU(SacreBLEUScore):
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
             input_ids: an int torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
-            tokenizers: an optional sequence of strings of ``length == batch size``. Each element is passed as 
+            tokenizers: an optional sequence of strings of ``length == batch size``. Each element is passed as
                 the SacreBLEU tokenizer type for corresponding element in batch. If a sequence element is ``None``,
                 the initial tokenizer type from ``BLEU.__init__`` is used. If ``tokenizers == None`` then all elements
-                in batch are tokenized with initial tokenizer type. 
+                in batch are tokenized with initial tokenizer type.
         """
         if tokenizers is not None:
-            assert len(tokenizers) == targets_lengths.shape[0] , f"BLEU metrics configured for multiple tokenizers, but got only '{len(tokenizers)}' tokenizer keywords for '{targets_lengths.shape[0]}' samples"
+            assert (
+                len(tokenizers) == targets_lengths.shape[0]
+            ), f"BLEU metrics configured for multiple tokenizers, but got only '{len(tokenizers)}' tokenizer keywords for '{targets_lengths.shape[0]}' samples"
 
         with torch.no_grad():
             # get predictions
@@ -160,20 +163,19 @@ class BLEU(SacreBLEUScore):
                 reference = self.decoding.decode_tokens_to_str(target)
 
                 self.preds_len, self.target_len = _bleu_score_update(
-                            [hypotheses[ind].text],
-                            [[reference]],  # Nested list as BLEU permits multiple references per prediction.
-                            self.numerator,
-                            self.denominator,
-                            self.preds_len,
-                            self.target_len,
-                            self.n_gram,
-                            self._get_tokenizer(tokenizers[ind] if tokenizers else None),  # `None` arg uses default tokenizer.
-                        )
+                    [hypotheses[ind].text],
+                    [[reference]],  # Nested list as BLEU permits multiple references per prediction.
+                    self.numerator,
+                    self.denominator,
+                    self.preds_len,
+                    self.target_len,
+                    self.n_gram,
+                    self._get_tokenizer(tokenizers[ind] if tokenizers else None),  # `None` arg uses default tokenizer.
+                )
                 if self.log_prediction and ind == 0:
                     logging.info("\n")
                     logging.info(f"reference:{reference}")
-                    logging.info(f"predicted:{hypotheses[0]}")    
-
+                    logging.info(f"predicted:{hypotheses[0]}")
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
         """
@@ -218,8 +220,10 @@ class BLEU(SacreBLEUScore):
     def _get_tokenizer(self, tokenize=None):
         if not self.multi_tokenize or tokenize is None:
             return self.tokenizer
-        elif tokenize not in  self.tokenizer._TOKENIZE_FN:
-            raise KeyError(f"Sample passed BLEU tokenizer key '{tokenize}' but BLEU config only support '{self.tokenizer._TOKENIZE_FN.keys()}'")
+        elif tokenize not in self.tokenizer._TOKENIZE_FN:
+            raise KeyError(
+                f"Sample passed BLEU tokenizer key '{tokenize}' but BLEU config only support '{self.tokenizer._TOKENIZE_FN.keys()}'"
+            )
         # Lower level function of torchmetric SacreBLEU call.
         tok = getattr(self.tokenizer, self.tokenizer._TOKENIZE_FN[tokenize])
         return lambda line: self.tokenizer._lower(tok(line), self.tokenizer.lowercase).split()
