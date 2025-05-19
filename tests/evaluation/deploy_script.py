@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ if __name__ == '__main__':
             nemo_checkpoint=args.nemo2_ckpt_path,
             max_batch_size=args.max_batch_size,
             triton_model_repository=args.trtllm_dir,
+            backend="trtllm",
         )
     except Exception as e:
         logging.error(f"Deploy process encountered an error: {e}")

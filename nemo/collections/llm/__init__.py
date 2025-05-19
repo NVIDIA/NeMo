@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,6 +75,11 @@ from nemo.collections.llm.gpt.model import (  # noqa: F401
     Gemma2Config9B,
     Gemma2Config27B,
     Gemma2Model,
+    Gemma3Config1B,
+    Gemma3Config4B,
+    Gemma3Config12B,
+    Gemma3Config27B,
+    Gemma3Model,
     GemmaConfig,
     GemmaConfig2B,
     GemmaConfig7B,
@@ -290,6 +295,11 @@ __all__ = [
     "Gemma2Config",
     "Gemma2Config27B",
     "Gemma2Config2B",
+    "Gemma3Model",
+    "Gemma3Config1B",
+    "Gemma3Config4B",
+    "Gemma3Config12B",
+    "Gemma3Config27B",
     "Baichuan2Config",
     "Baichuan2Config7B",
     "Baichuan2Model",
