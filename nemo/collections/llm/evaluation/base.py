@@ -384,7 +384,8 @@ def list_available_evaluations() -> dict[str, list[str]]:
     Finds all pre-defined evaluation configs across all installed evaluation frameworks.
 
     Returns:
-        dict[str, list[str]]: Dictionary of available evaluations, where key is evaluation framework and value is list of available tasks.
+        dict[str, list[str]]: Dictionary of available evaluations, where key is evaluation
+            framework and value is list of available tasks.
     """
     # this import can be moved outside of this function when NeMoFWLMEval is
     # removed and we completed switch to NVIDIA Evals Factory
