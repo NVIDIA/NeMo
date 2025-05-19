@@ -223,7 +223,7 @@ def main():
             num_sanity_val_steps=0,
             accumulate_grad_batches=args.accumulate_grad_batches,
             gradient_clip_val=args.grad_clip,
-            use_distributed_sampler=False,
+            use_distributed_sampler=True,
             logger=wandb,
             callbacks=callbacks,
             precision="bf16-mixed",
