@@ -114,9 +114,9 @@ jobs:
             script: L2_HF_Transformer_SFT
           - runner: self-hosted-azure-gpus-1
             script: L2_HF_Transformer_SFT_nemorun
-          - runner: self-hosted-azure-gpus-1
+          - runner: azure-gpu-vm-runner1-h100
             script: L2_HF_Transformer_SFT_TE_Acceleration
-          - runner: self-hosted-azure-gpus-1
+          - runner: azure-gpu-vm-runner1-h100
             script: L2_HF_Transformer_PT_TE_Acceleration
     needs: [unit-tests]
     runs-on: ${{ matrix.runner }}
