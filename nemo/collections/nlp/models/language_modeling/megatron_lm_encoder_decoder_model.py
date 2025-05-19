@@ -169,7 +169,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # See: allreduce_word_and_position_embeddings
             model_parallel_params = []
             if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-                parallel_state.is_rank_in_embedding_group(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank())
+                parallel_state.is_rank_in_embedding_group()
             ):
                 if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
                     'share_decoder_tokens_head_embeddings', True
@@ -581,7 +581,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # All-reduce word_embeddings' grad across first, last stages to ensure that word_embeddings
         # parameters stay in sync.
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_rank_in_embedding_group(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank())
+            parallel_state.is_rank_in_embedding_group()
         ):
             if self.cfg.get('share_token_embeddings', True) and self.cfg.get(
                 'share_decoder_tokens_head_embeddings', True

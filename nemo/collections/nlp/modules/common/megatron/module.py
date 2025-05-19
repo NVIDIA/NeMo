@@ -166,7 +166,7 @@ class MegatronModule(torch.nn.Module):
     def sync_initial_word_embeddings(self):
 
         if torch.distributed.is_initialized():
-            if parallel_state.is_rank_in_embedding_group(ignore_virtual=False, vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank()) and self.share_token_embeddings:
+            if parallel_state.is_rank_in_embedding_group() and self.share_token_embeddings:
                 torch.distributed.all_reduce(
                     self.word_embeddings_weight().data, group=parallel_state.get_embedding_group()
                 )
