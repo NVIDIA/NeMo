@@ -90,22 +90,10 @@ LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS = """{{- bos_token }}
 """
 
 
-def _get_tokenizer_path():
-    """Return a path in the TestData or a path in the Built Image."""
-    tp = "/home/TestData/nemo2_ckpt/meta-llama/Meta-Llama-3-8B"
-    if os.path.exists(tp):
-        return tp
-    tp = (
-        "/root/.cache/huggingface/hub/models--meta-llama--Meta-Llama-3-8B-instruct"
-        "/snapshots/c4a54320a52ed5f88b7a2f84496903ea4ff07b45/"
-    )
-    return tp
-
-
 @pytest.fixture
 def mock_tokenizer():
     tokenizer = AutoTokenizer(
-        pretrained_model_name=_get_tokenizer_path(),
+        pretrained_model_name="/home/TestData/nemo2_ckpt/meta-llama/Meta-Llama-3-8B",
         use_fast=True,
         chat_template=LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS,
     )
@@ -295,7 +283,7 @@ def test_create_dataset_with_hf_template(temp_dataset_dir, mock_tokenizer):
 
 class TestPreprocess:
     tokenizer = AutoTokenizer(
-        pretrained_model_name=_get_tokenizer_path(),
+        pretrained_model_name="/home/TestData/nemo2_ckpt/meta-llama/Meta-Llama-3-8B",
         use_fast=True,
         chat_template=LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS,
     )
