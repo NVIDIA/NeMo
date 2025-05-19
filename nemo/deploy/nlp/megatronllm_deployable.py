@@ -334,7 +334,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         num_tokens_to_generate = inputs.pop("max_length", 256)
         log_probs = inputs.pop("compute_logprob", False)
         apply_chat_template = inputs.pop("apply_chat_template", False)
-        top_logprobs = inputs.pop("n_top_logprobs", 1)  # Added
+        top_logprobs = inputs.pop("n_top_logprobs", 0)
         echo = inputs.pop("echo", False)
         text_only = True
 
@@ -365,7 +365,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             top_p=top_p,
             num_tokens_to_generate=num_tokens_to_generate,
             return_log_probs=log_probs,
-            top_n_logprobs=top_logprobs,  # Added (INT)
+            top_n_logprobs=top_logprobs,
         )
 
         results = self.generate(prompts, inference_params)
