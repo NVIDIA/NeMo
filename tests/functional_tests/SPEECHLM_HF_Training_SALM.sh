@@ -13,17 +13,19 @@
 # limitations under the License.
 
 # Run training
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  torchrun --nproc-per-node 1 examples/speechlm2/salm_train.py \
-    model.pretrained_llm=/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1 \
-    model.pretrained_asr=/home/TestData/speechlm/pretrained_models/canary-1b-flash.nemo \
-    data.train_ds.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_train-clean-5.jsonl.gz \
-    data.validation_ds.datasets.val_set_0.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2.jsonl.gz \
-    trainer.max_steps=10
+torchrun --nproc-per-node 1 --no-python \
+  coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
+    examples/speechlm2/salm_train.py \
+      model.pretrained_llm=/home/TestData/speechlm/pretrained_models/TinyLlama--TinyLlama_v1.1 \
+      model.pretrained_asr=/home/TestData/speechlm/pretrained_models/canary-1b-flash.nemo \
+      data.train_ds.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_train-clean-5.jsonl.gz \
+      data.validation_ds.datasets.val_set_0.input_cfg.0.cuts_path=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2.jsonl.gz \
+      trainer.devices=1 \
+      trainer.max_steps=10
 
 # Convert to HF format
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  python examples/speechlm2/to_hf.py \
+  examples/speechlm2/to_hf.py \
   class_path=nemo.collections.speechlm2.models.SALM \
   ckpt_path=salm_results/checkpoints/step\\=10-last.ckpt \
   ckpt_config=examples/speechlm2/conf/salm.yaml \
@@ -31,7 +33,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
 
 # Run generation
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  python examples/speechlm2/salm_eval.py \
+  examples/speechlm2/salm_eval.py \
   pretrained_name=test_salm_hf_model \
   inputs=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2-first10.jsonl.gz \
   batch_size=4 \

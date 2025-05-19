@@ -165,7 +165,7 @@ exp_manager:
    resume_ignore_no_checkpoint: true
 
    # You may use this section to create a W&B logger
-   create_wandb_logger: true
+   create_wandb_logger: false
    wandb_logger_kwargs:
      name: development-run
      project: speechlm2_speech_decoder
