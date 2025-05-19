@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
-import torch.nn as nn
 from lightning.pytorch.utilities import rank_zero_only
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torchmetrics import Accuracy
@@ -216,6 +216,25 @@ class ASREOUModelMixin:
 
         return eou_metrics_list, eob_metrics_list
 
+    def _get_percentiles(self, values: List[float], percentiles: List[float], tag: str = "") -> Dict[str, float]:
+        """
+        Get the percentiles of a list of values.
+        Args:
+            values: list of values
+            percentiles: list of percentiles
+        Returns:
+            metrics: Dict of percentiles
+        """
+        if len(values) == 0:
+            return [0.0] * len(percentiles)
+        results = np.percentile(values, percentiles).tolist()
+        metrics = {}
+        if tag:
+            tag += "_"
+        for i, p in enumerate(percentiles):
+            metrics[f'{tag}p{int(p)}'] = float(results[i])
+        return metrics
+
     def _aggregate_eou_metrics(self, outputs: List[dict], mode: str, is_ctc: bool = False):
         if f'{mode}_eou_metrics' not in outputs[0] and not is_ctc:
             return {}
@@ -254,34 +273,21 @@ class ASREOUModelMixin:
         eou_missing = [x.missing for x in eou_metrics]
         eob_missing = [x.missing for x in eob_metrics]
 
-        eou_latency = torch.tensor(eou_latency)
-        eou_latency_p90 = torch.quantile(eou_latency, 0.9).item()
-        eou_latency_p95 = torch.quantile(eou_latency, 0.95).item()
-
-        eou_early_cutoff = torch.tensor(eou_early_cutoff)
-        eou_early_cutoff_p90 = torch.quantile(eou_early_cutoff, 0.9).item()
-        eou_early_cutoff_p95 = torch.quantile(eou_early_cutoff, 0.95).item()
-
-        eob_latency = torch.tensor(eob_latency)
-        eob_latency_p90 = torch.quantile(eob_latency, 0.9).item()
-        eob_latency_p95 = torch.quantile(eob_latency, 0.95).item()
-
-        eob_early_cutoff = torch.tensor(eob_early_cutoff)
-        eob_early_cutoff_p90 = torch.quantile(eob_early_cutoff, 0.9).item()
-        eob_early_cutoff_p95 = torch.quantile(eob_early_cutoff, 0.95).item()
-
         tensorboard_logs = {}
-        tensorboard_logs[f'{mode}_eou_latency_p90'] = eou_latency_p90
-        tensorboard_logs[f'{mode}_eou_latency_p95'] = eou_latency_p95
+        target_percentiles = [50, 90, 95]
+        eou_latency_metrics = self._get_percentiles(eou_latency, target_percentiles, tag=f'{mode}_eou_latency')
+        eou_early_cutoff_metrics = self._get_percentiles(
+            eou_early_cutoff, target_percentiles, tag=f'{mode}_eou_early_cutoff'
+        )
+        eob_latency_metrics = self._get_percentiles(eob_latency, target_percentiles, tag=f'{mode}_eob_latency')
+        eob_early_cutoff_metrics = self._get_percentiles(
+            eob_early_cutoff, target_percentiles, tag=f'{mode}_eob_early_cutoff'
+        )
 
-        tensorboard_logs[f'{mode}_eou_early_cutoff_p90'] = eou_early_cutoff_p90
-        tensorboard_logs[f'{mode}_eou_early_cutoff_p95'] = eou_early_cutoff_p95
-
-        tensorboard_logs[f'{mode}_eob_latency_p90'] = eob_latency_p90
-        tensorboard_logs[f'{mode}_eob_latency_p95'] = eob_latency_p95
-
-        tensorboard_logs[f'{mode}_eob_early_cutoff_p90'] = eob_early_cutoff_p90
-        tensorboard_logs[f'{mode}_eob_early_cutoff_p95'] = eob_early_cutoff_p95
+        tensorboard_logs.update(eou_latency_metrics)
+        tensorboard_logs.update(eou_early_cutoff_metrics)
+        tensorboard_logs.update(eob_latency_metrics)
+        tensorboard_logs.update(eob_early_cutoff_metrics)
 
         tensorboard_logs[f'{mode}_eou_early_cutoff_avg_num'] = eou_avg_num_early_cutoff
         tensorboard_logs[f'{mode}_eob_early_cutoff_avg_num'] = eob_avg_num_early_cutoff
