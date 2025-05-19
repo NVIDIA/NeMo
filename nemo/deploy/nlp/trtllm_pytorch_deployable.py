@@ -18,7 +18,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import torch
-from pytriton.decorators import batch
+from pytriton.decorators import batch, first_value
 from pytriton.model_config import Tensor
 from tensorrt_llm import SamplingParams
 from tensorrt_llm._torch.llm import LLM, TokenizerBase
@@ -170,15 +170,16 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         return (Tensor(name="sentences", shape=(-1,), dtype=bytes),)
 
     @batch
+    @first_value("temperature", "top_k", "top_p", "max_length")
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
 
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
-            temperature = inputs.pop("temperature")[0][0] if "temperature" in inputs else None
-            top_k = int(inputs.pop("top_k")[0][0]) if "top_k" in inputs else None
-            top_p = inputs.pop("top_p")[0][0] if "top_p" in inputs else None
-            max_length = inputs.pop("max_length")[0][0] if "max_length" in inputs else 256
+            temperature = inputs.pop("temperature") if "temperature" in inputs else None
+            top_k = int(inputs.pop("top_k")) if "top_k" in inputs else None
+            top_p = inputs.pop("top_p") if "top_p" in inputs else None
+            max_length = inputs.pop("max_length") if "max_length" in inputs else 256
 
             if torch.distributed.is_initialized():
                 if torch.distributed.get_world_size() > 1:

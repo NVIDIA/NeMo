@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-import sys
 
 from nemo.deploy.nlp import NemoQueryTRTLLMPytorch
 
@@ -38,52 +37,16 @@ def get_args():
     return args
 
 
-def query_llm(
-    url,
-    model_name,
-    prompts,
-    max_length=256,
-    top_k=None,
-    top_p=None,
-    temperature=None,
-    init_timeout=60.0,
-):
-    """Query a TensorRT-LLM PyTorch backend model deployed on Triton Inference Server.
-
-    Args:
-        url (str): URL of the Triton Inference Server (e.g. localhost or IP address)
-        model_name (str): Name of the model as deployed on Triton server
-        prompts (List[str]): List of text prompts to send to the model
-        max_length (int, optional): Maximum number of tokens to generate in the response. Defaults to 256.
-        top_k (int, optional): Number of highest probability tokens to consider for sampling. Defaults to None.
-        top_p (float, optional): Cumulative probability threshold for token sampling. Defaults to None.
-        temperature (float, optional): Temperature for controlling randomness in sampling (higher = more random). Defaults to None.
-        init_timeout (float, optional): Timeout in seconds when initializing connection to Triton server. Defaults to 60.0.
-
-    Returns:
-        List[str]: Generated text responses for each input prompt
-    """
-    nemo_query = NemoQueryTRTLLMPytorch(url, model_name)
-    return nemo_query.query_llm(
-        prompts=prompts,
-        max_length=max_length,
-        top_k=top_k,
-        top_p=top_p,
-        temperature=temperature,
-        init_timeout=init_timeout,
-    )
-
-
-def query():
+if __name__ == '__main__':
     args = get_args()
 
     if args.prompt_file is not None:
         with open(args.prompt_file, "r") as f:
             args.prompt = f.read()
 
-    outputs = query_llm(
-        url=args.url,
-        model_name=args.model_name,
+    nemo_query = NemoQueryTRTLLMPytorch(args.url, args.model_name)
+
+    outputs = nemo_query.query_llm(
         prompts=[args.prompt],
         max_length=args.max_length,
         top_k=args.top_k,
@@ -92,7 +55,3 @@ def query():
         init_timeout=args.init_timeout,
     )
     print(outputs)
-
-
-if __name__ == '__main__':
-    query()
