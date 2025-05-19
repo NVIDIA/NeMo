@@ -230,10 +230,10 @@ def predictive_model_streaming_conformer():
 @pytest.fixture()
 def predictive_model_transformer_unet_params_base():
     model = {
-    'sample_rate': 16000,
-    'num_outputs': 1,
-    'normalize_input': True,
-    'max_utts_evaluation_metrics': 50,
+        'sample_rate': 16000,
+        'num_outputs': 1,
+        'normalize_input': True,
+        'max_utts_evaluation_metrics': 50,
     }
     encoder = {
         '_target_': 'nemo.collections.audio.modules.transforms.AudioToSpectrogram',
@@ -257,7 +257,7 @@ def predictive_model_transformer_unet_params_base():
         'depth': 8,  # number of layers in the model
         'dim': 64,  # the hidden size of the model
         'heads': 8,  # number of heads for the model
-        'adaptive_rmsnorm': False # should be false for predictive model
+        'adaptive_rmsnorm': False,  # should be false for predictive model
     }
 
     loss = {
@@ -283,17 +283,21 @@ def predictive_model_transformer_unet_params_base():
     )
     return model_config
 
+
 @pytest.fixture
 def predictive_model_transformer_unet_params(predictive_model_transformer_unet_params_base, request):
     overrides = getattr(request, "param", {})
 
     for section, values in overrides.items():
-        if section in predictive_model_transformer_unet_params_base and isinstance(predictive_model_transformer_unet_params_base[section], DictConfig):
+        if section in predictive_model_transformer_unet_params_base and isinstance(
+            predictive_model_transformer_unet_params_base[section], DictConfig
+        ):
             for k, v in values.items():
                 predictive_model_transformer_unet_params_base[section][k] = v
         else:
             predictive_model_transformer_unet_params_base[section] = values
     return predictive_model_transformer_unet_params_base
+
 
 @pytest.fixture()
 def predictive_model_transformer_unet(predictive_model_transformer_unet_params):
@@ -535,7 +539,6 @@ class TestPredictiveModelTransformerUNet:
         diff = torch.max(torch.abs(output_instance - output_batch))
         assert diff <= abs_tol
 
-
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "batch_size, sample_len",
@@ -544,11 +547,7 @@ class TestPredictiveModelTransformerUNet:
         ],
     )
     @pytest.mark.parametrize(
-        "predictive_model_transformer_unet_params",
-        [
-            {"estimator": {"adaptive_rmsnorm": True}}
-        ], 
-        indirect=True
+        "predictive_model_transformer_unet_params", [{"estimator": {"adaptive_rmsnorm": True}}], indirect=True
     )
     def test_adaptive_rms_ebabled_fails(self, predictive_model_transformer_unet, batch_size, sample_len):
         """Test that the predictive model raises TypeError when adaptive RMS turned on"""
@@ -564,10 +563,7 @@ class TestPredictiveModelTransformerUNet:
         input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate), generator=rng)
         input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
 
-
         with pytest.raises(TypeError):
             # fail because of adaptive RMS turned on for predictive model
             with torch.no_grad():
-                _, _ = model.forward(
-                input_signal=input_signal, input_length=input_signal_length
-                )
+                _, _ = model.forward(input_signal=input_signal, input_length=input_signal_length)
